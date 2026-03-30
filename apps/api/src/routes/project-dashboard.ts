@@ -3,7 +3,7 @@ import type { FastifyInstance, FastifyPluginOptions } from "fastify";
 import { prisma } from "../lib/db.js";
 import { hashApiKeySecret } from "../lib/api-key-auth.js";
 import { getSessionUser } from "../lib/auth-session.js";
-import { resolveReadProjectId } from "../lib/read-project-request.js";
+import { resolveMemberProjectId } from "../lib/read-project-request.js";
 
 const DEFAULT_ORG_ID =
   process.env.TELEMETRY_ORGANIZATION_ID?.trim() ||
@@ -89,7 +89,7 @@ export async function projectDashboardRoutes(
   });
 
   app.get("/project/api-keys", async (request, reply) => {
-    const projectId = await resolveReadProjectId(request, reply);
+    const projectId = await resolveMemberProjectId(request, reply);
     if (projectId === null) return;
     const keys = await prisma.apiKey.findMany({
       where: { project_id: projectId, deleted_at: null },
@@ -118,7 +118,7 @@ export async function projectDashboardRoutes(
   });
 
   app.post("/project/api-keys", async (request, reply) => {
-    const projectId = await resolveReadProjectId(request, reply);
+    const projectId = await resolveMemberProjectId(request, reply);
     if (projectId === null) return;
     const body = (request.body ?? {}) as { name?: string };
     const name =
@@ -152,7 +152,7 @@ export async function projectDashboardRoutes(
   app.post<{ Params: { publicId: string } }>(
     "/project/api-keys/:publicId/revoke",
     async (request, reply) => {
-      const projectId = await resolveReadProjectId(request, reply);
+      const projectId = await resolveMemberProjectId(request, reply);
       if (projectId === null) return;
       const publicId = request.params.publicId.toLowerCase();
       if (!/^[a-f0-9]{32}$/.test(publicId)) {

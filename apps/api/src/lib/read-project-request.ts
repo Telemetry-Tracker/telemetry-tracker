@@ -58,3 +58,53 @@ export async function resolveReadProjectId(
 
   return project.id;
 }
+
+/**
+ * Resolve project id for write-sensitive operations.
+ * Requires a valid session and organization membership for the selected project.
+ */
+export async function resolveMemberProjectId(
+  request: FastifyRequest,
+  reply: FastifyReply
+): Promise<string | null> {
+  const session = await getSessionUser(request);
+  if (!session) {
+    await reply.status(401).send({ error: "Unauthorized" });
+    return null;
+  }
+
+  const fallback = readProjectIdFromEnv();
+  const raw = headerFirst(request, "x-project-id");
+
+  let project: { id: string; organization_id: string } | null = null;
+  if (raw && UUID_RE.test(raw)) {
+    project = await prisma.project.findFirst({
+      where: { id: raw, deleted_at: null },
+      select: { id: true, organization_id: true },
+    });
+  }
+  if (!project) {
+    project = await prisma.project.findFirst({
+      where: { id: fallback, deleted_at: null },
+      select: { id: true, organization_id: true },
+    });
+  }
+  if (!project) {
+    await reply.status(404).send({ error: "Project not found" });
+    return null;
+  }
+
+  const membership = await prisma.organizationMembership.findFirst({
+    where: {
+      user_id: session.userId,
+      organization_id: project.organization_id,
+    },
+    select: { id: true },
+  });
+  if (!membership) {
+    await reply.status(403).send({ error: "Not a member of this project" });
+    return null;
+  }
+
+  return project.id;
+}
