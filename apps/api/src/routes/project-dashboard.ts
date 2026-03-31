@@ -1,5 +1,10 @@
 import { randomBytes } from "node:crypto";
-import type { FastifyInstance, FastifyPluginOptions } from "fastify";
+import type {
+  FastifyInstance,
+  FastifyPluginOptions,
+  FastifyReply,
+  FastifyRequest,
+} from "fastify";
 import { prisma } from "../lib/db.js";
 import { hashApiKeySecret } from "../lib/api-key-auth.js";
 import { getSessionUser } from "../lib/auth-session.js";
@@ -16,6 +21,40 @@ export async function projectDashboardRoutes(
   app: FastifyInstance,
   _opts: FastifyPluginOptions
 ) {
+  async function resolveApiKeyProjectForUser(
+    request: FastifyRequest,
+    reply: FastifyReply
+  ): Promise<string | null> {
+    const session = await getSessionUser(request);
+    if (!session) {
+      await reply.status(401).send({ error: "Unauthorized" });
+      return null;
+    }
+
+    const projectId = await resolveReadProjectId(request, reply);
+    if (projectId === null) return null;
+
+    // `resolveReadProjectId` intentionally supports unauthenticated fallback for legacy reads.
+    // API key lifecycle must always enforce org membership for the resolved project.
+    const project = await prisma.project.findFirst({
+      where: { id: projectId, deleted_at: null },
+      select: { organization_id: true },
+    });
+    if (!project) {
+      await reply.status(404).send({ error: "Project not found" });
+      return null;
+    }
+    const member = await prisma.organizationMembership.findFirst({
+      where: { user_id: session.userId, organization_id: project.organization_id },
+      select: { user_id: true },
+    });
+    if (!member) {
+      await reply.status(403).send({ error: "Not a member of this project" });
+      return null;
+    }
+    return projectId;
+  }
+
   app.get("/meta/projects", async (request, reply) => {
     const session = await getSessionUser(request);
     if (session) {
@@ -89,7 +128,7 @@ export async function projectDashboardRoutes(
   });
 
   app.get("/project/api-keys", async (request, reply) => {
-    const projectId = await resolveReadProjectId(request, reply);
+    const projectId = await resolveApiKeyProjectForUser(request, reply);
     if (projectId === null) return;
     const keys = await prisma.apiKey.findMany({
       where: { project_id: projectId, deleted_at: null },
@@ -118,7 +157,7 @@ export async function projectDashboardRoutes(
   });
 
   app.post("/project/api-keys", async (request, reply) => {
-    const projectId = await resolveReadProjectId(request, reply);
+    const projectId = await resolveApiKeyProjectForUser(request, reply);
     if (projectId === null) return;
     const body = (request.body ?? {}) as { name?: string };
     const name =
@@ -152,7 +191,7 @@ export async function projectDashboardRoutes(
   app.post<{ Params: { publicId: string } }>(
     "/project/api-keys/:publicId/revoke",
     async (request, reply) => {
-      const projectId = await resolveReadProjectId(request, reply);
+      const projectId = await resolveApiKeyProjectForUser(request, reply);
       if (projectId === null) return;
       const publicId = request.params.publicId.toLowerCase();
       if (!/^[a-f0-9]{32}$/.test(publicId)) {
