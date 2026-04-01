@@ -37,6 +37,17 @@ export function getSessionTokenFromRequest(request: FastifyRequest): string | un
 
 export type SessionUser = { userId: string };
 
+/**
+ * Legacy/public dashboard mode keeps read APIs open without user sessions.
+ * Private mode (default) requires authenticated sessions for dashboard reads.
+ */
+export function isPublicDashboardModeEnabled(): boolean {
+  return (
+    process.env.TELEMETRY_PUBLIC_DASHBOARD === "true" ||
+    process.env.NEXT_PUBLIC_TELEMETRY_PUBLIC_DASHBOARD === "true"
+  );
+}
+
 export async function getSessionUser(
   request: FastifyRequest
 ): Promise<SessionUser | null> {

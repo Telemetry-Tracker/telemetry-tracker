@@ -1,6 +1,6 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { prisma } from "./db.js";
-import { getSessionUser } from "./auth-session.js";
+import { getSessionUser, isPublicDashboardModeEnabled } from "./auth-session.js";
 import { readProjectIdFromEnv } from "./project-scope.js";
 
 const UUID_RE =
@@ -19,9 +19,10 @@ function headerFirst(
 
 /**
  * Dashboard sends `X-Project-Id` to scope reads. Validates UUID and that the project exists
- * and is not soft-deleted. If a session is present, the user must be a member of the project’s
- * organization. Without a session, legacy behavior: any existing project id (or env fallback).
- * Returns `null` after sending 403 when the session user may not access the project.
+ * and is not soft-deleted (fallbacks to `TELEMETRY_PROJECT_ID` when missing/invalid).
+ * In private mode (default), a valid user session is required and the user must be a member
+ * of the project's organization. In public mode, sessionless reads are allowed.
+ * Returns `null` after sending 401/403 when access is denied.
  */
 export async function resolveReadProjectId(
   request: FastifyRequest,
@@ -29,31 +30,44 @@ export async function resolveReadProjectId(
 ): Promise<string | null> {
   const fallback = readProjectIdFromEnv();
   const raw = headerFirst(request, "x-project-id");
-  if (!raw || !UUID_RE.test(raw)) {
-    return fallback;
+
+  const requested = raw && UUID_RE.test(raw) ? raw : undefined;
+  const project =
+    (requested
+      ? await prisma.project.findFirst({
+          where: { id: requested, deleted_at: null },
+          select: { id: true, organization_id: true },
+        })
+      : null) ??
+    (await prisma.project.findFirst({
+      where: { id: fallback, deleted_at: null },
+      select: { id: true, organization_id: true },
+    }));
+  if (!project) {
+    await reply.status(503).send({ error: "No active project configured" });
+    return null;
   }
 
-  const project = await prisma.project.findFirst({
-    where: { id: raw, deleted_at: null },
-    select: { id: true, organization_id: true },
-  });
-  if (!project) {
-    return fallback;
+  if (isPublicDashboardModeEnabled()) {
+    return project.id;
   }
 
   const session = await getSessionUser(request);
-  if (session) {
-    const m = await prisma.organizationMembership.findFirst({
-      where: {
-        user_id: session.userId,
-        organization_id: project.organization_id,
-      },
-    });
-    if (!m) {
-      await reply.status(403).send({ error: "Not a member of this project" });
-      return null;
-    }
-    return project.id;
+  if (!session) {
+    await reply.status(401).send({ error: "Unauthorized" });
+    return null;
+  }
+
+  const m = await prisma.organizationMembership.findFirst({
+    where: {
+      user_id: session.userId,
+      organization_id: project.organization_id,
+    },
+    select: { id: true, organization_id: true },
+  });
+  if (!m) {
+    await reply.status(403).send({ error: "Not a member of this project" });
+    return null;
   }
 
   return project.id;

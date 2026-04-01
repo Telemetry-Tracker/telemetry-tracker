@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import type { FastifyInstance, FastifyPluginOptions } from "fastify";
 import { prisma } from "../lib/db.js";
 import { hashApiKeySecret } from "../lib/api-key-auth.js";
-import { getSessionUser } from "../lib/auth-session.js";
+import { getSessionUser, isPublicDashboardModeEnabled } from "../lib/auth-session.js";
 import { resolveReadProjectId } from "../lib/read-project-request.js";
 
 const DEFAULT_ORG_ID =
@@ -16,6 +16,8 @@ export async function projectDashboardRoutes(
   app: FastifyInstance,
   _opts: FastifyPluginOptions
 ) {
+  const publicMode = isPublicDashboardModeEnabled();
+
   app.get("/meta/projects", async (request, reply) => {
     const session = await getSessionUser(request);
     if (session) {
@@ -33,6 +35,9 @@ export async function projectDashboardRoutes(
         orderBy: { name: "asc" },
       });
       return reply.send({ projects });
+    }
+    if (!publicMode) {
+      return reply.status(401).send({ error: "Unauthorized" });
     }
     const projects = await prisma.project.findMany({
       where: { organization_id: DEFAULT_ORG_ID, deleted_at: null },
