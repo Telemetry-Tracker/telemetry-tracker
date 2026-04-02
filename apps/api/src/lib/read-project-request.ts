@@ -19,8 +19,8 @@ function headerFirst(
 
 /**
  * Dashboard sends `X-Project-Id` to scope reads. Validates UUID and that the project exists
- * and is not soft-deleted. If a session is present, the user must be a member of the project’s
- * organization. Without a session, legacy behavior: any existing project id (or env fallback).
+ * and is not soft-deleted. If a session is present, the user must be a member of the resolved
+ * project's organization (including env fallback). Without a session, only env fallback is used.
  * Returns `null` after sending 403 when the session user may not access the project.
  */
 export async function resolveReadProjectId(
@@ -29,32 +29,38 @@ export async function resolveReadProjectId(
 ): Promise<string | null> {
   const fallback = readProjectIdFromEnv();
   const raw = headerFirst(request, "x-project-id");
-  if (!raw || !UUID_RE.test(raw)) {
+  const requestedProjectId = raw && UUID_RE.test(raw) ? raw : undefined;
+  const session = await getSessionUser(request);
+
+  // No session: preserve legacy public access to the env-scoped project only.
+  if (!session) {
     return fallback;
   }
 
-  const project = await prisma.project.findFirst({
-    where: { id: raw, deleted_at: null },
+  const candidateProjectId = requestedProjectId ?? fallback;
+  let project = await prisma.project.findFirst({
+    where: { id: candidateProjectId, deleted_at: null },
     select: { id: true, organization_id: true },
   });
+  if (!project && candidateProjectId !== fallback) {
+    project = await prisma.project.findFirst({
+      where: { id: fallback, deleted_at: null },
+      select: { id: true, organization_id: true },
+    });
+  }
   if (!project) {
     return fallback;
   }
 
-  const session = await getSessionUser(request);
-  if (session) {
-    const m = await prisma.organizationMembership.findFirst({
-      where: {
-        user_id: session.userId,
-        organization_id: project.organization_id,
-      },
-    });
-    if (!m) {
-      await reply.status(403).send({ error: "Not a member of this project" });
-      return null;
-    }
-    return project.id;
+  const m = await prisma.organizationMembership.findFirst({
+    where: {
+      user_id: session.userId,
+      organization_id: project.organization_id,
+    },
+  });
+  if (!m) {
+    await reply.status(403).send({ error: "Not a member of this project" });
+    return null;
   }
-
   return project.id;
 }
