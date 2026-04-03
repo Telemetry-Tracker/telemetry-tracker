@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import type { FastifyInstance, FastifyPluginOptions } from "fastify";
+import type { FastifyReply, FastifyRequest } from "fastify";
 import { prisma } from "../lib/db.js";
 import { hashApiKeySecret } from "../lib/api-key-auth.js";
 import { getSessionUser } from "../lib/auth-session.js";
@@ -8,6 +9,18 @@ import { resolveReadProjectId } from "../lib/read-project-request.js";
 const DEFAULT_ORG_ID =
   process.env.TELEMETRY_ORGANIZATION_ID?.trim() ||
   "a0000000-0000-4000-8000-000000000001";
+
+async function requireAuthenticatedProjectAccess(
+  request: FastifyRequest,
+  reply: FastifyReply
+): Promise<string | null> {
+  const session = await getSessionUser(request);
+  if (!session) {
+    await reply.status(401).send({ error: "Unauthorized" });
+    return null;
+  }
+  return resolveReadProjectId(request, reply);
+}
 
 /**
  * Dashboard routes: project list, org members, API key lifecycle.
@@ -89,7 +102,7 @@ export async function projectDashboardRoutes(
   });
 
   app.get("/project/api-keys", async (request, reply) => {
-    const projectId = await resolveReadProjectId(request, reply);
+    const projectId = await requireAuthenticatedProjectAccess(request, reply);
     if (projectId === null) return;
     const keys = await prisma.apiKey.findMany({
       where: { project_id: projectId, deleted_at: null },
@@ -118,7 +131,7 @@ export async function projectDashboardRoutes(
   });
 
   app.post("/project/api-keys", async (request, reply) => {
-    const projectId = await resolveReadProjectId(request, reply);
+    const projectId = await requireAuthenticatedProjectAccess(request, reply);
     if (projectId === null) return;
     const body = (request.body ?? {}) as { name?: string };
     const name =
@@ -152,7 +165,7 @@ export async function projectDashboardRoutes(
   app.post<{ Params: { publicId: string } }>(
     "/project/api-keys/:publicId/revoke",
     async (request, reply) => {
-      const projectId = await resolveReadProjectId(request, reply);
+      const projectId = await requireAuthenticatedProjectAccess(request, reply);
       if (projectId === null) return;
       const publicId = request.params.publicId.toLowerCase();
       if (!/^[a-f0-9]{32}$/.test(publicId)) {
