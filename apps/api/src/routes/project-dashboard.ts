@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import type { FastifyInstance, FastifyPluginOptions } from "fastify";
+import type { FastifyInstance, FastifyPluginOptions, FastifyReply, FastifyRequest } from "fastify";
 import { prisma } from "../lib/db.js";
 import { hashApiKeySecret } from "../lib/api-key-auth.js";
 import { getSessionUser } from "../lib/auth-session.js";
@@ -16,6 +16,15 @@ export async function projectDashboardRoutes(
   app: FastifyInstance,
   _opts: FastifyPluginOptions
 ) {
+  async function requireSessionUser(request: FastifyRequest, reply: FastifyReply) {
+    const session = await getSessionUser(request);
+    if (!session) {
+      await reply.status(401).send({ error: "Unauthorized" });
+      return null;
+    }
+    return session;
+  }
+
   app.get("/meta/projects", async (request, reply) => {
     const session = await getSessionUser(request);
     if (session) {
@@ -89,6 +98,8 @@ export async function projectDashboardRoutes(
   });
 
   app.get("/project/api-keys", async (request, reply) => {
+    const session = await requireSessionUser(request, reply);
+    if (!session) return;
     const projectId = await resolveReadProjectId(request, reply);
     if (projectId === null) return;
     const keys = await prisma.apiKey.findMany({
@@ -118,6 +129,8 @@ export async function projectDashboardRoutes(
   });
 
   app.post("/project/api-keys", async (request, reply) => {
+    const session = await requireSessionUser(request, reply);
+    if (!session) return;
     const projectId = await resolveReadProjectId(request, reply);
     if (projectId === null) return;
     const body = (request.body ?? {}) as { name?: string };
@@ -152,6 +165,8 @@ export async function projectDashboardRoutes(
   app.post<{ Params: { publicId: string } }>(
     "/project/api-keys/:publicId/revoke",
     async (request, reply) => {
+      const session = await requireSessionUser(request, reply);
+      if (!session) return;
       const projectId = await resolveReadProjectId(request, reply);
       if (projectId === null) return;
       const publicId = request.params.publicId.toLowerCase();
