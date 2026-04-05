@@ -20,8 +20,10 @@ function headerFirst(
 /**
  * Dashboard sends `X-Project-Id` to scope reads. Validates UUID and that the project exists
  * and is not soft-deleted. If a session is present, the user must be a member of the project’s
- * organization. Without a session, legacy behavior: any existing project id (or env fallback).
- * Returns `null` after sending 403 when the session user may not access the project.
+ * organization. If a session is present, missing/invalid/unavailable project headers are denied
+ * instead of falling back to the legacy default project.
+ * Without a session, legacy behavior remains: any existing project id (or env fallback).
+ * Returns `null` after sending 403 when the request may not access the resolved project.
  */
 export async function resolveReadProjectId(
   request: FastifyRequest,
@@ -30,6 +32,11 @@ export async function resolveReadProjectId(
   const fallback = readProjectIdFromEnv();
   const raw = headerFirst(request, "x-project-id");
   if (!raw || !UUID_RE.test(raw)) {
+    const session = await getSessionUser(request);
+    if (session) {
+      await reply.status(403).send({ error: "Project access denied" });
+      return null;
+    }
     return fallback;
   }
 
@@ -38,6 +45,11 @@ export async function resolveReadProjectId(
     select: { id: true, organization_id: true },
   });
   if (!project) {
+    const session = await getSessionUser(request);
+    if (session) {
+      await reply.status(403).send({ error: "Project access denied" });
+      return null;
+    }
     return fallback;
   }
 
