@@ -58,3 +58,46 @@ export async function resolveReadProjectId(
 
   return project.id;
 }
+
+/**
+ * Strict variant for write operations: requires an authenticated session and explicit project id.
+ * Unlike `resolveReadProjectId`, it never falls back to env default for anonymous callers.
+ */
+export async function resolveMemberProjectId(
+  request: FastifyRequest,
+  reply: FastifyReply
+): Promise<string | null> {
+  const session = await getSessionUser(request);
+  if (!session) {
+    await reply.status(401).send({ error: "Unauthorized" });
+    return null;
+  }
+
+  const raw = headerFirst(request, "x-project-id");
+  if (!raw || !UUID_RE.test(raw)) {
+    await reply.status(400).send({ error: "Invalid or missing X-Project-Id" });
+    return null;
+  }
+
+  const project = await prisma.project.findFirst({
+    where: { id: raw, deleted_at: null },
+    select: { id: true, organization_id: true },
+  });
+  if (!project) {
+    await reply.status(404).send({ error: "Project not found" });
+    return null;
+  }
+
+  const membership = await prisma.organizationMembership.findFirst({
+    where: {
+      user_id: session.userId,
+      organization_id: project.organization_id,
+    },
+  });
+  if (!membership) {
+    await reply.status(403).send({ error: "Not a member of this project" });
+    return null;
+  }
+
+  return project.id;
+}

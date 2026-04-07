@@ -26,7 +26,10 @@ import {
   whereSessionById,
   whereSessionProject,
 } from "../lib/prisma-project-scope.js";
-import { resolveReadProjectId } from "../lib/read-project-request.js";
+import {
+  resolveMemberProjectId,
+  resolveReadProjectId,
+} from "../lib/read-project-request.js";
 import {
   EVENT_SORT_SQL,
   eventListOrderBy,
@@ -379,7 +382,7 @@ export async function apiRoutes(
   });
 
   app.patch<{ Params: { id: string } }>("/errors/:id", async (request, reply) => {
-    const projectId = await resolveReadProjectId(request, reply);
+    const projectId = await resolveMemberProjectId(request, reply);
     if (projectId === null) return;
     const body = request.body as { resolved?: boolean };
     if (typeof body?.resolved !== "boolean") {
