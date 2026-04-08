@@ -89,6 +89,10 @@ export async function projectDashboardRoutes(
   });
 
   app.get("/project/api-keys", async (request, reply) => {
+    const session = await getSessionUser(request);
+    if (!session) {
+      return reply.status(401).send({ error: "Unauthorized" });
+    }
     const projectId = await resolveReadProjectId(request, reply);
     if (projectId === null) return;
     const keys = await prisma.apiKey.findMany({
@@ -118,6 +122,10 @@ export async function projectDashboardRoutes(
   });
 
   app.post("/project/api-keys", async (request, reply) => {
+    const session = await getSessionUser(request);
+    if (!session) {
+      return reply.status(401).send({ error: "Unauthorized" });
+    }
     const projectId = await resolveReadProjectId(request, reply);
     if (projectId === null) return;
     const body = (request.body ?? {}) as { name?: string };
@@ -152,6 +160,10 @@ export async function projectDashboardRoutes(
   app.post<{ Params: { publicId: string } }>(
     "/project/api-keys/:publicId/revoke",
     async (request, reply) => {
+      const session = await getSessionUser(request);
+      if (!session) {
+        return reply.status(401).send({ error: "Unauthorized" });
+      }
       const projectId = await resolveReadProjectId(request, reply);
       if (projectId === null) return;
       const publicId = request.params.publicId.toLowerCase();

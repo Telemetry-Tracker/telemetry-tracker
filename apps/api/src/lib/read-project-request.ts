@@ -29,32 +29,47 @@ export async function resolveReadProjectId(
 ): Promise<string | null> {
   const fallback = readProjectIdFromEnv();
   const raw = headerFirst(request, "x-project-id");
-  if (!raw || !UUID_RE.test(raw)) {
-    return fallback;
-  }
-
-  const project = await prisma.project.findFirst({
-    where: { id: raw, deleted_at: null },
-    select: { id: true, organization_id: true },
-  });
-  if (!project) {
-    return fallback;
-  }
-
   const session = await getSessionUser(request);
+  const requestedId = raw && UUID_RE.test(raw) ? raw : undefined;
+
+  const project = requestedId
+    ? await prisma.project.findFirst({
+        where: { id: requestedId, deleted_at: null },
+        select: { id: true, organization_id: true },
+      })
+    : null;
+  if (!project && !session) {
+    return fallback;
+  }
+
+  const resolved = project
+    ? project
+    : await prisma.project.findFirst({
+        where: { id: fallback, deleted_at: null },
+        select: { id: true, organization_id: true },
+      });
+
+  if (!resolved) {
+    if (session) {
+      await reply.status(403).send({ error: "Not a member of this project" });
+      return null;
+    }
+    return fallback;
+  }
+
   if (session) {
     const m = await prisma.organizationMembership.findFirst({
       where: {
         user_id: session.userId,
-        organization_id: project.organization_id,
+        organization_id: resolved.organization_id,
       },
     });
     if (!m) {
       await reply.status(403).send({ error: "Not a member of this project" });
       return null;
     }
-    return project.id;
+    return resolved.id;
   }
 
-  return project.id;
+  return resolved.id;
 }
