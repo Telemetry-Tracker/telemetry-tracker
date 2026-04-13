@@ -7,10 +7,47 @@ import { readProjectIdFromEnv } from "./project-scope.js";
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+async function resolveProjectIdOrFallback(
+  rawProjectId: string | undefined,
+  fallbackProjectId: string
+): Promise<string> {
+  if (!rawProjectId || !UUID_RE.test(rawProjectId)) {
+    return fallbackProjectId;
+  }
+  const project = await prisma.project.findFirst({
+    where: { id: rawProjectId, deleted_at: null },
+    select: { id: true },
+  });
+  return project?.id ?? fallbackProjectId;
+}
+
+async function sessionCanReadProject(
+  userId: string,
+  projectId: string
+): Promise<boolean | null> {
+  const project = await prisma.project.findFirst({
+    where: { id: projectId, deleted_at: null },
+    select: { organization_id: true },
+  });
+  if (!project) {
+    // Keep legacy behavior for non-existent fallback ids.
+    return null;
+  }
+  const membership = await prisma.organizationMembership.findFirst({
+    where: {
+      user_id: userId,
+      organization_id: project.organization_id,
+    },
+    select: { id: true },
+  });
+  return Boolean(membership);
+}
+
 /**
  * Dashboard sends `X-Project-Id` to scope reads. Validates UUID and that the project exists
- * and is not soft-deleted. If a session is present, the user must be a member of the project’s
- * organization. Without a session, legacy behavior: any existing project id (or env fallback).
+ * and is not soft-deleted; otherwise falls back to `TELEMETRY_PROJECT_ID`.
+ * If a session is present, the user must be a member of the resolved project’s organization.
+ * Without a session, legacy behavior remains (resolved project id or env fallback).
  * Returns `null` after sending 403 when the session user may not access the project.
  */
 export async function resolveReadProjectId(
@@ -19,34 +56,18 @@ export async function resolveReadProjectId(
 ): Promise<string | null> {
   const fallback = readProjectIdFromEnv();
   const raw = headerFirst(request, "x-project-id");
-  if (!raw || !UUID_RE.test(raw)) {
-    return fallback;
-  }
-
-  const project = await prisma.project.findFirst({
-    where: { id: raw, deleted_at: null },
-    select: { id: true, organization_id: true },
-  });
-  if (!project) {
-    return fallback;
-  }
+  const projectId = await resolveProjectIdOrFallback(raw, fallback);
 
   const session = await getSessionUser(request);
   if (session) {
-    const m = await prisma.organizationMembership.findFirst({
-      where: {
-        user_id: session.userId,
-        organization_id: project.organization_id,
-      },
-    });
-    if (!m) {
+    const canRead = await sessionCanReadProject(session.userId, projectId);
+    if (canRead === false) {
       await reply.status(403).send({ error: "Not a member of this project" });
       return null;
     }
-    return project.id;
   }
 
-  return project.id;
+  return projectId;
 }
 
 /**
@@ -60,29 +81,13 @@ export async function resolveReadProjectIdWithSession(
 ): Promise<string | null> {
   const fallback = readProjectIdFromEnv();
   const raw = headerFirst(request, "x-project-id");
-  if (!raw || !UUID_RE.test(raw)) {
-    return fallback;
-  }
-
-  const project = await prisma.project.findFirst({
-    where: { id: raw, deleted_at: null },
-    select: { id: true, organization_id: true },
-  });
-  if (!project) {
-    return fallback;
-  }
-
-  const m = await prisma.organizationMembership.findFirst({
-    where: {
-      user_id: session.userId,
-      organization_id: project.organization_id,
-    },
-  });
-  if (!m) {
+  const projectId = await resolveProjectIdOrFallback(raw, fallback);
+  const canRead = await sessionCanReadProject(session.userId, projectId);
+  if (canRead === false) {
     await reply.status(403).send({ error: "Not a member of this project" });
     return null;
   }
-  return project.id;
+  return projectId;
 }
 
 /**
@@ -95,31 +100,15 @@ export async function tryResolveReadProjectId(
 ): Promise<string | null> {
   const fallback = readProjectIdFromEnv();
   const raw = headerFirst(request, "x-project-id");
-  if (!raw || !UUID_RE.test(raw)) {
-    return fallback;
-  }
-
-  const project = await prisma.project.findFirst({
-    where: { id: raw, deleted_at: null },
-    select: { id: true, organization_id: true },
-  });
-  if (!project) {
-    return fallback;
-  }
+  const projectId = await resolveProjectIdOrFallback(raw, fallback);
 
   const session = await getSessionUser(request);
   if (session) {
-    const m = await prisma.organizationMembership.findFirst({
-      where: {
-        user_id: session.userId,
-        organization_id: project.organization_id,
-      },
-    });
-    if (!m) {
+    const canRead = await sessionCanReadProject(session.userId, projectId);
+    if (canRead === false) {
       return null;
     }
-    return project.id;
   }
 
-  return project.id;
+  return projectId;
 }
