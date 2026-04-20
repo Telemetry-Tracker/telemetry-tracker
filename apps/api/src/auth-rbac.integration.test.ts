@@ -11,6 +11,8 @@ const runDbIntegration = process.env.RUN_DB_INTEGRATION_TESTS === "true";
 describe.skipIf(!runDbIntegration)("Auth and RBAC (integration)", () => {
   let app: FastifyInstance | undefined;
   let organizationId: string | undefined;
+  let outsiderOrganizationId: string | undefined;
+  let outsiderProjectId: string;
   let projectId: string;
   let errorGroupId: string;
   let emailViewer: string;
@@ -40,6 +42,28 @@ describe.skipIf(!runDbIntegration)("Auth and RBAC (integration)", () => {
     });
     organizationId = org.id;
     projectId = org.projects[0]!.id;
+
+    const outsiderOrg = await prisma.organization.create({
+      data: {
+        name: `Outsider org ${suffix}`,
+        projects: {
+          create: {
+            name: "Outsider project",
+            slug: `outsider-${suffix}`,
+          },
+        },
+      },
+      include: { projects: true },
+    });
+    outsiderOrganizationId = outsiderOrg.id;
+    outsiderProjectId = outsiderOrg.projects[0]!.id;
+    await prisma.event.create({
+      data: {
+        project_id: outsiderProjectId,
+        app: "outsider-app",
+        name: "outsider-event",
+      },
+    });
 
     await prisma.user.create({
       data: {
@@ -84,6 +108,11 @@ describe.skipIf(!runDbIntegration)("Auth and RBAC (integration)", () => {
     if (app) await app.close();
     if (organizationId) {
       await prisma.organization.delete({ where: { id: organizationId } }).catch(() => {});
+    }
+    if (outsiderOrganizationId) {
+      await prisma.organization
+        .delete({ where: { id: outsiderOrganizationId } })
+        .catch(() => {});
     }
     // Users do not cascade from Organization; login tests also create UserSession rows (cascade on User delete).
     const testEmails = [emailViewer, emailEditor].filter(Boolean);
@@ -184,5 +213,33 @@ describe.skipIf(!runDbIntegration)("Auth and RBAC (integration)", () => {
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body) as { resolved_at: string | null };
     expect(body.resolved_at).not.toBeNull();
+  });
+
+  it("GET /api/apps denies authenticated fallback access outside membership", async () => {
+    const login = await app!.inject({
+      method: "POST",
+      url: "/api/auth/login",
+      headers: { "content-type": "application/json" },
+      payload: { email: emailViewer, password },
+    });
+    const { sessionId } = JSON.parse(login.body) as { sessionId: string };
+
+    const prev = process.env.TELEMETRY_PROJECT_ID;
+    process.env.TELEMETRY_PROJECT_ID = outsiderProjectId;
+    try {
+      const res = await app!.inject({
+        method: "GET",
+        url: "/api/apps",
+        headers: {
+          authorization: `Bearer ${sessionId}`,
+        },
+      });
+      expect(res.statusCode).toBe(403);
+      const body = JSON.parse(res.body) as { error?: string };
+      expect(body.error).toBe("Not a member of this project");
+    } finally {
+      if (prev === undefined) delete process.env.TELEMETRY_PROJECT_ID;
+      else process.env.TELEMETRY_PROJECT_ID = prev;
+    }
   });
 });
