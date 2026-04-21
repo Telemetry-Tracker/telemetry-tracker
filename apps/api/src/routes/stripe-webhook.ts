@@ -92,14 +92,10 @@ export async function registerStripeWebhookIfConfigured(
                 });
               } catch (e) {
                 if (!isUniqueConstraintError(e)) throw e;
-                request.log.warn(
+                request.log.error(
                   { err: e, orgId, eventId: event.id },
-                  "checkout.session.completed: Stripe customer/subscription ids already linked elsewhere; applying plan tier only"
+                  "checkout.session.completed: Stripe customer/subscription ids already linked elsewhere; skipping update to avoid granting plan without ownership"
                 );
-                await prisma.organization.updateMany({
-                  where: { id: orgId, deleted_at: null },
-                  data: { plan_tier: tier },
-                });
               }
             }
             break;
