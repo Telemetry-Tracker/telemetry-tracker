@@ -1,8 +1,10 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const constructEventMock = vi.fn();
-const updateManyMock = vi.fn();
+const { constructEventMock, updateManyMock } = vi.hoisted(() => ({
+  constructEventMock: vi.fn(),
+  updateManyMock: vi.fn(),
+}));
 
 vi.mock("stripe", () => {
   class StripeMock {
