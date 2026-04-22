@@ -9,6 +9,13 @@ function parsePlanTier(raw: string | undefined): PlanTier | null {
   return null;
 }
 
+type StripeUniqueTarget = "stripe_customer_id" | "stripe_subscription_id";
+type PaidTierUpdateData = {
+  plan_tier: Exclude<PlanTier, PlanTier.FREE>;
+  stripe_subscription_id: string;
+  stripe_customer_id?: string;
+};
+
 /** Prisma P2002 — unique constraint (e.g. Stripe customer/sub already bound to another org). */
 function isUniqueConstraintError(e: unknown): boolean {
   return (
@@ -17,6 +24,58 @@ function isUniqueConstraintError(e: unknown): boolean {
     "code" in e &&
     (e as { code: unknown }).code === "P2002"
   );
+}
+
+/**
+ * Extract constrained field names from a Prisma unique error.
+ * If the shape is unexpected, returns an empty set.
+ */
+export function uniqueConstraintTargets(e: unknown): Set<StripeUniqueTarget> {
+  if (!isUniqueConstraintError(e)) return new Set();
+  const maybeMeta =
+    typeof e === "object" && e !== null && "meta" in e
+      ? (e as { meta?: { target?: unknown } }).meta
+      : undefined;
+  const raw = maybeMeta?.target;
+  const names = Array.isArray(raw)
+    ? raw
+    : typeof raw === "string"
+      ? [raw]
+      : [];
+  const out = new Set<StripeUniqueTarget>();
+  for (const n of names) {
+    if (n === "stripe_customer_id" || n === "stripe_subscription_id") out.add(n);
+  }
+  return out;
+}
+
+function buildPaidTierUpdateData(
+  tier: Exclude<PlanTier, PlanTier.FREE>,
+  customerId: string | null,
+  subId: string | null
+): PaidTierUpdateData | null {
+  if (subId === null) return null;
+  const data: PaidTierUpdateData = { plan_tier: tier, stripe_subscription_id: subId };
+  if (customerId !== null) data.stripe_customer_id = customerId;
+  return data;
+}
+
+/**
+ * Retry only when customer id conflicts but subscription id can still be bound.
+ * Applying a paid tier without a unique subscription link can leave orgs permanently over-entitled.
+ */
+export function selectPaidTierFallbackData(
+  tier: Exclude<PlanTier, PlanTier.FREE>,
+  subId: string | null,
+  conflictTargets: Set<StripeUniqueTarget>
+): Pick<PaidTierUpdateData, "plan_tier" | "stripe_subscription_id"> | null {
+  if (subId === null) return null;
+  const customerOnlyConflict =
+    conflictTargets.size > 0 &&
+    conflictTargets.has("stripe_customer_id") &&
+    !conflictTargets.has("stripe_subscription_id");
+  if (!customerOnlyConflict) return null;
+  return { plan_tier: tier, stripe_subscription_id: subId };
 }
 
 /**
@@ -76,15 +135,14 @@ export async function registerStripeWebhookIfConfigured(
                       "id" in session.subscription
                     ? (session.subscription as Stripe.Subscription).id
                     : null;
-              // Do not set Stripe ids to null when missing from the session — that would
-              // wipe values from a prior checkout and break subscription.deleted lookups.
-              const data: {
-                plan_tier: typeof tier;
-                stripe_customer_id?: string;
-                stripe_subscription_id?: string;
-              } = { plan_tier: tier };
-              if (customerId !== null) data.stripe_customer_id = customerId;
-              if (subId !== null) data.stripe_subscription_id = subId;
+              const data = buildPaidTierUpdateData(tier, customerId, subId);
+              if (data === null) {
+                request.log.warn(
+                  { orgId, eventId: event.id },
+                  "checkout.session.completed: non-free tier without subscription id; skipping update"
+                );
+                break;
+              }
               try {
                 await prisma.organization.updateMany({
                   where: { id: orgId, deleted_at: null },
@@ -92,13 +150,27 @@ export async function registerStripeWebhookIfConfigured(
                 });
               } catch (e) {
                 if (!isUniqueConstraintError(e)) throw e;
+                const targets = uniqueConstraintTargets(e);
+                const fallback = selectPaidTierFallbackData(tier, subId, targets);
+                if (!fallback) {
+                  request.log.error(
+                    {
+                      err: e,
+                      orgId,
+                      eventId: event.id,
+                      conflictTargets: [...targets],
+                    },
+                    "checkout.session.completed: paid tier not applied because subscription ownership is ambiguous"
+                  );
+                  break;
+                }
                 request.log.warn(
                   { err: e, orgId, eventId: event.id },
-                  "checkout.session.completed: Stripe customer/subscription ids already linked elsewhere; applying plan tier only"
+                  "checkout.session.completed: customer id already linked elsewhere; retrying with subscription id only"
                 );
                 await prisma.organization.updateMany({
                   where: { id: orgId, deleted_at: null },
-                  data: { plan_tier: tier },
+                  data: fallback,
                 });
               }
             }
