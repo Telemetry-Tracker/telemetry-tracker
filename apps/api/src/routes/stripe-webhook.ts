@@ -19,6 +19,71 @@ function isUniqueConstraintError(e: unknown): boolean {
   );
 }
 
+type CheckoutUpgradeInput = {
+  orgId: string;
+  tier: Exclude<PlanTier, PlanTier.FREE>;
+  customerId: string | null;
+  subscriptionId: string | null;
+  eventId: string;
+};
+
+type OrganizationModel = {
+  updateMany(args: {
+    where: { id: string; deleted_at: null };
+    data: {
+      plan_tier: Exclude<PlanTier, PlanTier.FREE>;
+      stripe_customer_id?: string;
+      stripe_subscription_id: string;
+    };
+  }): Promise<unknown>;
+};
+
+type LoggerLike = {
+  warn(bindings: Record<string, unknown>, message: string): void;
+};
+
+/**
+ * Applies a checkout upgrade only when we can also bind the Stripe subscription id.
+ * Failing closed avoids granting paid entitlements that cannot be revoked on
+ * `customer.subscription.deleted`.
+ */
+export async function applyCheckoutUpgradeUpdate(
+  organizationModel: OrganizationModel,
+  logger: LoggerLike,
+  input: CheckoutUpgradeInput
+): Promise<void> {
+  if (input.subscriptionId === null) {
+    logger.warn(
+      { orgId: input.orgId, eventId: input.eventId },
+      "checkout.session.completed: missing subscription id; refusing to grant paid tier"
+    );
+    return;
+  }
+
+  const data: {
+    plan_tier: Exclude<PlanTier, PlanTier.FREE>;
+    stripe_customer_id?: string;
+    stripe_subscription_id: string;
+  } = {
+    plan_tier: input.tier,
+    stripe_subscription_id: input.subscriptionId,
+  };
+  if (input.customerId !== null) data.stripe_customer_id = input.customerId;
+
+  try {
+    await organizationModel.updateMany({
+      where: { id: input.orgId, deleted_at: null },
+      data,
+    });
+  } catch (e) {
+    if (!isUniqueConstraintError(e)) throw e;
+    logger.warn(
+      { err: e, orgId: input.orgId, eventId: input.eventId },
+      "checkout.session.completed: Stripe ids already linked elsewhere; refusing to grant paid tier without binding subscription id"
+    );
+  }
+}
+
 /**
  * Stripe webhook (`POST /webhooks/stripe`). Registers only when
  * `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` are set.
@@ -76,31 +141,13 @@ export async function registerStripeWebhookIfConfigured(
                       "id" in session.subscription
                     ? (session.subscription as Stripe.Subscription).id
                     : null;
-              // Do not set Stripe ids to null when missing from the session — that would
-              // wipe values from a prior checkout and break subscription.deleted lookups.
-              const data: {
-                plan_tier: typeof tier;
-                stripe_customer_id?: string;
-                stripe_subscription_id?: string;
-              } = { plan_tier: tier };
-              if (customerId !== null) data.stripe_customer_id = customerId;
-              if (subId !== null) data.stripe_subscription_id = subId;
-              try {
-                await prisma.organization.updateMany({
-                  where: { id: orgId, deleted_at: null },
-                  data,
-                });
-              } catch (e) {
-                if (!isUniqueConstraintError(e)) throw e;
-                request.log.warn(
-                  { err: e, orgId, eventId: event.id },
-                  "checkout.session.completed: Stripe customer/subscription ids already linked elsewhere; applying plan tier only"
-                );
-                await prisma.organization.updateMany({
-                  where: { id: orgId, deleted_at: null },
-                  data: { plan_tier: tier },
-                });
-              }
+              await applyCheckoutUpgradeUpdate(prisma.organization, request.log, {
+                orgId,
+                tier,
+                customerId,
+                subscriptionId: subId,
+                eventId: event.id,
+              });
             }
             break;
           }
