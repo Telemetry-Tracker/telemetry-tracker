@@ -12,6 +12,8 @@ describe.skipIf(!runDbIntegration)("Auth and RBAC (integration)", () => {
   let app: FastifyInstance | undefined;
   let organizationId: string | undefined;
   let projectId: string;
+  let otherOrganizationId: string | undefined;
+  let otherProjectId: string | undefined;
   let errorGroupId: string;
   let emailViewer: string;
   let emailEditor: string;
@@ -40,6 +42,21 @@ describe.skipIf(!runDbIntegration)("Auth and RBAC (integration)", () => {
     });
     organizationId = org.id;
     projectId = org.projects[0]!.id;
+
+    const otherOrg = await prisma.organization.create({
+      data: {
+        name: `Fallback org ${suffix}`,
+        projects: {
+          create: {
+            name: "Fallback project",
+            slug: `fallback-${suffix}`,
+          },
+        },
+      },
+      include: { projects: true },
+    });
+    otherOrganizationId = otherOrg.id;
+    otherProjectId = otherOrg.projects[0]!.id;
 
     await prisma.user.create({
       data: {
@@ -82,6 +99,9 @@ describe.skipIf(!runDbIntegration)("Auth and RBAC (integration)", () => {
 
   afterAll(async () => {
     if (app) await app.close();
+    if (otherOrganizationId) {
+      await prisma.organization.delete({ where: { id: otherOrganizationId } }).catch(() => {});
+    }
     if (organizationId) {
       await prisma.organization.delete({ where: { id: organizationId } }).catch(() => {});
     }
@@ -136,6 +156,34 @@ describe.skipIf(!runDbIntegration)("Auth and RBAC (integration)", () => {
     };
     expect(meBody.user.email).toBe(emailViewer);
     expect(meBody.memberships.some((m) => m.role === "VIEWER")).toBe(true);
+  });
+
+  it("GET /api/apps denies authenticated fallback project access without membership", async () => {
+    process.env.TELEMETRY_PROJECT_ID = otherProjectId!;
+    const login = await app!.inject({
+      method: "POST",
+      url: "/api/auth/login",
+      headers: { "content-type": "application/json" },
+      payload: { email: emailViewer, password },
+    });
+    const { sessionId } = JSON.parse(login.body) as { sessionId: string };
+
+    const missingHeader = await app!.inject({
+      method: "GET",
+      url: "/api/apps",
+      headers: { authorization: `Bearer ${sessionId}` },
+    });
+    expect(missingHeader.statusCode).toBe(403);
+
+    const nonexistentProject = await app!.inject({
+      method: "GET",
+      url: "/api/apps",
+      headers: {
+        authorization: `Bearer ${sessionId}`,
+        "x-project-id": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+      },
+    });
+    expect(nonexistentProject.statusCode).toBe(403);
   });
 
   it("PATCH /api/errors/:id returns 403 for VIEWER", async () => {
