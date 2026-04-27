@@ -11,6 +11,8 @@ const runDbIntegration = process.env.RUN_DB_INTEGRATION_TESTS === "true";
 describe.skipIf(!runDbIntegration)("Auth and RBAC (integration)", () => {
   let app: FastifyInstance | undefined;
   let organizationId: string | undefined;
+  let fallbackOrganizationId: string | undefined;
+  let fallbackProjectId: string;
   let projectId: string;
   let errorGroupId: string;
   let emailViewer: string;
@@ -40,6 +42,27 @@ describe.skipIf(!runDbIntegration)("Auth and RBAC (integration)", () => {
     });
     organizationId = org.id;
     projectId = org.projects[0]!.id;
+
+    const fallbackOrg = await prisma.organization.create({
+      data: {
+        name: `Fallback leak org ${suffix}`,
+        projects: {
+          create: {
+            name: "Fallback private project",
+            slug: `fallback-${suffix}`,
+            events: {
+              create: {
+                app: "fallback-private-app",
+                name: "fallback-private-event",
+              },
+            },
+          },
+        },
+      },
+      include: { projects: true },
+    });
+    fallbackOrganizationId = fallbackOrg.id;
+    fallbackProjectId = fallbackOrg.projects[0]!.id;
 
     await prisma.user.create({
       data: {
@@ -85,6 +108,11 @@ describe.skipIf(!runDbIntegration)("Auth and RBAC (integration)", () => {
     if (organizationId) {
       await prisma.organization.delete({ where: { id: organizationId } }).catch(() => {});
     }
+    if (fallbackOrganizationId) {
+      await prisma.organization
+        .delete({ where: { id: fallbackOrganizationId } })
+        .catch(() => {});
+    }
     // Users do not cascade from Organization; login tests also create UserSession rows (cascade on User delete).
     const testEmails = [emailViewer, emailEditor].filter(Boolean);
     if (testEmails.length > 0) {
@@ -109,6 +137,28 @@ describe.skipIf(!runDbIntegration)("Auth and RBAC (integration)", () => {
   it("GET /api/auth/me returns 401 without session", async () => {
     const res = await app!.inject({ method: "GET", url: "/api/auth/me" });
     expect(res.statusCode).toBe(401);
+  });
+
+  it("GET /api/apps rejects authenticated fallback project access without membership", async () => {
+    const login = await app!.inject({
+      method: "POST",
+      url: "/api/auth/login",
+      headers: { "content-type": "application/json" },
+      payload: { email: emailViewer, password },
+    });
+    const { sessionId } = JSON.parse(login.body) as { sessionId: string };
+    process.env.TELEMETRY_PROJECT_ID = fallbackProjectId;
+
+    const res = await app!.inject({
+      method: "GET",
+      url: "/api/apps",
+      headers: { authorization: `Bearer ${sessionId}` },
+    });
+
+    expect(res.statusCode).toBe(403);
+    const body = JSON.parse(res.body) as { error?: string; apps?: string[] };
+    expect(body.error).toBe("Not a member of this project");
+    expect(body.apps).toBeUndefined();
   });
 
   it("POST /api/auth/login succeeds and GET /api/auth/me returns user", async () => {
