@@ -74,4 +74,40 @@ describe.skipIf(!runDbIntegration)("POST /ingest/event with API key (integration
     });
     expect(count).toBe(1);
   });
+
+  it("treats duplicate session starts as idempotent", async () => {
+    const project = await prisma.project.findFirst({
+      where: { organization_id: organizationId! },
+    });
+    expect(project).not.toBeNull();
+
+    const sessionId = `session-${randomBytes(8).toString("hex")}`;
+    const payload = { app: "integration-app", session_id: sessionId };
+    const request = {
+      method: "POST" as const,
+      url: "/ingest/session",
+      headers: {
+        authorization: `Bearer ${fullKey}`,
+        "content-type": "application/json",
+      },
+      payload,
+    };
+
+    const [first, second] = await Promise.all([
+      app!.inject(request),
+      app!.inject(request),
+    ]);
+
+    expect(first.statusCode).toBe(204);
+    expect(second.statusCode).toBe(204);
+    await expect(
+      prisma.session.count({
+        where: {
+          project_id: project!.id,
+          app: payload.app,
+          session_id: sessionId,
+        },
+      })
+    ).resolves.toBe(1);
+  });
 });

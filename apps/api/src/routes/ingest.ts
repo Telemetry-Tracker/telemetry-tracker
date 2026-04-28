@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import type {
   FastifyInstance,
   FastifyPluginOptions,
@@ -5,7 +6,6 @@ import type {
   FastifyRequest,
 } from "fastify";
 import { z } from "zod";
-import type { Prisma } from "@prisma/client";
 import { prisma } from "../lib/db.js";
 import { createIngestAuthPreHandler, requireIngestProjectId } from "../middleware/ingest-auth.js";
 import { assertIngestPlanOrReply } from "../lib/plan-enforcement.js";
@@ -64,6 +64,10 @@ const batchSchema = z.object({
 const APP_RESTRICT_MSG =
   "This API key is restricted to a specific app label; send a matching `app` field.";
 
+function isUniqueConstraintError(e: unknown): boolean {
+  return e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
+}
+
 function assertIngestAppAllowed(
   request: FastifyRequest,
   app: string,
@@ -94,22 +98,24 @@ export async function ingestRoutes(
     if (!assertIngestAppAllowed(request, body.app, reply)) return;
     const planOk = await assertIngestPlanOrReply(prisma, projectId, 1, [body.app]);
     if (!planOk.ok) return reply.status(planOk.status).send(planOk.body);
-    await prisma.event.create({
-      data: {
-        project_id: projectId,
-        app: body.app,
-        platform: body.platform ?? null,
-        environment: body.environment ?? null,
-        release: body.release ?? null,
-        name: body.name,
-        user_id: body.user_id ?? null,
-        session_id: body.session_id ?? null,
-        anonymous_id: body.anonymous_id ?? null,
-        sdk_version: body.sdk_version ?? null,
-        properties: (body.properties ?? undefined) as Prisma.InputJsonValue | undefined,
-      },
+    await prisma.$transaction(async (tx) => {
+      await tx.event.create({
+        data: {
+          project_id: projectId,
+          app: body.app,
+          platform: body.platform ?? null,
+          environment: body.environment ?? null,
+          release: body.release ?? null,
+          name: body.name,
+          user_id: body.user_id ?? null,
+          session_id: body.session_id ?? null,
+          anonymous_id: body.anonymous_id ?? null,
+          sdk_version: body.sdk_version ?? null,
+          properties: (body.properties ?? undefined) as Prisma.InputJsonValue | undefined,
+        },
+      });
+      await addIngestUnits(tx, projectId, 1);
     });
-    await addIngestUnits(prisma, projectId, 1);
     return reply.status(204).send();
   });
 
@@ -121,9 +127,14 @@ export async function ingestRoutes(
     }
     const body = parsed.data;
     if (!assertIngestAppAllowed(request, body.app, reply)) return;
-    const existing = await prisma.session.findFirst({
-      where: { project_id: projectId, session_id: body.session_id, app: body.app },
-      orderBy: { started_at: "desc" },
+    const existing = await prisma.session.findUnique({
+      where: {
+        project_id_session_id_app: {
+          project_id: projectId,
+          session_id: body.session_id,
+          app: body.app,
+        },
+      },
     });
     // Closing a session only sets `ended_at` — no new telemetry; must not be blocked by quota.
     if (existing && body.ended_at) {
@@ -139,21 +150,38 @@ export async function ingestRoutes(
     }
     const planOk = await assertIngestPlanOrReply(prisma, projectId, 1, [body.app]);
     if (!planOk.ok) return reply.status(planOk.status).send(planOk.body);
-    if (!existing) {
-      await prisma.session.create({
-        data: {
-          project_id: projectId,
-          session_id: body.session_id,
-          app: body.app,
-          platform: body.platform ?? null,
-          user_id: body.user_id ?? null,
-          anonymous_id: body.anonymous_id ?? null,
-          sdk_version: body.sdk_version ?? null,
-          started_at: body.started_at ? new Date(body.started_at) : undefined,
-        },
+    try {
+      await prisma.$transaction(async (tx) => {
+        await tx.session.create({
+          data: {
+            project_id: projectId,
+            session_id: body.session_id,
+            app: body.app,
+            platform: body.platform ?? null,
+            user_id: body.user_id ?? null,
+            anonymous_id: body.anonymous_id ?? null,
+            sdk_version: body.sdk_version ?? null,
+            started_at: body.started_at ? new Date(body.started_at) : undefined,
+            ended_at: body.ended_at ? new Date(body.ended_at) : null,
+          },
+        });
+        await addIngestUnits(tx, projectId, 1);
       });
+    } catch (e) {
+      if (!isUniqueConstraintError(e)) throw e;
+      if (body.ended_at) {
+        await prisma.session.update({
+          where: {
+            project_id_session_id_app: {
+              project_id: projectId,
+              session_id: body.session_id,
+              app: body.app,
+            },
+          },
+          data: { ended_at: new Date(body.ended_at) },
+        });
+      }
     }
-    await addIngestUnits(prisma, projectId, 1);
     return reply.status(204).send();
   });
 
@@ -175,24 +203,26 @@ export async function ingestRoutes(
     const batchApps = parsed.data.events.map((e) => e.app);
     const planOk = await assertIngestPlanOrReply(prisma, projectId, n, batchApps);
     if (!planOk.ok) return reply.status(planOk.status).send(planOk.body);
-    for (const body of parsed.data.events) {
-      await prisma.event.create({
-        data: {
-          project_id: projectId,
-          app: body.app,
-          platform: body.platform ?? null,
-          environment: body.environment ?? null,
-          release: body.release ?? null,
-          name: body.name,
-          user_id: body.user_id ?? null,
-          session_id: body.session_id ?? null,
-          anonymous_id: body.anonymous_id ?? null,
-          sdk_version: body.sdk_version ?? null,
-          properties: (body.properties ?? undefined) as Prisma.InputJsonValue | undefined,
-        },
-      });
-    }
-    await addIngestUnits(prisma, projectId, n);
+    await prisma.$transaction(async (tx) => {
+      for (const body of parsed.data.events) {
+        await tx.event.create({
+          data: {
+            project_id: projectId,
+            app: body.app,
+            platform: body.platform ?? null,
+            environment: body.environment ?? null,
+            release: body.release ?? null,
+            name: body.name,
+            user_id: body.user_id ?? null,
+            session_id: body.session_id ?? null,
+            anonymous_id: body.anonymous_id ?? null,
+            sdk_version: body.sdk_version ?? null,
+            properties: (body.properties ?? undefined) as Prisma.InputJsonValue | undefined,
+          },
+        });
+      }
+      await addIngestUnits(tx, projectId, n);
+    });
     return reply.status(204).send();
   });
 
@@ -207,26 +237,28 @@ export async function ingestRoutes(
     const planOk = await assertIngestPlanOrReply(prisma, projectId, 1, [body.app]);
     if (!planOk.ok) return reply.status(planOk.status).send(planOk.body);
     const fingerprint = computeFingerprint(body.message, body.stack);
-    const errorGroup = await findOrCreateErrorGroup(prisma, {
-      projectId,
-      fingerprint,
-      message: body.message,
-      top_stack: body.stack?.split("\n")[0]?.trim() ?? null,
-      app: body.app,
-      environment: body.environment ?? null,
+    await prisma.$transaction(async (tx) => {
+      const errorGroup = await findOrCreateErrorGroup(tx, {
+        projectId,
+        fingerprint,
+        message: body.message,
+        top_stack: body.stack?.split("\n")[0]?.trim() ?? null,
+        app: body.app,
+        environment: body.environment ?? null,
+      });
+      await tx.errorOccurrence.create({
+        data: {
+          error_group_id: errorGroup.id,
+          stack: body.stack ?? null,
+          context: (body.context ?? undefined) as Prisma.InputJsonValue | undefined,
+          session_id: body.session_id ?? null,
+          user_id: body.user_id ?? null,
+          anonymous_id: body.anonymous_id ?? null,
+          sdk_version: body.sdk_version ?? null,
+        },
+      });
+      await addIngestUnits(tx, projectId, 1);
     });
-    await prisma.errorOccurrence.create({
-      data: {
-        error_group_id: errorGroup.id,
-        stack: body.stack ?? null,
-        context: (body.context ?? undefined) as Prisma.InputJsonValue | undefined,
-        session_id: body.session_id ?? null,
-        user_id: body.user_id ?? null,
-        anonymous_id: body.anonymous_id ?? null,
-        sdk_version: body.sdk_version ?? null,
-      },
-    });
-    await addIngestUnits(prisma, projectId, 1);
     return reply.status(204).send();
   });
 }

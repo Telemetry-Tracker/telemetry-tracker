@@ -231,4 +231,5 @@ model Session {
 
   @@index([project_id, started_at])
   @@index([project_id, app])
+  @@unique([project_id, session_id, app])
 }
