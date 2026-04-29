@@ -5,7 +5,7 @@ import type {
   FastifyRequest,
 } from "fastify";
 import { z } from "zod";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/db.js";
 import { createIngestAuthPreHandler, requireIngestProjectId } from "../middleware/ingest-auth.js";
 import { assertIngestPlanOrReply, runSerializableTransaction } from "../lib/plan-enforcement.js";
@@ -76,6 +76,10 @@ function assertIngestAppAllowed(
     return false;
   }
   return true;
+}
+
+function isUniqueConstraintError(e: unknown): boolean {
+  return e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
 }
 
 export async function ingestRoutes(
@@ -154,6 +158,9 @@ export async function ingestRoutes(
       });
       await addIngestUnits(tx, projectId, 1);
       return { ok: true as const };
+    }).catch((e: unknown) => {
+      if (isUniqueConstraintError(e)) return { ok: true as const };
+      throw e;
     });
     if (!result.ok) return reply.status(result.status).send(result.body);
     return reply.status(204).send();
