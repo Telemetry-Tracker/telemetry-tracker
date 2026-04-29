@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 
 /** Step 6 — Basic monthly rollup for quota enforcement (`UsageMonthly`). */
 
@@ -9,7 +9,7 @@ export function currentYearMonth(): string {
 
 /** Increment monthly ingest counter (best-effort; quota enforcement can read the same row). */
 export async function addIngestUnits(
-  prisma: PrismaClient,
+  prisma: PrismaClient | Prisma.TransactionClient,
   projectId: string,
   units: number
 ): Promise<void> {

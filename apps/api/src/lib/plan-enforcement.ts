@@ -2,6 +2,8 @@ import { Prisma, type PlanTier, type PrismaClient } from "@prisma/client";
 import { limitsForPlan, type PlanLimits } from "../config/plans.js";
 import { currentYearMonth } from "./usage-meter.js";
 
+type PlanDbClient = PrismaClient | Prisma.TransactionClient;
+
 export type PlanContext = {
   organizationId: string;
   planTier: PlanTier;
@@ -14,7 +16,7 @@ const PROJECT_LIMIT = "Project limit reached for this organization (plan limit).
 const KEY_LIMIT = "API key limit reached for this project (plan limit).";
 
 export async function loadPlanContextForProject(
-  prisma: PrismaClient,
+  prisma: PlanDbClient,
   projectId: string
 ): Promise<PlanContext | null> {
   const row = await prisma.project.findFirst({
@@ -36,7 +38,7 @@ export async function loadPlanContextForProject(
 }
 
 export async function getMonthlyIngestUsed(
-  prisma: PrismaClient,
+  prisma: PlanDbClient,
   projectId: string
 ): Promise<number> {
   const ym = currentYearMonth();
@@ -65,7 +67,7 @@ function checkMonthlyIngestUnits(
  * Scoped `IN (...)` queries — avoids a full distinct scan on every ingest when labels are unchanged.
  */
 async function findAppsAlreadyRegisteredInProject(
-  prisma: PrismaClient,
+  prisma: PlanDbClient,
   projectId: string,
   appLabels: string[]
 ): Promise<Set<string>> {
@@ -86,7 +88,7 @@ async function findAppsAlreadyRegisteredInProject(
 
 /** Full distinct app count — only call when the ingest payload may introduce new app labels. */
 async function countDistinctAppsInProject(
-  prisma: PrismaClient,
+  prisma: PlanDbClient,
   projectId: string
 ): Promise<number> {
   const rows = await prisma.$queryRaw<{ n: bigint }[]>`
@@ -102,7 +104,7 @@ async function countDistinctAppsInProject(
 }
 
 export async function assertIngestPlanOrReply(
-  prisma: PrismaClient,
+  prisma: PlanDbClient,
   projectId: string,
   additionalUnits: number,
   appLabels: string[]
@@ -170,7 +172,7 @@ function isPrismaTransactionConflict(e: unknown): boolean {
   );
 }
 
-async function runSerializableTransaction<T>(
+export async function runSerializableTransaction<T>(
   prisma: PrismaClient,
   fn: (tx: Prisma.TransactionClient) => Promise<T>
 ): Promise<T> {
