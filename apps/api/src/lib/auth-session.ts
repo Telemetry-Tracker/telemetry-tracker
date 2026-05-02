@@ -50,8 +50,7 @@ export async function getSessionUser(
 }
 
 /**
- * For dashboard mutations (RBAC): require a valid session. Sends 401 and returns null if missing.
- * Read routes may still use {@link getSessionUser} + {@link resolveReadProjectId} legacy behavior without a session.
+ * Require a valid dashboard session. Sends 401 and returns null if missing.
  */
 export async function requireSessionUser(
   request: FastifyRequest,

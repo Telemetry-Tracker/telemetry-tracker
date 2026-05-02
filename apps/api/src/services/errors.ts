@@ -1,4 +1,6 @@
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
+
+type PrismaQueryable = PrismaClient | Prisma.TransactionClient;
 
 export function computeFingerprint(message: string, stack?: string): string {
   const firstLine = stack?.split("\n")[0]?.trim() ?? "";
@@ -6,7 +8,7 @@ export function computeFingerprint(message: string, stack?: string): string {
 }
 
 export async function findOrCreateErrorGroup(
-  prisma: PrismaClient,
+  prisma: PrismaQueryable,
   data: {
     projectId: string;
     fingerprint: string;

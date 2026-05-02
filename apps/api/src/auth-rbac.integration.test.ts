@@ -111,6 +111,15 @@ describe.skipIf(!runDbIntegration)("Auth and RBAC (integration)", () => {
     expect(res.statusCode).toBe(401);
   });
 
+  it("GET /api/overview requires authentication even with a valid project id", async () => {
+    const res = await app!.inject({
+      method: "GET",
+      url: "/api/overview",
+      headers: { "x-project-id": projectId },
+    });
+    expect(res.statusCode).toBe(401);
+  });
+
   it("POST /api/auth/login succeeds and GET /api/auth/me returns user", async () => {
     const login = await app!.inject({
       method: "POST",
