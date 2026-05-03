@@ -64,6 +64,15 @@ const batchSchema = z.object({
 const APP_RESTRICT_MSG =
   "This API key is restricted to a specific app label; send a matching `app` field.";
 
+function isUniqueConstraintError(e: unknown): boolean {
+  return (
+    typeof e === "object" &&
+    e !== null &&
+    "code" in e &&
+    (e as { code: unknown }).code === "P2002"
+  );
+}
+
 function assertIngestAppAllowed(
   request: FastifyRequest,
   app: string,
@@ -121,9 +130,14 @@ export async function ingestRoutes(
     }
     const body = parsed.data;
     if (!assertIngestAppAllowed(request, body.app, reply)) return;
-    const existing = await prisma.session.findFirst({
-      where: { project_id: projectId, session_id: body.session_id, app: body.app },
-      orderBy: { started_at: "desc" },
+    const existing = await prisma.session.findUnique({
+      where: {
+        project_id_session_id_app: {
+          project_id: projectId,
+          session_id: body.session_id,
+          app: body.app,
+        },
+      },
     });
     // Closing a session only sets `ended_at` — no new telemetry; must not be blocked by quota.
     if (existing && body.ended_at) {
@@ -140,20 +154,27 @@ export async function ingestRoutes(
     const planOk = await assertIngestPlanOrReply(prisma, projectId, 1, [body.app]);
     if (!planOk.ok) return reply.status(planOk.status).send(planOk.body);
     if (!existing) {
-      await prisma.session.create({
-        data: {
-          project_id: projectId,
-          session_id: body.session_id,
-          app: body.app,
-          platform: body.platform ?? null,
-          user_id: body.user_id ?? null,
-          anonymous_id: body.anonymous_id ?? null,
-          sdk_version: body.sdk_version ?? null,
-          started_at: body.started_at ? new Date(body.started_at) : undefined,
-        },
-      });
+      try {
+        await prisma.$transaction(async (tx) => {
+          await tx.session.create({
+            data: {
+              project_id: projectId,
+              session_id: body.session_id,
+              app: body.app,
+              platform: body.platform ?? null,
+              user_id: body.user_id ?? null,
+              anonymous_id: body.anonymous_id ?? null,
+              sdk_version: body.sdk_version ?? null,
+              started_at: body.started_at ? new Date(body.started_at) : undefined,
+            },
+          });
+          await addIngestUnits(tx, projectId, 1);
+        });
+      } catch (e) {
+        if (!isUniqueConstraintError(e)) throw e;
+        return reply.status(204).send();
+      }
     }
-    await addIngestUnits(prisma, projectId, 1);
     return reply.status(204).send();
   });
 

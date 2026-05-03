@@ -229,6 +229,7 @@ model Session {
   started_at   DateTime  @default(now()) @map("started_at")
   ended_at     DateTime? @map("ended_at")
 
+  @@unique([project_id, session_id, app])
   @@index([project_id, started_at])
   @@index([project_id, app])
 }

@@ -12,6 +12,7 @@ describe.skipIf(!runDbIntegration)("POST /ingest/event with API key (integration
   let app: FastifyInstance | undefined;
   let organizationId: string | undefined;
   let fullKey: string;
+  let projectId: string | undefined;
 
   beforeAll(async () => {
     const publicId = randomBytes(16).toString("hex");
@@ -65,6 +66,7 @@ describe.skipIf(!runDbIntegration)("POST /ingest/event with API key (integration
       where: { organization_id: organizationId! },
     });
     expect(project).not.toBeNull();
+    projectId = project!.id;
     const count = await prisma.event.count({
       where: {
         project_id: project!.id,
@@ -73,5 +75,57 @@ describe.skipIf(!runDbIntegration)("POST /ingest/event with API key (integration
       },
     });
     expect(count).toBe(1);
+  });
+
+  it("treats duplicate session starts as idempotent and bills once", async () => {
+    const sessionId = `session-${randomBytes(8).toString("hex")}`;
+    const project =
+      projectId ??
+      (
+        await prisma.project.findFirst({
+          where: { organization_id: organizationId! },
+        })
+      )?.id;
+    expect(project).toBeDefined();
+    const beforeUsage = await prisma.usageMonthly.findFirst({
+      where: { project_id: project! },
+      select: { ingest_units: true },
+    });
+    const headers = {
+      authorization: `Bearer ${fullKey}`,
+      "content-type": "application/json",
+    };
+    const payload = { app: "integration-app", session_id: sessionId };
+
+    const first = await app!.inject({
+      method: "POST",
+      url: "/ingest/session",
+      headers,
+      payload,
+    });
+    const retry = await app!.inject({
+      method: "POST",
+      url: "/ingest/session",
+      headers,
+      payload,
+    });
+
+    expect(first.statusCode).toBe(204);
+    expect(retry.statusCode).toBe(204);
+
+    const sessionCount = await prisma.session.count({
+      where: {
+        project_id: project!,
+        app: "integration-app",
+        session_id: sessionId,
+      },
+    });
+    expect(sessionCount).toBe(1);
+    const afterUsage = await prisma.usageMonthly.findFirst({
+      where: { project_id: project! },
+      orderBy: { updated_at: "desc" },
+      select: { ingest_units: true },
+    });
+    expect(afterUsage?.ingest_units ?? 0).toBe((beforeUsage?.ingest_units ?? 0) + 1);
   });
 });
