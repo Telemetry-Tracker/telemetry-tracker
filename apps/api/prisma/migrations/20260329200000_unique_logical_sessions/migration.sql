@@ -3,6 +3,8 @@
 CREATE TEMP TABLE duplicate_sessions_to_merge ON COMMIT DROP AS
   SELECT
     id,
+    project_id,
+    started_at,
     FIRST_VALUE(id) OVER (
       PARTITION BY project_id, session_id, app
       ORDER BY started_at ASC, id ASC
@@ -21,6 +23,22 @@ SET ended_at = sessions_to_update.merged_ended_at
 FROM sessions_to_update
 WHERE s.id = sessions_to_update.keeper_id
   AND (s.ended_at IS NULL OR s.ended_at < sessions_to_update.merged_ended_at);
+
+WITH
+usage_to_restore AS (
+  SELECT
+    project_id,
+    to_char(started_at, 'YYYY-MM') AS year_month,
+    COUNT(*)::integer AS duplicate_count
+  FROM duplicate_sessions_to_merge
+  WHERE id <> keeper_id
+  GROUP BY project_id, to_char(started_at, 'YYYY-MM')
+)
+UPDATE "UsageMonthly" AS u
+SET ingest_units = GREATEST(u.ingest_units - usage_to_restore.duplicate_count, 0)
+FROM usage_to_restore
+WHERE u.project_id = usage_to_restore.project_id
+  AND u.year_month = usage_to_restore.year_month;
 
 DELETE FROM "Session"
 USING duplicate_sessions_to_merge
