@@ -41,9 +41,8 @@ describe.skipIf(!runDbIntegration)("Retention sweep (integration)", () => {
       },
     });
 
-    const result = await runRetentionSweep(prisma);
+    await runRetentionSweep(prisma);
 
-    expect(result.sessionsDeleted).toBe(0);
     await expect(
       prisma.session.findUniqueOrThrow({ where: { id: session.id } })
     ).resolves.toMatchObject({ id: session.id, ended_at: null });

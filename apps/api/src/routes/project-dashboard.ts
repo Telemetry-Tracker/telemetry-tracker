@@ -21,6 +21,7 @@ import {
 } from "../lib/org-permissions.js";
 import { headerFirst } from "../lib/http-headers.js";
 import {
+  publicDashboardReadsEnabled,
   resolveReadProjectId,
   resolveReadProjectIdWithSession,
   tryResolveReadProjectId,
@@ -189,7 +190,7 @@ export async function projectDashboardRoutes(
       });
     }
 
-    if (headerOrg) {
+    if (headerOrg || !publicDashboardReadsEnabled()) {
       return reply.status(401).send({ error: "Unauthorized" });
     }
 

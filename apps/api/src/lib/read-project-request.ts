@@ -44,7 +44,7 @@ export async function resolveReadProjectId(
   return project.id;
 }
 
-function publicDashboardReadsEnabled(): boolean {
+export function publicDashboardReadsEnabled(): boolean {
   return (
     process.env.TELEMETRY_PUBLIC_DASHBOARD === "true" ||
     process.env.NEXT_PUBLIC_TELEMETRY_PUBLIC_DASHBOARD === "true"

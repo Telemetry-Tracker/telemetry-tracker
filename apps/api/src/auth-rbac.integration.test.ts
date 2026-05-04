@@ -146,6 +146,11 @@ describe.skipIf(!runDbIntegration)("Auth and RBAC (integration)", () => {
     expect(res.statusCode).toBe(401);
   });
 
+  it("GET /api/meta/projects returns 401 without a session", async () => {
+    const res = await app!.inject({ method: "GET", url: "/api/meta/projects" });
+    expect(res.statusCode).toBe(401);
+  });
+
   it("POST /api/auth/login succeeds and GET /api/auth/me returns user", async () => {
     const login = await app!.inject({
       method: "POST",
