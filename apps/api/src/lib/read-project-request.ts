@@ -9,18 +9,18 @@ const UUID_RE =
 
 /**
  * Dashboard sends `X-Project-Id` to scope reads. Validates UUID and that the project exists
- * and is not soft-deleted. If a session is present, the user must be a member of the project’s
- * organization. Without a session, legacy behavior: any existing project id (or env fallback).
- * Returns `null` after sending 403 when the session user may not access the project.
+ * and is not soft-deleted. Authenticated users must be members of the project's organization.
+ * Unauthenticated reads are only allowed when explicitly running the legacy public dashboard.
+ * Returns `null` after sending 401/403 when the caller may not access the project.
  */
 export async function resolveReadProjectId(
   request: FastifyRequest,
   reply: FastifyReply
 ): Promise<string | null> {
-  const fallback = readProjectIdFromEnv();
+  const session = await getSessionUser(request);
   const raw = headerFirst(request, "x-project-id");
   if (!raw || !UUID_RE.test(raw)) {
-    return fallback;
+    return resolveFallbackProjectId(reply, session, true);
   }
 
   const project = await prisma.project.findFirst({
@@ -28,25 +28,70 @@ export async function resolveReadProjectId(
     select: { id: true, organization_id: true },
   });
   if (!project) {
-    return fallback;
+    return resolveFallbackProjectId(reply, session, true);
   }
 
-  const session = await getSessionUser(request);
-  if (session) {
-    const m = await prisma.organizationMembership.findFirst({
-      where: {
-        user_id: session.userId,
-        organization_id: project.organization_id,
-      },
-    });
-    if (!m) {
-      await reply.status(403).send({ error: "Not a member of this project" });
-      return null;
-    }
-    return project.id;
+  if (!session) {
+    if (publicDashboardReadsEnabled()) return project.id;
+    await reply.status(401).send({ error: "Authentication required" });
+    return null;
   }
 
+  if (!(await isProjectMember(session, project.organization_id))) {
+    await reply.status(403).send({ error: "Not a member of this project" });
+    return null;
+  }
   return project.id;
+}
+
+function publicDashboardReadsEnabled(): boolean {
+  return (
+    process.env.TELEMETRY_PUBLIC_DASHBOARD === "true" ||
+    process.env.NEXT_PUBLIC_TELEMETRY_PUBLIC_DASHBOARD === "true"
+  );
+}
+
+async function isProjectMember(
+  session: SessionUser,
+  organizationId: string
+): Promise<boolean> {
+  const m = await prisma.organizationMembership.findFirst({
+    where: {
+      user_id: session.userId,
+      organization_id: organizationId,
+    },
+    select: { id: true },
+  });
+  return Boolean(m);
+}
+
+async function resolveFallbackProjectId(
+  reply: FastifyReply | null,
+  session: SessionUser | null,
+  sendUnauthorized: boolean
+): Promise<string | null> {
+  const fallback = readProjectIdFromEnv();
+  const project = await prisma.project.findFirst({
+    where: { id: fallback, deleted_at: null },
+    select: { id: true, organization_id: true },
+  });
+
+  if (!session) {
+    if (publicDashboardReadsEnabled()) return fallback;
+    if (sendUnauthorized && reply) {
+      await reply.status(401).send({ error: "Authentication required" });
+    }
+    return null;
+  }
+
+  if (!project) return fallback;
+  if (!(await isProjectMember(session, project.organization_id))) {
+    if (reply) {
+      await reply.status(403).send({ error: "Not a member of this project" });
+    }
+    return null;
+  }
+  return fallback;
 }
 
 /**
@@ -58,10 +103,9 @@ export async function resolveReadProjectIdWithSession(
   reply: FastifyReply,
   session: SessionUser
 ): Promise<string | null> {
-  const fallback = readProjectIdFromEnv();
   const raw = headerFirst(request, "x-project-id");
   if (!raw || !UUID_RE.test(raw)) {
-    return fallback;
+    return resolveFallbackProjectId(reply, session, true);
   }
 
   const project = await prisma.project.findFirst({
@@ -69,16 +113,10 @@ export async function resolveReadProjectIdWithSession(
     select: { id: true, organization_id: true },
   });
   if (!project) {
-    return fallback;
+    return resolveFallbackProjectId(reply, session, true);
   }
 
-  const m = await prisma.organizationMembership.findFirst({
-    where: {
-      user_id: session.userId,
-      organization_id: project.organization_id,
-    },
-  });
-  if (!m) {
+  if (!(await isProjectMember(session, project.organization_id))) {
     await reply.status(403).send({ error: "Not a member of this project" });
     return null;
   }
@@ -93,10 +131,10 @@ export async function resolveReadProjectIdWithSession(
 export async function tryResolveReadProjectId(
   request: FastifyRequest
 ): Promise<string | null> {
-  const fallback = readProjectIdFromEnv();
+  const session = await getSessionUser(request);
   const raw = headerFirst(request, "x-project-id");
   if (!raw || !UUID_RE.test(raw)) {
-    return fallback;
+    return resolveFallbackProjectId(null, session, false);
   }
 
   const project = await prisma.project.findFirst({
@@ -104,21 +142,15 @@ export async function tryResolveReadProjectId(
     select: { id: true, organization_id: true },
   });
   if (!project) {
-    return fallback;
+    return resolveFallbackProjectId(null, session, false);
   }
 
-  const session = await getSessionUser(request);
-  if (session) {
-    const m = await prisma.organizationMembership.findFirst({
-      where: {
-        user_id: session.userId,
-        organization_id: project.organization_id,
-      },
-    });
-    if (!m) {
-      return null;
-    }
-    return project.id;
+  if (!session) {
+    return publicDashboardReadsEnabled() ? project.id : null;
+  }
+
+  if (!(await isProjectMember(session, project.organization_id))) {
+    return null;
   }
 
   return project.id;

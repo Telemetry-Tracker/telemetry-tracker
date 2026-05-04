@@ -12,15 +12,24 @@ describe.skipIf(!runDbIntegration)("Auth and RBAC (integration)", () => {
   let app: FastifyInstance | undefined;
   let organizationId: string | undefined;
   let projectId: string;
+  let otherOrganizationId: string | undefined;
+  let otherProjectId: string | undefined;
   let errorGroupId: string;
   let emailViewer: string;
   let emailEditor: string;
+  let prevTelemetryPublicDashboard: string | undefined;
+  let prevNextPublicTelemetryPublicDashboard: string | undefined;
   const password = "testpass12";
   let prevTelemetryProjectId: string | undefined;
 
   beforeAll(async () => {
     prevTelemetryProjectId = process.env.TELEMETRY_PROJECT_ID;
+    prevTelemetryPublicDashboard = process.env.TELEMETRY_PUBLIC_DASHBOARD;
+    prevNextPublicTelemetryPublicDashboard =
+      process.env.NEXT_PUBLIC_TELEMETRY_PUBLIC_DASHBOARD;
     delete process.env.TELEMETRY_PROJECT_ID;
+    delete process.env.TELEMETRY_PUBLIC_DASHBOARD;
+    delete process.env.NEXT_PUBLIC_TELEMETRY_PUBLIC_DASHBOARD;
 
     const suffix = randomBytes(8).toString("hex");
     emailViewer = `viewer-${suffix}@test.local`;
@@ -77,6 +86,21 @@ describe.skipIf(!runDbIntegration)("Auth and RBAC (integration)", () => {
     });
     errorGroupId = eg.id;
 
+    const otherOrg = await prisma.organization.create({
+      data: {
+        name: `Other RBAC org ${suffix}`,
+        projects: {
+          create: {
+            name: "Other RBAC project",
+            slug: `other-rbac-${suffix}`,
+          },
+        },
+      },
+      include: { projects: true },
+    });
+    otherOrganizationId = otherOrg.id;
+    otherProjectId = otherOrg.projects[0]!.id;
+
     app = await createApp();
   });
 
@@ -85,6 +109,9 @@ describe.skipIf(!runDbIntegration)("Auth and RBAC (integration)", () => {
     if (organizationId) {
       await prisma.organization.delete({ where: { id: organizationId } }).catch(() => {});
     }
+    if (otherOrganizationId) {
+      await prisma.organization.delete({ where: { id: otherOrganizationId } }).catch(() => {});
+    }
     // Users do not cascade from Organization; login tests also create UserSession rows (cascade on User delete).
     const testEmails = [emailViewer, emailEditor].filter(Boolean);
     if (testEmails.length > 0) {
@@ -92,6 +119,14 @@ describe.skipIf(!runDbIntegration)("Auth and RBAC (integration)", () => {
     }
     if (prevTelemetryProjectId === undefined) delete process.env.TELEMETRY_PROJECT_ID;
     else process.env.TELEMETRY_PROJECT_ID = prevTelemetryProjectId;
+    if (prevTelemetryPublicDashboard === undefined) delete process.env.TELEMETRY_PUBLIC_DASHBOARD;
+    else process.env.TELEMETRY_PUBLIC_DASHBOARD = prevTelemetryPublicDashboard;
+    if (prevNextPublicTelemetryPublicDashboard === undefined) {
+      delete process.env.NEXT_PUBLIC_TELEMETRY_PUBLIC_DASHBOARD;
+    } else {
+      process.env.NEXT_PUBLIC_TELEMETRY_PUBLIC_DASHBOARD =
+        prevNextPublicTelemetryPublicDashboard;
+    }
   });
 
   it("POST /api/auth/login rejects wrong password with 401", async () => {
@@ -136,6 +171,68 @@ describe.skipIf(!runDbIntegration)("Auth and RBAC (integration)", () => {
     };
     expect(meBody.user.email).toBe(emailViewer);
     expect(meBody.memberships.some((m) => m.role === "VIEWER")).toBe(true);
+  });
+
+  it("GET /api/overview returns 401 without a session even with a valid project id", async () => {
+    const res = await app!.inject({
+      method: "GET",
+      url: "/api/overview",
+      headers: { "x-project-id": projectId },
+    });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it("GET /api/project/api-keys returns 401 without a session", async () => {
+    const res = await app!.inject({
+      method: "GET",
+      url: "/api/project/api-keys",
+      headers: { "x-project-id": projectId },
+    });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it("GET /api/overview returns 403 for a project outside the user's organizations", async () => {
+    const login = await app!.inject({
+      method: "POST",
+      url: "/api/auth/login",
+      headers: { "content-type": "application/json" },
+      payload: { email: emailViewer, password },
+    });
+    const { sessionId } = JSON.parse(login.body) as { sessionId: string };
+
+    const res = await app!.inject({
+      method: "GET",
+      url: "/api/overview",
+      headers: {
+        authorization: `Bearer ${sessionId}`,
+        "x-project-id": otherProjectId!,
+      },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it("GET /api/overview returns 403 when fallback project is outside the user's organizations", async () => {
+    const previousProjectId = process.env.TELEMETRY_PROJECT_ID;
+    process.env.TELEMETRY_PROJECT_ID = otherProjectId!;
+    try {
+      const login = await app!.inject({
+        method: "POST",
+        url: "/api/auth/login",
+        headers: { "content-type": "application/json" },
+        payload: { email: emailViewer, password },
+      });
+      const { sessionId } = JSON.parse(login.body) as { sessionId: string };
+
+      const res = await app!.inject({
+        method: "GET",
+        url: "/api/overview",
+        headers: { authorization: `Bearer ${sessionId}` },
+      });
+      expect(res.statusCode).toBe(403);
+    } finally {
+      if (previousProjectId === undefined) delete process.env.TELEMETRY_PROJECT_ID;
+      else process.env.TELEMETRY_PROJECT_ID = previousProjectId;
+    }
   });
 
   it("PATCH /api/errors/:id returns 403 for VIEWER", async () => {
