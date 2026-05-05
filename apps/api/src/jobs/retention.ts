@@ -62,7 +62,7 @@ export async function runRetentionSweep(prisma: PrismaClient): Promise<Retention
         where: { project_id: projectId, created_at: { lt: cutoff } },
       });
       const sess = await tx.session.deleteMany({
-        where: { project_id: projectId, started_at: { lt: cutoff } },
+        where: { project_id: projectId, ended_at: { lt: cutoff } },
       });
       const eg = await tx.errorGroup.deleteMany({
         where: { project_id: projectId, last_seen: { lt: cutoff } },
