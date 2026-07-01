@@ -1,3 +1,3 @@
-# Require @unjica approval on pull requests when branch protection
-# "Require review from Code Owners" is enabled on main.
+# Default owner — GitHub auto-requests @unjica on PRs to main for visibility.
+# Merge gate: `.github/workflows/maintainer-review.yml` (required when author ≠ @unjica).
 * @unjica

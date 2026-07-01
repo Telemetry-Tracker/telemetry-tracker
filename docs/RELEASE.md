@@ -31,6 +31,20 @@ flowchart LR
 
 There is no separate staging deploy yet — validate on `develop` locally before milestone promotion.
 
+### `main` merge gate
+
+GitHub cannot require “your approval only when you are not the PR author” (authors cannot approve their own PRs). **`main`** uses:
+
+| Rule | Mechanism |
+|------|-----------|
+| PR required | Branch protection |
+| CI must pass | Required check: `build` |
+| **Maintainer approval when author ≠ @unjica** | Required check: `maintainer-review` ([workflow](../.github/workflows/maintainer-review.yml)) |
+| **Your own PRs to `main`** | `maintainer-review` passes automatically; merge after `build` is green |
+| Review requests | [CODEOWNERS](../.github/CODEOWNERS) notifies @unjica on PRs to `main` |
+
+After the maintainer-review workflow is on **`main`**, add `maintainer-review` to required status checks (Settings → Branches → `main`, or maintainer API update).
+
 ---
 
 ## Release cadence
