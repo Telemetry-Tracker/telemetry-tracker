@@ -1,0 +1,3 @@
+# Require @unjica approval on pull requests when branch protection
+# "Require review from Code Owners" is enabled on main.
+* @unjica
