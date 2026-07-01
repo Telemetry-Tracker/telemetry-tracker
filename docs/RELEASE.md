@@ -84,7 +84,17 @@ Always document **migrations**, **new env vars**, and **breaking changes** in CH
    git tag -a v1.1.0 -m "Telemetry Tracker v1.1.0"
    git push origin v1.1.0
    ```
-3. **GitHub Release** — create from the tag; include summary, upgrade steps, and migration command ([gh release create](https://cli.github.com/manual/gh_release_create)).
+3. **GitHub Release** — publish notes from [RELEASE_NOTES_TEMPLATE.md](./RELEASE_NOTES_TEMPLATE.md) (highlights + upgrade steps; link to CHANGELOG for detail):
+   ```bash
+   VERSION=1.2.0
+   PREVIOUS=1.1.0
+   cp docs/RELEASE_NOTES_TEMPLATE.md /tmp/release-notes-v${VERSION}.md
+   # Edit: Highlights from CHANGELOG [X.Y.Z]; migrations since tag v${PREVIOUS}; env/SDK sections if needed
+   gh release create "v${VERSION}" \
+     --title "Telemetry Tracker v${VERSION}" \
+     --notes-file "/tmp/release-notes-v${VERSION}.md"
+   ```
+   See the template for section guidance and a filled v1.1.0 example. Do not duplicate the entire CHANGELOG — keep the release body scannable for deployers.
 4. **Deploy** — Railway rebuilds `main` automatically; see [Deploy runbook](#deploy-runbook-railway).
 5. **Production DB** — run [migrations](#3-database-migrations-production) (CI does not touch prod).
 6. **Post-deploy** — [verification](#post-deploy-verification).

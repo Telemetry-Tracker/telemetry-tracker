@@ -115,7 +115,7 @@ User-facing changes must add a line under **[Unreleased]** in [CHANGELOG.md](CHA
 - **Added** / **Changed** / **Fixed** / **Security** / **Breaking** / **Database** (if migrations or env vars)
 - Skip for internal refactors, test-only, or comment-only changes
 
-Maintainers rename `[Unreleased]` to a version when cutting a release.
+Maintainers rename `[Unreleased]` to a version when cutting a release, then publish a GitHub Release from [docs/RELEASE_NOTES_TEMPLATE.md](docs/RELEASE_NOTES_TEMPLATE.md) (see [docs/RELEASE.md](docs/RELEASE.md)).
 
 ### Branch naming
 
