@@ -13,6 +13,13 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ---
 
+
+## [1.4.9] - 2026-07-06
+
+### Fixed
+
+- **Cookies policy (mobile)** — mobile card layout and word wrapping for the IN SHORT callout; prevent horizontal overflow from the cookies table
+
 ## [1.4.8] - 2026-07-06
 
 ### Fixed
