@@ -13,6 +13,15 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ---
 
+## [1.4.8] - 2026-07-06
+
+### Fixed
+
+- **Marketing site (mobile)** — responsive layout for nav, hero, pricing, SDKs, and footer; prevent horizontal overflow on small viewports
+- **Docs (mobile)** — drawer navigation with body scroll lock; improved code blocks and article layout on narrow screens
+
+---
+
 ## [1.4.7] - 2026-07-06
 
 ### Fixed
