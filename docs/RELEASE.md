@@ -10,7 +10,7 @@ User-facing changes are recorded in [CHANGELOG.md](../CHANGELOG.md).
 
 | Branch | Role |
 |--------|------|
-| **`develop`** | Integration branch — feature PRs merge here; CI must pass |
+| **`develop`** | Integration branch — **GitHub default**; feature PRs merge here; CI must pass |
 | **`main`** | Production — official hosted cloud and semver GitHub Releases |
 | **`feature/*`, `fix/*`** | Short-lived; open PRs against **`develop`** |
 

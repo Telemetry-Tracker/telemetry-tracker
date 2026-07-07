@@ -112,7 +112,7 @@ Use descriptive migration names. For production, only `prisma migrate deploy` is
 
 ## Pull requests
 
-- Open PRs against **`develop`** (integration branch). Releases promote **`develop` → `main`** when a milestone is complete — see [docs/RELEASE.md](docs/RELEASE.md).
+- Open PRs against **`develop`** (integration branch; **GitHub default**). Releases promote **`develop` → `main`** when a milestone is complete — see [docs/RELEASE.md](docs/RELEASE.md).
 - Prefer **focused** changes: one concern per PR when possible.
 - Describe **what** changed and **why** in the PR body (reproduce steps for bugs).
 - If you are unsure about product or security behavior (auth, ingest, billing), open an issue first.

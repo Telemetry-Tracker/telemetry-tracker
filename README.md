@@ -275,7 +275,7 @@ If you find Telemetry Tracker useful:
 - ⭐ Star this repository
 - 🐛 [Report bugs](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/new?template=bug_report.md)
 - 💡 [Suggest features](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/new?template=feature_request.md)
-- 🤝 Open a pull request
+- 🤝 Open a pull request against **`develop`** ([CONTRIBUTING.md](CONTRIBUTING.md))
 
 ---
 

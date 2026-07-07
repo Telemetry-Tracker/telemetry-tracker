@@ -11,6 +11,10 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ## [Unreleased]
 
+### Changed
+
+- **Contributing** — GitHub default branch is now **`develop`**; README, PR template, and release docs updated so fork PRs target integration instead of **`main`**
+
 ---
 
 ## [1.5.4] - 2026-07-07

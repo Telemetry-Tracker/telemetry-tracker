@@ -1,3 +1,5 @@
+**Base branch:** open feature and fix PRs against **`develop`**. Milestone releases promote **`develop` → `main`** — see [docs/RELEASE.md](../docs/RELEASE.md).
+
 ## Summary
 
 <!-- What does this PR change and why? -->
