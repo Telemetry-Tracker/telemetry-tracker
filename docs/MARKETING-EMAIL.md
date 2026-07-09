@@ -66,8 +66,8 @@ Required GitHub secrets in the **`production`** environment:
 |--------|---------|
 | `DATABASE_URL` | Production Postgres **public** URL (Railway TCP proxy / public host — not `postgres.railway.internal`) |
 | `RESEND_API_KEY` | Resend API |
-| `TELEMETRY_EMAIL_FROM` | From address |
-| `TELEMETRY_DASHBOARD_ORIGIN` | Unsubscribe / docs links (e.g. `https://telemetry-tracker.com`) |
+| `TELEMETRY_EMAIL_FROM` | From address on a **verified** Resend domain — use `Telemetry Tracker <noreply@tacko.io>`, not `@telemetry-tracker.com` (see [BILLING.md → Production setup](./BILLING.md#production-setup-hosted-cloud)) |
+| `TELEMETRY_DASHBOARD_ORIGIN` | Unsubscribe / docs links (e.g. `https://telemetry-tracker.com`) — app URL only; does not set the mail-from domain |
 
 Store these in the GitHub **`production`** environment. To retry a send without re-tagging, use **Actions → Release product email → Run workflow** with `version` and `previous_version`.
 

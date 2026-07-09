@@ -84,6 +84,14 @@ function extractChangelogSection(version: string): string | null {
   return section || null;
 }
 
+function isResendDomainVerificationError(error: string | undefined): boolean {
+  const message = error?.toLowerCase() ?? "";
+  return (
+    /domain (is )?not verified/.test(message) ||
+    message.includes("verify a domain")
+  );
+}
+
 function changelogPreview(section: string, maxLines = 6): string {
   const lines = section.split("\n").filter((line) => line.trim());
   const preview = lines.slice(0, maxLines).join("\n");
@@ -212,6 +220,13 @@ async function main() {
         previousUnsubscribeTokenHash,
       });
       console.warn(`Failed to send to ${sub.email}:`, result.error ?? result.status);
+      if (isResendDomainVerificationError(result.error)) {
+        console.error(
+          "Resend rejected the sender domain. Set TELEMETRY_EMAIL_FROM to an address on a verified domain " +
+            "(hosted cloud: Telemetry Tracker <noreply@tacko.io>). See docs/BILLING.md#production-setup-hosted-cloud."
+        );
+        process.exit(1);
+      }
       continue;
     }
 
