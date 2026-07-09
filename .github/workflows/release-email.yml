@@ -20,7 +20,7 @@ concurrency:
 jobs:
   send:
     runs-on: ubuntu-latest
-    environment: production
+    environment: "telemetry-tracker / production"
     steps:
       - uses: actions/checkout@v4
         with:

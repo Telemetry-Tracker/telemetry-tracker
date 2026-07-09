@@ -68,7 +68,7 @@ Required GitHub repository secrets (production):
 | `TELEMETRY_EMAIL_FROM` | From address |
 | `TELEMETRY_DASHBOARD_ORIGIN` | Unsubscribe / docs links (e.g. `https://telemetry-tracker.com`) |
 
-Store these in the GitHub **`production`** environment (the workflow job uses `environment: production`). To retry a send without re-tagging, use **Actions → Release product email → Run workflow** with `version` and `previous_version`.
+Store these in the GitHub **`telemetry-tracker / production`** environment (the workflow job uses `environment: "telemetry-tracker / production"`). To retry a send without re-tagging, use **Actions → Release product email → Run workflow** with `version` and `previous_version`.
 
 The workflow runs **after** the tag is pushed — finalize `CHANGELOG.md` on `main` **before** tagging so the email body matches the release.
 
