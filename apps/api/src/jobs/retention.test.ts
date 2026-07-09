@@ -116,4 +116,73 @@ describe("runRetentionSweep", () => {
       true
     );
   });
+
+  it("dry-run counts rows without deleting or updating", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-05-06T10:00:00.000Z"));
+
+    const errorOccurrence = {
+      count: vi.fn(async () => 4),
+      deleteMany: vi.fn(async () => ({ count: 99 })),
+    };
+    const event = {
+      count: vi.fn(async () => 2),
+      deleteMany: vi.fn(async () => ({ count: 99 })),
+    };
+    const session = {
+      count: vi.fn(async () => 1),
+      deleteMany: vi.fn(async () => ({ count: 99 })),
+    };
+    const errorGroup = {
+      count: vi.fn(async () => 3),
+      deleteMany: vi.fn(async () => ({ count: 99 })),
+    };
+    const queryRaw = vi.fn(async (query: unknown) => {
+      const sql = sqlFromExecuteRaw(query);
+      if (sql.includes("ErrorOccurrence")) return [{ count: 8n }];
+      if (sql.includes("SourceMapArtifact")) return [{ count: 5n }];
+      return [{ count: 0n }];
+    });
+    const executeRaw = vi.fn(async () => 99);
+    const tx = {
+      errorOccurrence,
+      event,
+      session,
+      errorGroup,
+      $queryRaw: queryRaw,
+      $executeRaw: executeRaw,
+    };
+    const prisma = {
+      project: {
+        findMany: vi.fn(async () => [
+          {
+            id: "project-1",
+            organization: {
+              plan_tier: PlanTier.FREE,
+              stripe_subscription_status: null,
+              deleted_at: null,
+            },
+          },
+        ]),
+      },
+      $transaction: vi.fn(async (fn: (txArg: typeof tx) => Promise<unknown>) => fn(tx)),
+    };
+
+    const result = await runRetentionSweep(prisma as never, { dryRun: true });
+
+    expect(result).toEqual({
+      projectsProcessed: 1,
+      errorOccurrencesDeleted: 8,
+      eventsDeleted: 2,
+      sessionsDeleted: 1,
+      errorGroupsDeleted: 3,
+      sourceMapsDeleted: 5,
+    });
+    expect(errorOccurrence.deleteMany).not.toHaveBeenCalled();
+    expect(event.deleteMany).not.toHaveBeenCalled();
+    expect(session.deleteMany).not.toHaveBeenCalled();
+    expect(errorGroup.deleteMany).not.toHaveBeenCalled();
+    expect(queryRaw).toHaveBeenCalledTimes(2);
+    expect(executeRaw).not.toHaveBeenCalled();
+  });
 });
