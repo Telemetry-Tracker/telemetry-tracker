@@ -63,7 +63,7 @@
 | Benachrichtigungen | ✅ |
 | Source Maps | ✅ |
 
-Self-host setup: [DEPLOYMENT.md](DEPLOYMENT.md)
+Self-Hosting-Einrichtung: [DEPLOYMENT.md](DEPLOYMENT.md)
 
 ---
 
@@ -134,7 +134,7 @@ Kompatibel mit:
 - ✓ **React / Vue** — `@telemetry-tracker/core`
 - ✓ **Next.js** — `@telemetry-tracker/next`
 - ✓ **Node / NestJS** — `@telemetry-tracker/node`
-- ✓ **Nuxt** — `@telemetry-tracker/core` ([guide](docs/sdk-nuxt.md)) 
+- ✓ **Nuxt** — `@telemetry-tracker/core` ([Anleitung](docs/sdk-nuxt.md)) 
 - ✓ **React Native** — `@telemetry-tracker/react-native`
 - ✓ **Vanilla JS** — `@telemetry-tracker/core`
 
@@ -154,7 +154,7 @@ import { init, trackEvent, trackError } from "@telemetry-tracker/core";
 init({
   ingestUrl: "http://localhost:3001",
   app: "my-app",
-  apiKey: process.env.TELEMETRY_API_KEY!, // tt_live_… from dashboard
+  apiKey: process.env.TELEMETRY_API_KEY!, // tt_live_… vom Dashboard
   environment: "development",
 });
 
@@ -231,7 +231,7 @@ Die bereits verfügbaren Funktionen befinden sich oben unter **[Features](#featu
 
 </details>
 
-Sie haben eine Idee? [Öffnen Sie ein 'feature request'](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/new?template=feature_request.md).
+Sie haben eine Idee? [Feature vorschlagen](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/new?template=feature_request.md).
 
 ---
 
