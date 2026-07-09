@@ -56,19 +56,20 @@ Delivery is recorded in `MarketingReleaseEmailSend` (one row per subscriber per 
 Pushing a semver tag `vX.Y.Z` to GitHub triggers **Release product email** when **X** (major) or **Y** (minor) increases vs the previous tag; **Z**-only (patch/hotfix) tags are skipped:
 
 1. Resolves the previous semver tag and compares **X** and **Y** (Z-only → skip).
-2. Runs `prisma migrate deploy` against production (applies pending migrations from the tagged commit, including `MarketingReleaseEmailSend`).
-3. Runs `send-release-email.ts --version=X.Y.Z --previous-version=…` with repository secrets.
+2. Runs `send-release-email.ts --version=X.Y.Z --previous-version=…` with repository secrets.
 
-Required GitHub repository secrets (production):
+Apply production migrations **before tagging** ([RELEASE.md](./RELEASE.md#3-database-migrations-production)); this workflow does not run `prisma migrate deploy` (GitHub Actions cannot reach Railway private `*.railway.internal` URLs).
+
+Required GitHub secrets in the **`production`** environment:
 
 | Secret | Purpose |
 |--------|---------|
-| `DATABASE_URL` | Production Postgres (`MarketingSubscriber`) |
+| `DATABASE_URL` | Production Postgres **public** URL (Railway TCP proxy / public host — not `postgres.railway.internal`) |
 | `RESEND_API_KEY` | Resend API |
 | `TELEMETRY_EMAIL_FROM` | From address |
 | `TELEMETRY_DASHBOARD_ORIGIN` | Unsubscribe / docs links (e.g. `https://telemetry-tracker.com`) |
 
-Store these in the GitHub **`production`** environment (the workflow job uses `environment: production`). To retry a send without re-tagging, use **Actions → Release product email → Run workflow** with `version` and `previous_version`.
+Store these in the GitHub **`production`** environment. To retry a send without re-tagging, use **Actions → Release product email → Run workflow** with `version` and `previous_version`.
 
 The workflow runs **after** the tag is pushed — finalize `CHANGELOG.md` on `main` **before** tagging so the email body matches the release.
 

@@ -1,8 +1,8 @@
 name: 'Upload Source Maps'
 description: 'Uploads source maps to Telemetry-Tracker on release'
 inputs:
-  session_cookie:
-    description: 'Dashboard session cookie for authentication'
+  api_key:
+    description: 'Project API key (tt_live_...) for CI uploads'
     required: true
   project_id:
     description: 'Telemetry-Tracker Project ID (X-Project-Id)'
@@ -20,17 +20,27 @@ inputs:
   base_url:
     description: 'Base URL for your deployed JS bundles (e.g., https://example.com)'
     required: true
+  base_api_url:
+    description: 'Telemetry Tracker API base URL (hosted cloud or self-hosted API_URL)'
+    required: false
+    default: 'https://api.telemetry-tracker.com'
 
 runs:
   using: 'composite'
   steps:
     - name: Upload maps via JSON API
       shell: bash
+      env:
+        BASE_API_URL: ${{ inputs.base_api_url }}
       run: |
         node -e "
         const fs = require('fs');
         const path = require('path');
-        const http = require('https');
+
+        const apiUrl = new URL(process.env.BASE_API_URL || 'https://api.telemetry-tracker.com');
+        const http = require(apiUrl.protocol === 'https:' ? 'https' : 'http');
+        const pathPrefix = apiUrl.pathname.replace(/\/$/, '');
+        const uploadPath = \`\${pathPrefix}/api/project/source-maps\`;
 
         function findFiles(dir) {
           let results = [];
@@ -66,13 +76,14 @@ runs:
             });
 
             const options = {
-              hostname: 'api.telemetry-tracker.com',
-              path: '/api/project/source-maps',
+              hostname: apiUrl.hostname,
+              port: apiUrl.port || undefined,
+              path: uploadPath,
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
                 'X-Project-Id': '${{ inputs.project_id }}',
-                'Cookie': '${{ inputs.session_cookie }}',
+                'X-API-Key': '${{ inputs.api_key }}',
                 'Content-Length': Buffer.byteLength(payload)
               }
             };

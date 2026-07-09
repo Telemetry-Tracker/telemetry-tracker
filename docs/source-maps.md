@@ -84,12 +84,13 @@ Retention: align with plan `retentionDays`; the nightly retention job deletes ar
 
 ## Phase 3 — upload API
 
-**Upload** (EDITOR+ session, active project):
+**Upload** (EDITOR+ dashboard session **or** project API key for CI):
 
 ```http
 POST /api/project/source-maps
 Content-Type: application/json
 X-Project-Id: <project-uuid>
+X-API-Key: tt_live_<publicId>_<secret>
 
 {
   "app": "web",
@@ -98,6 +99,8 @@ X-Project-Id: <project-uuid>
   "content": { "version": 3, "sources": ["..."], "mappings": "..." }
 }
 ```
+
+CI callers may send `Authorization: Bearer tt_live_...` instead of `X-API-Key`. The key must belong to the project in `X-Project-Id`. Keys with an app restriction must upload maps for that same `app` label.
 
 Returns `201` on create, `200` on replace (same key). Max size: 10 MB (`MAX_SOURCE_MAP_BYTES`). `app` and `release` are trimmed on upload and on all ingest routes so keys align with symbolication and retention.
 
@@ -136,9 +139,9 @@ Symbolication is display-only; grouping fingerprints stay on raw minified stacks
 
 ## Security
 
-- Upload: session auth + project membership (EDITOR+); rate limit per project.
+- Upload: dashboard session (EDITOR+) or project API key scoped to `X-Project-Id`; rate limit per project.
 - Maps may contain source — treat as sensitive; same retention as telemetry.
-- Ingest upload via API key (optional): scoped key with `sourcemap:write` if needed later.
+- Reuses existing project API keys (same as ingest); per-key `allowed_app` applies to the upload `app` field.
 
 ## References
 
@@ -164,10 +167,33 @@ jobs:
       - name: Upload Source Maps
         uses: ./.github/actions/upload-source-maps
         with:
-          session_cookie: ${{ secrets.TT_SESSION_COOKIE }}
+          api_key: ${{ secrets.TT_API_KEY }}
           project_id: "your-project-uuid-here"
           release: ${{ github.event.release.tag_name }}
           app: "my-telemetry-app"
           artifact_path: "./dist"
           base_url: "https://example.com"
 ```
+
+Create a project API key in **Settings → API keys** and store it as `TT_API_KEY` in your repository secrets.
+
+### Self-hosted API
+
+The action defaults to the hosted cloud API (`https://api.telemetry-tracker.com`). For a self-hosted install, set `base_api_url` to your deployment’s public API URL — the same value as `API_URL` on the dashboard (no trailing slash):
+
+```yaml
+      - name: Upload Source Maps
+        uses: ./.github/actions/upload-source-maps
+        with:
+          api_key: ${{ secrets.TT_API_KEY }}
+          project_id: "your-project-uuid-here"
+          release: ${{ github.event.release.tag_name }}
+          app: "my-telemetry-app"
+          artifact_path: "./dist"
+          base_url: "https://cdn.example.com"
+          base_api_url: "https://telemetry-api.example.com"
+```
+
+Use `http://localhost:3001` (or your dev API port) when testing uploads against a local API from CI or a runner on your network.
+
+See [DEPLOYMENT.md](../DEPLOYMENT.md) for self-host setup and [docs/hosted-cloud](https://telemetry-tracker.com/docs/hosted-cloud) for the managed service.

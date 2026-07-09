@@ -39,6 +39,10 @@ import {
 } from "../lib/read-project-request.js";
 import { dashboardOriginOrNull } from "../lib/dashboard-origin.js";
 import { SOURCE_MAP_UPLOAD_BODY_LIMIT } from "../lib/source-map-artifact.js";
+import {
+  assertSourceMapAppAllowed,
+  resolveSourceMapUploadAuth,
+} from "../lib/source-map-upload-auth.js";
 
 const DEFAULT_ORG_ID =
   process.env.TELEMETRY_ORGANIZATION_ID?.trim() ||
@@ -991,21 +995,16 @@ export async function projectDashboardRoutes(
     "/project/source-maps",
     { bodyLimit: SOURCE_MAP_UPLOAD_BODY_LIMIT },
     async (request, reply) => {
-      const session = await requireSessionUser(request, reply);
-      if (!session) return;
-      const projectId = await resolveReadProjectIdWithSession(request, reply, session);
-      if (projectId === null) return;
-      const projRole = await getMembershipRoleForProject(session.userId, projectId);
-      if (!canCreateApiKey(projRole)) {
-        return reply.status(403).send({ error: "Forbidden" });
-      }
+      const auth = await resolveSourceMapUploadAuth(prisma, request, reply);
+      if (!auth) return;
       const { validateSourceMapUploadBody, upsertSourceMapArtifact, SOURCE_MAP_QUOTA_MSG } =
         await import("../lib/source-map-upload.js");
       const validated = validateSourceMapUploadBody(request.body);
       if (!validated.ok) {
         return reply.status(400).send({ error: validated.error });
       }
-      const result = await upsertSourceMapArtifact(prisma, projectId, validated.input);
+      if (!assertSourceMapAppAllowed(auth, validated.input.app, reply)) return;
+      const result = await upsertSourceMapArtifact(prisma, auth.projectId, validated.input);
       if (!result.ok) {
         return reply
           .status(result.error === SOURCE_MAP_QUOTA_MSG ? 403 : 400)

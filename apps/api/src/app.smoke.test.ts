@@ -21,9 +21,10 @@ describe("API smoke", () => {
   it("GET /health returns 200", async () => {
     const res = await app.inject({ method: "GET", url: "/health" });
     expect(res.statusCode).toBe(200);
-    const body = JSON.parse(res.body) as { ok: boolean; email: string };
+    const body = JSON.parse(res.body) as { ok: boolean; email: string; version: string };
     expect(body.ok).toBe(true);
     expect(body.email).toMatch(/^configured|not_configured$/);
+    expect(body.version).toBeTruthy();
   });
 
   it("POST /ingest/event without API key returns 401", async () => {

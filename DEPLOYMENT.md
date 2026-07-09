@@ -30,7 +30,9 @@ Copy `apps/api/.env.example` and `apps/dashboard/.env.example` for local dev.
 
 | Variable | Description |
 |----------|-------------|
-| `HEALTH_CHECK_DATABASE` | `true` — `GET /health` checks Postgres |
+| `HEALTH_CHECK_DATABASE` | `true` — `GET /health` checks Postgres and reports `database_latency_ms` |
+| `HEALTH_DETAILED` | `true` — add `uptime_seconds` and `node_version` to `/health` (no secrets) |
+| `TELEMETRY_API_VERSION` | Optional override for `/health` `version`; normally set automatically at build from [CHANGELOG.md](../CHANGELOG.md) |
 | `TELEMETRY_ALLOW_REGISTRATION` | Set `false` after bootstrap if you do not want open signups |
 | `SENTRY_DSN` | Optional uncaught-error reporting |
 
@@ -101,6 +103,8 @@ This repo does **not** ship a single Docker Compose stack for all three producti
 **VPS sketch:** install Postgres 16 (or Docker), clone repo, set `DATABASE_URL`, `pnpm build`, run migrations, start API and dashboard with a process manager, terminate TLS at the proxy.
 
 **Retention:** schedule the retention job nightly so old telemetry is pruned — see [docs/RAILWAY.md](docs/RAILWAY.md#retention-cron) or run `node dist/jobs/run-retention.js` from `apps/api` on your scheduler.
+
+**Source maps in CI:** upload `.map` files after each release with the [upload-source-maps GitHub Action](.github/actions/upload-source-maps). Set `base_api_url` to your public API URL (`API_URL` on the dashboard). Details: [docs/source-maps.md](docs/source-maps.md#github-action-workflow-example).
 
 ---
 

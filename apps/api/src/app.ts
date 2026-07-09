@@ -2,7 +2,7 @@ import cors, { type FastifyCorsOptionsDelegateCallback } from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
 import Fastify, { type FastifyInstance } from "fastify";
 import { prisma } from "./lib/db.js";
-import { isTransactionalEmailConfigured } from "./lib/email.js";
+import { buildHealthResponse } from "./lib/health.js";
 import { resolveCorsOptionsForRequest } from "./lib/cors-config.js";
 import { genReqId, registerObservabilityHooks } from "./lib/observability.js";
 import {
@@ -52,17 +52,10 @@ export async function createApp(): Promise<FastifyInstance> {
         timeWindow: RATE_LIMIT_WINDOW_MS,
       });
       // Set HEALTH_CHECK_DATABASE=true in production (or staging) to verify DB connectivity; omit in dev if you prefer a dependency-free /health.
+      // Optional HEALTH_DETAILED=true adds uptime and Node version (no secrets). See DEPLOYMENT.md.
       f.get("/health", async (_req, reply) => {
-        const email = isTransactionalEmailConfigured() ? "configured" : "not_configured";
-        if (process.env.HEALTH_CHECK_DATABASE === "true") {
-          try {
-            await prisma.$queryRaw`SELECT 1`;
-            return reply.code(200).send({ ok: true, database: "ok", email });
-          } catch {
-            return reply.code(503).send({ ok: false, database: "unavailable", email });
-          }
-        }
-        return reply.code(200).send({ ok: true, email });
+        const { statusCode, body } = await buildHealthResponse(prisma);
+        return reply.code(statusCode).send(body);
       });
       f.get("/", async (_req, reply) =>
         reply.code(200).send({ service: "telemetry-api", ok: true })

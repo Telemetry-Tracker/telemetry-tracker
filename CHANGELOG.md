@@ -13,6 +13,39 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ---
 
+## [1.6.4] - 2026-07-09
+
+### Changed
+
+- **API `/health` version** — build injects the latest released semver from [CHANGELOG.md](../CHANGELOG.md); `TELEMETRY_API_VERSION` is optional override only (no per-release Railway env) ([#317](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/317))
+
+---
+
+## [1.6.3] - 2026-07-09
+
+### Added
+
+- **Health endpoint metrics** — `GET /health` always includes `version` (build-time from CHANGELOG; optional `TELEMETRY_API_VERSION` override); database probe reports `database_latency_ms` when `HEALTH_CHECK_DATABASE=true`; optional `HEALTH_DETAILED=true` adds `uptime_seconds` and `node_version` for self-host monitoring ([#234](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/234))
+
+---
+
+## [1.6.2] - 2026-07-09
+
+### Added
+
+- **Self-hosted source map uploads** — GitHub Action `base_api_url` input for CI uploads against a custom API host ([#303](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/303))
+
+---
+
+## [1.6.1] - 2026-07-09
+
+### Added
+
+- **Source map upload GitHub Action** — composite action at `.github/actions/upload-source-maps` for CI uploads of `.map` files ([#253](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/253))
+- **Source map CI upload auth** — `POST /api/project/source-maps` accepts project API keys (`X-API-Key` or `Authorization: Bearer`) for CI uploads; GitHub Action uses `api_key` input instead of session cookie ([#304](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/304))
+
+---
+
 ## [1.6.0] - 2026-07-08
 
 Continues **v1.6.0 — Launch hardening** ([#3](https://github.com/Telemetry-Tracker/telemetry-tracker/milestone/3)).
