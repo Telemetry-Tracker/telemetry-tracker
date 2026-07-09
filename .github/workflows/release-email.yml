@@ -81,12 +81,6 @@ jobs:
           echo "reason=$(node -e "console.log(JSON.parse(process.argv[1]).reason)" "$BUMP")" >> "$GITHUB_OUTPUT"
           echo "Bump decision: $BUMP"
 
-      - name: Apply database migrations
-        if: steps.bump.outputs.should_send == 'true'
-        run: pnpm --filter api exec prisma migrate deploy
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-
       - name: Send product update email
         if: steps.bump.outputs.should_send == 'true'
         working-directory: apps/api

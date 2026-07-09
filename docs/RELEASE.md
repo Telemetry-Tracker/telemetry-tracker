@@ -138,7 +138,7 @@ Always document **migrations**, **new env vars**, and **breaking changes** in CH
 
 1. **Finalize CHANGELOG** — rename `[Unreleased]` to `[X.Y.Z] - YYYY-MM-DD`. Prefer doing this in the **`develop` → `main`** release PR so `develop` and `main` stay aligned; if you commit on `main` after promotion, you **must** sync `develop` in step 9.
 2. **Deploy** — Railway rebuilds `main` automatically when the release PR merges; see [Deploy runbook](#deploy-runbook-railway).
-3. **Production DB** — run [migrations](#3-database-migrations-production) **before tagging** on MINOR (Y) / MAJOR (X) releases (the [Release product email](../.github/workflows/release-email.yml) workflow also runs `prisma migrate deploy` immediately before send, but apply migrations here as part of the normal release gate).
+3. **Production DB** — run [migrations](#3-database-migrations-production) **before tagging** on MINOR (Y) / MAJOR (X) releases. The release email workflow reads production Postgres but does not migrate (use the public `DATABASE_URL` in GitHub secrets — see [MARKETING-EMAIL.md](./MARKETING-EMAIL.md#automated-send-minor--major-tags)).
 4. **Post-deploy** — [verification](#post-deploy-verification).
 5. **Tag** — after deploy and migrations are green (tag push triggers the product update email workflow for MINOR/MAJOR — **X** or **Y** bump, not Z-only hotfixes):
    ```bash
@@ -198,7 +198,7 @@ On push and pull requests to **`develop`** and **`main`**, CI runs ([`.github/wo
 
 ### 3. Database migrations (production)
 
-CI does **not** migrate your production database during normal builds. Apply migrations after API deploy and **before pushing a MINOR (Y) / MAJOR (X) tag** (see [On `main` after promotion](#on-main-after-promotion)). The [Release product email](../.github/workflows/release-email.yml) workflow also runs `prisma migrate deploy` immediately before sending so delivery records can be written.
+CI does **not** migrate your production database during normal builds. Apply migrations after API deploy and **before pushing a MINOR (Y) / MAJOR (X) tag** (see [On `main` after promotion](#on-main-after-promotion)). The [Release product email](../.github/workflows/release-email.yml) workflow connects to production Postgres for the send ledger only — use Railway’s **public** database URL in GitHub secrets, not `postgres.railway.internal`.
 
 ```bash
 DATABASE_URL="postgresql://..." pnpm --filter api exec prisma migrate deploy
