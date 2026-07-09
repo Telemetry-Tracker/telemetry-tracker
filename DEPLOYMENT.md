@@ -30,7 +30,9 @@ Copy `apps/api/.env.example` and `apps/dashboard/.env.example` for local dev.
 
 | Variable | Description |
 |----------|-------------|
-| `HEALTH_CHECK_DATABASE` | `true` — `GET /health` checks Postgres |
+| `HEALTH_CHECK_DATABASE` | `true` — `GET /health` checks Postgres and reports `database_latency_ms` |
+| `HEALTH_DETAILED` | `true` — add `uptime_seconds` and `node_version` to `/health` (no secrets) |
+| `TELEMETRY_API_VERSION` | Optional deploy tag (e.g. `1.6.2`) shown in `/health`; defaults to API package version |
 | `TELEMETRY_ALLOW_REGISTRATION` | Set `false` after bootstrap if you do not want open signups |
 | `SENTRY_DSN` | Optional uncaught-error reporting |
 

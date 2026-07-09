@@ -122,7 +122,7 @@ Entry: `apps/api/src/index.ts` → `createApp()` in `app.ts`.
 
 | Mount | Routes | Notes |
 |-------|--------|-------|
-| `/health`, `/` | public | optional DB check |
+| `/health`, `/` | public | optional DB check; returns `version`, optional DB latency and detailed mode |
 | `/ingest` | ingest | API key auth, ingest rate limit |
 | `/api/auth` | auth | register, login, logout, password reset |
 | `/api` | api + project-dashboard | session + project scope |
