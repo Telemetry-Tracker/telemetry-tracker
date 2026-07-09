@@ -1,5 +1,5 @@
+🇬🇧 English: [README.md](README.md)
 # Telemetry Tracker
-🇩🇪 Deutsch: [README.de.md](README.de.md)
 
 ![License](https://img.shields.io/github/license/Telemetry-Tracker/telemetry-tracker)
 ![GitHub Stars](https://img.shields.io/github/stars/Telemetry-Tracker/telemetry-tracker)
@@ -14,8 +14,8 @@
 </p>
 
 <p align="center">
-  Entweder lightweight und self-hosted für die eigene Infrastruktur — oder über den <strong>offiziellen  Cloud-Dienst</strong> bei
-  <a href="https://telemetry-tracker.com">telemetry-tracker.com</a> über Stripe Billing (EUR).
+  Entweder lightweight und self-hosted für die eigene Infrastruktur — oder über den <strong>offiziellen Cloud-Dienst</strong> bei
+  <a href="https://telemetry-tracker.com">telemetry-tracker.com</a> über Stripe (EUR).
 </p>
 
 <p align="center">
@@ -44,9 +44,9 @@
 
 ---
 
-## Features
+## Funktionen
 
-| Feature | Supported |
+| Funktion | Unterstützung |
 |---------|-----------|
 | Fehler | ✅ |
 | Events | ✅ |
@@ -59,7 +59,7 @@
 | SDKs (`@telemetry-tracker/*`) | ✅ |
 | Self-hosted | ✅ |
 | Hosted cloud ([telemetry-tracker.com](https://telemetry-tracker.com)) | ✅ |
-| Zahlungspläne (Free / Pro / Business, in €) | ✅ |
+| Zahlungspläne (Free / Pro / Business, in EUR) | ✅ |
 | Benachrichtigungen | ✅ |
 | Source Maps | ✅ |
 
@@ -95,11 +95,11 @@ Anwendungen senden Fehler, Ereignisse und Sitzungen über `@telemetry-tracker/*`
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Installation
 
-Starte Telemetry Tracker lokal in weniger als 5 Minuten.
+Lokale Telemetry-Tracker-Installation in weniger als 5 Minuten.
 
-**Prerequisites:** Node.js 18+, pnpm 9, PostgreSQL 16 (Docker funktioniert).
+**Voraussetzungen:** Node.js 18+, pnpm 9, PostgreSQL 16 (oder Docker).
 
 ```bash
 git clone https://github.com/Telemetry-Tracker/telemetry-tracker.git
@@ -118,12 +118,12 @@ pnpm dev:api        # API → http://localhost:3001
 pnpm dev:dashboard  # Dashboard → http://localhost:3000
 ```
 
-Then:
+Danach:
 
 1. Öffne **http://localhost:3000**, klicke **Start tracking**, und erstelle einen Account.
-2. Erstelle eine **organization** und ein **project** in den Organisationseinstellungen.
-3. Erstelle einen **API key** unter Settings → API keys (kopiere den `tt_live_…` secret einmalig).
-4. Benutze deine App (siehe SDK beispiel) und überprüfe **Overview** im Dashboard.
+2. Erstelle eine **Organisation** und ein **Projekt** in den Organisationseinstellungen.
+3. Erstelle einen **API-Key** unter Settings → API-keys (kopiere den `tt_live_…` secret einmalig).
+4. Benutze deine App (siehe SDK-Beispiel) und überprüfe **Overview** im Dashboard.
 
 ---
 
@@ -134,15 +134,15 @@ Kompatibel mit:
 - ✓ **React / Vue** — `@telemetry-tracker/core`
 - ✓ **Next.js** — `@telemetry-tracker/next`
 - ✓ **Node / NestJS** — `@telemetry-tracker/node`
-- ✓ **Nuxt** — `@telemetry-tracker/core` ([guide](docs/sdk-nuxt.md))
+- ✓ **Nuxt** — `@telemetry-tracker/core` ([guide](docs/sdk-nuxt.md)) 
 - ✓ **React Native** — `@telemetry-tracker/react-native`
 - ✓ **Vanilla JS** — `@telemetry-tracker/core`
 
-Guides: [core](docs/sdk-core.md) · [Next.js](docs/sdk-next.md) · [Node](docs/sdk-node.md) · [NestJS](docs/sdk-nestjs.md) · [Vue](docs/sdk-vue.md) · [Nuxt](docs/sdk-nuxt.md) · [React Native](docs/sdk-react-native.md)
+Anleitungen [core](docs/sdk-core.md) · [Next.js](docs/sdk-next.md) · [Node](docs/sdk-node.md) · [NestJS](docs/sdk-nestjs.md) · [Vue](docs/sdk-vue.md) · [Nuxt](docs/sdk-nuxt.md) · [React Native](docs/sdk-react-native.md)
 
 ### Beispiel
 
-Installiere von npm aus:
+Mit npm installieren:
 
 ```bash
 pnpm add @telemetry-tracker/core
@@ -164,7 +164,7 @@ trackError(new Error("Something broke"));
 
 ---
 
-## 🏗 Project Struktur
+## 🏗 Projektstruktur
 
 ```
 apps/
@@ -180,19 +180,19 @@ packages/
 
 ---
 
-## Built With
+## Erstellt mit
 
-- [Next.js](https://nextjs.org/) — dashboard
+- [Next.js](https://nextjs.org/) — Dashboard
 - [Fastify](https://fastify.dev/) — API
 - [Prisma](https://www.prisma.io/) — ORM & migrations
-- [PostgreSQL](https://www.postgresql.org/) — database
+- [PostgreSQL](https://www.postgresql.org/) — Datenbank
 - [TypeScript](https://www.typescriptlang.org/)
-- [pnpm](https://pnpm.io/) — monorepo
-- [Docker](https://www.docker.com/) — local development (Postgres via `docker compose`; dashboard production image)
+- [pnpm](https://pnpm.io/) — Monorepo
+- [Docker](https://www.docker.com/) — Lokale Entwicklung (Postgres über `docker compose`; Dashboard-Produktions-image)
 
 ---
 
-## Roadmap
+## Ablaufplan
 
 Die bereits verfügbaren Funktionen befinden sich oben unter **[Features](#features)**. Im Folgenden werden **geplante und in Entwicklung befindliche Arbeiten** aufgeführt, kein Veröffentlichungsplan. Elemente, die im Dashboard als *Coming soon* gekennzeichnet sind, entsprechen dieser Liste ([#96](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/96)).
 
@@ -226,7 +226,7 @@ Die bereits verfügbaren Funktionen befinden sich oben unter **[Features](#featu
 | Bereich | Status |
 |---------|--------|
 | Team-Audit-Protokoll | Geplant |
-| Integrationen | In Enwticklung |
+| Integrationen | In Entwicklung |
 | Profil, Einstellungen & Sicherheit | In Entwicklung |
 
 </details>
@@ -235,70 +235,70 @@ Sie haben eine Idee? [Open a feature request](https://github.com/Telemetry-Track
 
 ---
 
-## 🤝 Contributing
+## 🤝 Beiträge
 
-Contributions are welcome! Read [CONTRIBUTING.md](CONTRIBUTING.md) for local setup and what CI runs.
+Beiträge sind willkommen! Lies [CONTRIBUTING.md](CONTRIBUTING.md) für ein lokales Setup und welche CI-Workflows ausgeführt werden.
 
-Good places to start:
+Gute Einstiegspunkte:
 
 - [**Good first issues**](https://github.com/Telemetry-Tracker/telemetry-tracker/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
 - [help wanted](https://github.com/Telemetry-Tracker/telemetry-tracker/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22) issues
 
-Please follow the [Code of Conduct](CODE_OF_CONDUCT.md). Report security issues privately via [SECURITY.md](SECURITY.md)—not public issues.
+Bitte befolgen Sie den [Code of Conduct](CODE_OF_CONDUCT.md). Melden Sie Sicherheitslücken via [SECURITY.md](SECURITY.md)—nicht über öffentliche issues.
 
 ---
 
-## 📚 Documentation
+## 📚 Dokumentation
 
-| Topic | Doc |
-|-------|-----|
-| Architecture overview | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
-| Deploy (overview) | [DEPLOYMENT.md](DEPLOYMENT.md) |
-| Railway setup & troubleshooting | [docs/RAILWAY.md](docs/RAILWAY.md) |
+| Thema | Dokumentation |
+|-------|---------------|
+| Architekturübersicht | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
+| Bereitstellung (Übersicht) | [DEPLOYMENT.md](DEPLOYMENT.md) |
+| Railway-Einrichtung & Fehlerbehebung | [docs/RAILWAY.md](docs/RAILWAY.md) |
 | Stripe & Resend (optional) | [docs/BILLING.md](docs/BILLING.md) |
-| Production checklist | [docs/PRODUCTION-READINESS.md](docs/PRODUCTION-READINESS.md) |
-| Releases & deploy runbook | [docs/RELEASE.md](docs/RELEASE.md) |
-| Changelog | [CHANGELOG.md](CHANGELOG.md) |
-| RBAC & org model | [docs/RBAC.md](docs/RBAC.md) |
-| Plans & ingest auth | [docs/ENTITLEMENTS.md](docs/ENTITLEMENTS.md) |
-| SDK guides | [docs/sdk-core.md](docs/sdk-core.md), [docs/sdk-next.md](docs/sdk-next.md), [docs/sdk-node.md](docs/sdk-node.md), [docs/sdk-nestjs.md](docs/sdk-nestjs.md), [docs/sdk-vue.md](docs/sdk-vue.md), [docs/sdk-nuxt.md](docs/sdk-nuxt.md), [docs/sdk-react-native.md](docs/sdk-react-native.md) |
-| Source maps | [docs/source-maps.md](docs/source-maps.md) |
+| Checkliste für den Produktivbetrieb | [docs/PRODUCTION-READINESS.md](docs/PRODUCTION-READINESS.md) |
+| Releases & Bereitstellungsleitfaden | [docs/RELEASE.md](docs/RELEASE.md) |
+| Änderungsprotokoll | [CHANGELOG.md](CHANGELOG.md) |
+| RBAC & Organisationsmodell | [docs/RBAC.md](docs/RBAC.md) |
+| Tarife & Ingest-Authentifizierung | [docs/ENTITLEMENTS.md](docs/ENTITLEMENTS.md) |
+| SDK-Anleitungen | [docs/sdk-core.md](docs/sdk-core.md), [docs/sdk-next.md](docs/sdk-next.md), [docs/sdk-node.md](docs/sdk-node.md), [docs/sdk-nestjs.md](docs/sdk-nestjs.md), [docs/sdk-vue.md](docs/sdk-vue.md), [docs/sdk-nuxt.md](docs/sdk-nuxt.md), [docs/sdk-react-native.md](docs/sdk-react-native.md) |
+| Source Maps | [docs/source-maps.md](docs/source-maps.md) |
 
-**Publish SDK packages:** `npm login` → `pnpm publish:packages` (see [CONTRIBUTING.md](CONTRIBUTING.md) and root `package.json` scripts).
+**SDK-Pakete veröffentlichen:** `npm login` → `pnpm publish:packages` (siehe [CONTRIBUTING.md](CONTRIBUTING.md) und die Skripte in der `package.json` im Hauptverzeichnis).
 
-**GitHub social preview:** In repo **Settings → General → Social preview**, use `https://telemetry-tracker.com/og-banner.png` (1024×409 marketing banner) once the dashboard is deployed. Install path for docs and marketing: `@telemetry-tracker/core` (see npm badges above).
-
----
-
-## ❤️ Support the Project
-
-If you find Telemetry Tracker useful:
-
-- ⭐ Star this repository
-- 🐛 [Report bugs](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/new?template=bug_report.md)
-- 💡 [Suggest features](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/new?template=feature_request.md)
-- 🤝 Open a pull request
+**GitHub Social Preview:** Unter **Repository → Settings → General → Social preview** `https://telemetry-tracker.com/og-banner.png` verwenden (1024×409 Marketing-Banner), sobald das Dashboard bereitgestellt wurde. Installationspfad für Dokumentation und Marketing: `@telemetry-tracker/core` (siehe npm-Badges oben).
 
 ---
 
-## 📄 License, trademark & hosting
+## ❤️ Unterstütze das Projekt
+
+Wenn Sie Telemetry Tracker hilfreich finden:
+
+- ⭐ Geben Sie diesem Projekt einen Stern
+- 🐛 [Fehler Melden](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/new?template=bug_report.md)
+- 💡 [Features empfehlen](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/new?template=feature_request.md)
+- 🤝 Öffnen eines pull requests
+
+---
+
+## 📄 Lizenz, Markenrecht & Hosting
 
 ### Software (MIT)
 
-This project’s **source code** is licensed under the [MIT License](LICENSE). You may use, modify, self-host, and distribute the software under those terms, including the copyright notice in copies you distribute.
+Der **Quellcode** dieses Projekts ist unter der [MIT-Lizenz](LICENSE) lizenziert. Du darfst die Software unter diesen Bedingungen verwenden, verändern, selbst hosten und weiterverbreiten, einschließlich des Copyright-Hinweises in den von dir verbreiteten Kopien.
 
-MIT covers **copyright on the code**. It does not grant rights to use the **Telemetry Tracker** name or branding in ways that suggest Tacko operates or endorses your service. See [TRADEMARK.md](TRADEMARK.md).
+Die MIT-Lizenz deckt das **Urheberrecht am Quellcode** ab. Sie gewährt keine Rechte zur Nutzung des Namens oder der Marke **Telemetry Tracker** in einer Weise, die den Eindruck erweckt, dass Tacko deinen Dienst betreibt oder unterstützt. Siehe [TRADEMARK.md](TRADEMARK.md).
 
-### Self-hosting
+### Self-Hosting
 
-You may run Telemetry Tracker on infrastructure you control for your own applications — no separate permission required under MIT.
+Du darfst Telemetry Tracker auf einer von dir kontrollierten Infrastruktur für deine eigenen Anwendungen betreiben – hierfür ist unter der MIT-Lizenz keine gesonderte Genehmigung erforderlich.
 
-### Official hosted cloud
+### Offiziell gehostete Cloud
 
-The **managed service** at [telemetry-tracker.com](https://telemetry-tracker.com) is operated by [Tacko](https://tacko.io). **Pro** and **Business** plans there are billed in **EUR** via Stripe.
+Der **verwaltete Dienst** unter [telemetry-tracker.com](https://telemetry-tracker.com) wird von [Tacko](https://tacko.io) betrieben. Die Tarife **Pro** und **Business** werden dort über Stripe in **EUR** abgerechnet.
 
-### Brand & competing hosted services
+### Marke & konkurrierende gehostete Dienste
 
-Do not offer a multi-tenant hosted service **to third parties** using the **Telemetry Tracker** name, logo, or marketing as if it were the official product. Forks and internal deployments should use a **distinct name** unless you have written permission from Tacko.
+Biete keinen mandantenfähigen Hosting-Dienst **für Dritte** unter dem Namen, Logo oder Marketing von **Telemetry Tracker** an, als wäre es das offizielle Produkt. Forks und interne Bereitstellungen sollten einen **eigenständigen Namen** verwenden, sofern du keine schriftliche Genehmigung von Tacko hast.
 
-Details and examples: **[TRADEMARK.md](TRADEMARK.md)** · Partnerships: [info@tacko.io](mailto:info@tacko.io)
+Details und Beispiele: **[TRADEMARK.md](TRADEMARK.md)** · Partnerschaften: [info@tacko.io](mailto:info@tacko.io)
