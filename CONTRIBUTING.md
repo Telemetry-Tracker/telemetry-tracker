@@ -95,6 +95,7 @@ SDKs are published as `@telemetry-tracker/*` on npm:
 | `packages/telemetry-next` | `@telemetry-tracker/next` |
 | `packages/telemetry-node` | `@telemetry-tracker/node` |
 | `packages/telemetry-react-native` | `@telemetry-tracker/react-native` |
+| `packages/telemetry-vite-plugin` | `@telemetry-tracker/vite-plugin` |
 
 Publish (maintainers): create the `@telemetry-tracker` npm org, `npm login`, then `pnpm publish:packages`. After the first publish under the new scope, deprecate the legacy `@tacko/telemetry-*` packages with a message pointing to `@telemetry-tracker/*`.
 

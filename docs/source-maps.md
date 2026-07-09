@@ -115,6 +115,41 @@ Returns metadata only (no map body). Implementation: `apps/api/src/lib/source-ma
 
 Future: multipart upload and CLI wrapper (`npx @telemetry-tracker/cli upload-sourcemaps --release=1.0.0 ./dist/**/*.map`).
 
+### Vite plugin
+
+For Vite (Vue, React, Svelte, etc.), add `@telemetry-tracker/vite-plugin` to upload maps automatically after `vite build`:
+
+```bash
+pnpm add -D @telemetry-tracker/vite-plugin
+```
+
+```ts
+// vite.config.ts
+import { defineConfig } from "vite";
+import { telemetrySourceMaps } from "@telemetry-tracker/vite-plugin";
+
+export default defineConfig({
+  build: {
+    sourcemap: true,
+  },
+  plugins: [
+    telemetrySourceMaps({
+      apiKey: process.env.TT_API_KEY!,
+      projectId: process.env.TT_PROJECT_ID!,
+      release: process.env.TT_RELEASE!,
+      app: "my-web-app",
+      baseUrl: "https://example.com",
+      // baseApiUrl: "https://api.telemetry-tracker.com", // optional; self-host override
+      // deleteMapsAfterUpload: true, // remove .map from dist after upload
+    }),
+  ],
+});
+```
+
+Create a project API key in **Settings → API keys** (same key as ingest). `baseUrl` must match the public URL where your minified JS is served — the plugin derives `bundle_url` from each `.map` path under `build.outDir`.
+
+See [sdk-vite.md](./sdk-vite.md) for full options and a Vue + Vite example. Full option reference: [sdk-vite.md](./sdk-vite.md).
+
 ## Phase 4 — symbolication
 
 Server-side stack parsing (V8, Firefox-style) and source map lookup by `(project_id, app, release, bundle_url)`.

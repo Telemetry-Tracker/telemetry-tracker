@@ -7,7 +7,7 @@
     "dev:dashboard": "pnpm --filter dashboard dev",
     "build": "pnpm -r run build",
     "lint": "eslint apps packages --max-warnings 0",
-    "test": "pnpm --filter api test && pnpm --filter dashboard test && pnpm --filter @telemetry-tracker/core test",
+    "test": "pnpm --filter api test && pnpm --filter dashboard test && pnpm --filter @telemetry-tracker/core test && pnpm --filter @telemetry-tracker/vite-plugin test",
     "db:generate": "pnpm --filter api exec prisma generate",
     "db:migrate": "pnpm --filter api exec prisma migrate dev",
     "db:studio": "pnpm --filter api exec prisma studio",

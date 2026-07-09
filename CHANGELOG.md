@@ -11,6 +11,10 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ## [Unreleased]
 
+### Added
+
+- **`@telemetry-tracker/vite-plugin`** — Vite/Rollup plugin uploads `.map` files after `vite build`; optional delete from public output; documented in [docs/sdk-vite.md](docs/sdk-vite.md) ([#231](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/231))
+
 ---
 
 ## [1.6.6] - 2026-07-09

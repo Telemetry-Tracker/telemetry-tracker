@@ -13,7 +13,12 @@ const packagesDir = join(root, "packages");
 
 const coreName = "telemetry-core"; // folder name
 const coreDep = "@telemetry-tracker/core"; // package name for dependency
-const dependents = ["telemetry-next", "telemetry-node", "telemetry-react-native"];
+const dependents = [
+  "telemetry-next",
+  "telemetry-node",
+  "telemetry-react-native",
+  "telemetry-vite-plugin",
+];
 
 function readJson(path) {
   return JSON.parse(readFileSync(path, "utf8"));

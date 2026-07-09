@@ -50,3 +50,25 @@ After `init()`, the core SDK registers `window.onerror` and `unhandledrejection`
 ## Hosted cloud
 
 Point `ingestUrl` at `https://api.telemetry-tracker.com` and use an API key from [telemetry-tracker.com](https://telemetry-tracker.com). See the dashboard guide at `/docs/hosted-cloud`.
+
+## Source maps (Vite)
+
+Enable `build.sourcemap: true` and add `@telemetry-tracker/vite-plugin` so production stacks symbolicate in the dashboard. Full options: [source-maps.md](./source-maps.md#vite-plugin).
+
+```ts
+// vite.config.ts
+import { telemetrySourceMaps } from "@telemetry-tracker/vite-plugin";
+
+export default defineConfig({
+  build: { sourcemap: true },
+  plugins: [
+    telemetrySourceMaps({
+      apiKey: process.env.TT_API_KEY!,
+      projectId: process.env.TT_PROJECT_ID!,
+      release: process.env.TT_RELEASE!,
+      app: import.meta.env.VITE_TELEMETRY_APP ?? "my-vue-app",
+      baseUrl: "https://your-cdn.example.com",
+    }),
+  ],
+});
+```

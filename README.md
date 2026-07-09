@@ -175,6 +175,7 @@ packages/
   telemetry-node/
   telemetry-next/
   telemetry-react-native/
+  telemetry-vite-plugin/
 ```
 
 ---
