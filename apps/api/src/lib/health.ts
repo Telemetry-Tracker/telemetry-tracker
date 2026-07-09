@@ -1,11 +1,8 @@
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import type { PrismaClient } from "@prisma/client";
+import { API_VERSION } from "../generated/api-version.js";
 import { isTransactionalEmailConfigured } from "./email.js";
 
 const processStartedAt = Date.now();
-let cachedPackageVersion: string | undefined;
 
 export type HealthResponse = {
   ok: boolean;
@@ -25,21 +22,11 @@ export function isHealthDetailedEnabled(): boolean {
   return process.env.HEALTH_DETAILED === "true";
 }
 
-/** Deploy tag or package version — safe for public `/health`. */
+/** Deploy tag or build-time release version — safe for public `/health`. */
 export function resolveApiVersion(): string {
   const fromEnv = process.env.TELEMETRY_API_VERSION?.trim();
   if (fromEnv) return fromEnv;
-
-  if (cachedPackageVersion) return cachedPackageVersion;
-
-  try {
-    const pkgPath = join(dirname(fileURLToPath(import.meta.url)), "../../package.json");
-    const pkg = JSON.parse(readFileSync(pkgPath, "utf8")) as { version?: string };
-    cachedPackageVersion = typeof pkg.version === "string" ? pkg.version : "unknown";
-  } catch {
-    cachedPackageVersion = "unknown";
-  }
-  return cachedPackageVersion;
+  return API_VERSION;
 }
 
 async function probeDatabase(

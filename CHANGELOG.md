@@ -11,9 +11,17 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ## [Unreleased]
 
+### Changed
+
+- **API `/health` version** — build injects the latest released semver from [CHANGELOG.md](../CHANGELOG.md); `TELEMETRY_API_VERSION` is optional override only (no per-release Railway env)
+
+---
+
+## [1.6.3] - 2026-07-09
+
 ### Added
 
-- **Health endpoint metrics** — `GET /health` always includes `version` (override with `TELEMETRY_API_VERSION`); database probe reports `database_latency_ms` when `HEALTH_CHECK_DATABASE=true`; optional `HEALTH_DETAILED=true` adds `uptime_seconds` and `node_version` for self-host monitoring ([#234](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/234))
+- **Health endpoint metrics** — `GET /health` always includes `version` (build-time from CHANGELOG; optional `TELEMETRY_API_VERSION` override); database probe reports `database_latency_ms` when `HEALTH_CHECK_DATABASE=true`; optional `HEALTH_DETAILED=true` adds `uptime_seconds` and `node_version` for self-host monitoring ([#234](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/234))
 
 ---
 

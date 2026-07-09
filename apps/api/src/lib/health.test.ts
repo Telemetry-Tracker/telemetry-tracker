@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PrismaClient } from "@prisma/client";
+import { API_VERSION } from "../generated/api-version.js";
 import {
   buildHealthResponse,
   isHealthCheckDatabaseEnabled,
@@ -20,9 +21,10 @@ describe("resolveApiVersion", () => {
     expect(resolveApiVersion()).toBe("1.6.2");
   });
 
-  it("falls back to package.json version", () => {
+  it("uses build-time API_VERSION when env is unset", () => {
     delete process.env.TELEMETRY_API_VERSION;
-    expect(resolveApiVersion()).toMatch(/^\d+\.\d+\.\d+$|^unknown$/);
+    expect(resolveApiVersion()).toBe(API_VERSION);
+    expect(API_VERSION).toMatch(/^\d+\.\d+\.\d+$|^dev$/);
   });
 });
 

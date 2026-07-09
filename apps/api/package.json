@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "build": "prisma generate && tsc -p tsconfig.build.json",
-    "postinstall": "prisma generate",
+    "dev": "node scripts/generate-api-version.cjs && tsx watch src/index.ts",
+    "build": "node scripts/generate-api-version.cjs && prisma generate && tsc -p tsconfig.build.json",
+    "postinstall": "node scripts/generate-api-version.cjs && prisma generate",
     "start": "node dist/index.js",
     "test": "NODE_ENV=test vitest run",
     "test:watch": "NODE_ENV=test vitest",
