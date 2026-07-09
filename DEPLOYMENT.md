@@ -112,6 +112,20 @@ This repo does **not** ship a single Docker Compose stack for all three producti
 
 Use [docs/PRODUCTION-READINESS.md](docs/PRODUCTION-READINESS.md) for the full security and operations checklist.
 
+### Verify production config
+
+After Railway env vars are set, run external checks (no dashboard login required):
+
+```bash
+chmod +x scripts/verify-prod-config.sh
+./scripts/verify-prod-config.sh
+# Custom hosts: VERIFY_API_URL=https://api.example.com VERIFY_DASHBOARD_URL=https://app.example.com ./scripts/verify-prod-config.sh
+```
+
+The script confirms HTTPS, `GET /health` with database probe, ingest auth (401 without API key), read auth (401 without session), CORS for the dashboard origin, and dashboard reachability. It maps to GitHub issue **#85**; retention cron, backups, and `prisma migrate deploy` remain manual in Railway.
+
+For a full register → ingest → billing flow, use `scripts/smoke-production.sh` (issue **#87**).
+
 ---
 
 ## Related docs

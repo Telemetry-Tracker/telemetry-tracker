@@ -50,7 +50,15 @@ RUN_DB_INTEGRATION_TESTS=true pnpm test
 pnpm build
 ```
 
-Manually verify: login, overview loads, ingest with API key returns 200, ingest without key returns 401.
+**Automated external checks** (no Railway dashboard access):
+
+```bash
+./scripts/verify-prod-config.sh
+```
+
+Confirms HTTPS, `/health` database probe, ingest 401 without key, read 401 without session, CORS, and dashboard reachability — see [DEPLOYMENT.md](../DEPLOYMENT.md#verify-production-config).
+
+Manually verify: login, overview loads, ingest with API key returns 200. Full E2E: `scripts/smoke-production.sh`.
 
 ## Known limitations (v1)
 

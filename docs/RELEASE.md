@@ -255,6 +255,13 @@ Same `DATABASE_URL` as the API. See [RAILWAY.md](./RAILWAY.md#retention-cron).
 ## Post-deploy verification
 
 ```bash
+./scripts/verify-prod-config.sh
+# Custom hosts: VERIFY_API_URL=... VERIFY_DASHBOARD_URL=... ./scripts/verify-prod-config.sh
+```
+
+Or individual curls:
+
+```bash
 curl -sS https://<api-host>/health
 # → {"ok":true,"version":"1.6.2","database":"ok","database_latency_ms":5,"email":"configured"}
 
