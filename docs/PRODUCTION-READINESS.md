@@ -17,9 +17,9 @@ Use this before exposing Telemetry Tracker on the public internet or handing it 
 
 | Item | Action |
 |------|--------|
-| Database | Managed Postgres with automated backups and a tested restore procedure. |
+| Database | Managed Postgres with [automated backups and a tested restore procedure](./RAILWAY.md#postgresql-backups-and-restore). |
 | Migrations | Run `pnpm --filter api exec prisma migrate deploy` on every API deploy (CI does this on `main`). |
-| Retention | Schedule the retention job nightly (see [RAILWAY.md](./RAILWAY.md#retention-cron)). Without it, telemetry grows until manual cleanup. |
+| Retention | Schedule the retention job nightly (see [RAILWAY.md](./RAILWAY.md#retention-cron)). Without it, telemetry grows until manual cleanup. Verify locally with `pnpm --filter api retention -- --dry-run`. |
 | Health | Set `HEALTH_CHECK_DATABASE=true` on the API so `GET /health` verifies Postgres and reports `database_latency_ms`. Optional `HEALTH_DETAILED=true` adds uptime and Node version. `/health` `version` is set at build from CHANGELOG; override with `TELEMETRY_API_VERSION` only if needed. |
 | Observability | Optional `SENTRY_DSN` on the API for uncaught errors. Monitor API 5xx, ingest 429 rate, and disk/DB size. `GET /health` reports `"email":"configured"` or `"not_configured"`, plus `version` on every response. |
 | Rate limits | Tune `RATE_LIMIT_*` env vars if you see false positives from shared IPs. Per-project ingest RPS follows plan tiers in `apps/api/src/config/plans.ts`. |
