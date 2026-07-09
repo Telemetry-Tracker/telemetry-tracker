@@ -14,7 +14,7 @@
 </p>
 
 <p align="center">
-  Entweder lightweight und self-hosted für die eigene Infrastruktur — oder über den <strong>offiziellen Cloud-Dienst</strong> bei
+  Entweder ressourcenschonend und self-hosted für die eigene Infrastruktur — oder über den <strong>offiziellen Cloud-Dienst</strong> bei
   <a href="https://telemetry-tracker.com">telemetry-tracker.com</a> über Stripe (EUR).
 </p>
 
@@ -22,24 +22,24 @@
   <a href="https://telemetry-tracker.com">
     <picture>
       <source media="(prefers-color-scheme: dark)" srcset="apps/dashboard/public/screenshot-dashboard-dark.png" />
-      <img src="apps/dashboard/public/screenshot-dashboard-light.png" alt="Dashboard overview with errors, events, sessions, and performance metrics" width="920" />
+      <img src="apps/dashboard/public/screenshot-dashboard-light.png" alt="Dashboard-Übersicht mit Fehlern, Ereignissen, Sessions, und Performance-Daten" width="920" />
     </picture>
   </a>
 </p>
 
 <p align="center">
-  <sub><strong>Overview</strong> — KPI cards, event trends, top errors, releases, and performance metrics (light/dark).</sub>
+  <sub><strong>Übersicht</strong> — KPI cards, Event-Trends, top Fehler, Veröffentlichungen, und Performance-Daten (light/dark).</sub>
 </p>
 
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="apps/dashboard/public/screenshot-errors-dark.png" />
-    <img src="apps/dashboard/public/screenshot-errors-light.png" alt="Errors page with KPIs, trends, top error types, and grouped error table" width="920" />
+    <img src="apps/dashboard/public/screenshot-errors-light.png" alt="Fehlerseite mit KPIs, Trends, top Fehlertypen, und einer sortierten Fehler-Tabelle" width="920" />
   </picture>
 </p>
 
 <p align="center">
-  <sub><strong>Errors</strong> — KPIs, trends by type, top errors, and a filterable grouped error table (light/dark).</sub>
+  <sub><strong>Fehler</strong> — KPIs, Trends nach Typ, top Fehler, und eine filterbare, gruppierte Fehlertabelle (light/dark).</sub>
 </p>
 
 ---
@@ -73,7 +73,7 @@ Telemetry Tracker bietet die wichtigsten Funktionen, die die meisten Anwendungen
 
 * Self-hosted für eigene Anwendungen
 * Offizielle gehostete Cloud mit Abrechnung in Euro (EUR)
-* Schlank und ressourcenschonend
+* Ressourcenschonend
 * Einfache APIs
 * Open Source ([MIT](LICENSE))
 * Einfach bereitzustellen ([DEPLOYMENT.md](DEPLOYMENT.md))
@@ -202,9 +202,9 @@ Die bereits verfügbaren Funktionen befinden sich oben unter **[Features](#featu
 | **In Entwicklung** | Als *Coming soon* gekennzeichnet; Zeitpunkt und Umfang noch offen |
 
 <details>
-<summary><strong>Geplant & in Entwicklung</strong> (11 Bereiche — Observability, Plattform, Konto)</summary>
+<summary><strong>Geplant & in Entwicklung</strong> (11 Bereiche — Observierung, Plattform, Konto)</summary>
 
-### Observability
+### Observierung
 
 | Bereich | Status |
 |---------|--------|
@@ -231,7 +231,7 @@ Die bereits verfügbaren Funktionen befinden sich oben unter **[Features](#featu
 
 </details>
 
-Sie haben eine Idee? [Open a feature request](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/new?template=feature_request.md).
+Sie haben eine Idee? [Öffnen Sie ein 'feature request'](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/new?template=feature_request.md).
 
 ---
 
