@@ -17,7 +17,7 @@ bad() { fail=$((fail + 1)); log "  FAIL: $1"; }
 warn_step() { warn=$((warn + 1)); log "  WARN: $1"; }
 
 http_code() {
-  curl -sS -o /dev/null -w '%{http_code}' "$@"
+  curl -sS -o /dev/null -w '%{http_code}' "$@" 2>/dev/null || echo "000"
 }
 
 log "=== Production config verification (#85) ==="
