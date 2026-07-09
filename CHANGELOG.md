@@ -13,6 +13,18 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ---
 
+## [1.6.5] - 2026-07-09
+
+### Added
+
+- **Retention dry-run** — `pnpm --filter api retention -- --dry-run` counts rows that would be pruned without deleting; cron logs include `dryRun` in JSON output ([#320](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/320), [#86](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/86))
+
+### Changed
+
+- **Railway ops runbook** — step-by-step retention cron setup, Postgres backup/restore (PITR, snapshots, `pg_dump`), and production-readiness checklist updates ([#320](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/320), [#86](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/86))
+
+---
+
 ## [1.6.4] - 2026-07-09
 
 ### Changed
