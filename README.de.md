@@ -28,7 +28,7 @@
 </p>
 
 <p align="center">
-  <sub><strong>Übersicht</strong> — KPI cards, Event-Trends, top Fehler, Veröffentlichungen, und Performance-Daten (light/dark).</sub>
+  <sub><strong>Übersicht</strong> — KPI-Karten, Event-Trends, häufigste Fehler, Releases и Performance-Daten (Hell-/Dunkelmodus).</sub>
 </p>
 
 <p align="center">
@@ -39,7 +39,7 @@
 </p>
 
 <p align="center">
-  <sub><strong>Fehler</strong> — KPIs, Trends nach Typ, top Fehler, und eine filterbare, gruppierte Fehlertabelle (light/dark).</sub>
+  <sub><strong>Fehler</strong> — KPIs, Trends nach Typ, häufigste Fehler und eine filterbare, gruppierte Fehlertabelle (Hell-/Dunkelmodus).</sub>
 </p>
 
 ---
