@@ -8,19 +8,24 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     branches: [main, develop]
+  check_run:
+    types: [completed]
+    branches: [main, develop]
 
 permissions:
   pull-requests: read
   checks: read
 
 concurrency:
-  group: bugbot-review-${{ github.event.pull_request.number }}
+  group: bugbot-review-${{ github.event.pull_request.number || github.event.check_run.check_suite.pull_requests[0].number }}
   cancel-in-progress: true
 
 jobs:
   bugbot-review:
     runs-on: ubuntu-latest
-    if: github.event.pull_request.draft == false
+    if: |
+      (github.event_name == 'pull_request' && github.event.pull_request.draft == false) ||
+      (github.event_name == 'check_run' && github.event.check_run.name == 'Cursor Bugbot')
     steps:
       - name: Gate maintainer PRs on Cursor Bugbot
         uses: actions/github-script@v7
@@ -29,9 +34,27 @@ jobs:
         with:
           script: |
             const maintainer = process.env.MAINTAINER.toLowerCase();
-            const pr = context.payload.pull_request;
-            const author = pr.user.login.toLowerCase();
+            const { owner, repo } = context.repo;
 
+            let pull_number;
+            if (context.payload.pull_request) {
+              pull_number = context.payload.pull_request.number;
+            } else {
+              const prs = context.payload.check_run.check_suite?.pull_requests ?? [];
+              if (prs.length === 0) {
+                core.info("Bugbot completed outside a PR — nothing to gate.");
+                return;
+              }
+              pull_number = prs[0].number;
+            }
+
+            const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number });
+            if (pr.draft) {
+              core.info("Draft PR — skipping gate.");
+              return;
+            }
+
+            const author = pr.user.login.toLowerCase();
             if (author !== maintainer) {
               core.info(
                 `Author @${pr.user.login} is not @${process.env.MAINTAINER} — Cursor Bugbot not required.`
@@ -39,14 +62,20 @@ jobs:
               return;
             }
 
-            const { owner, repo } = context.repo;
-            const { data } = await github.rest.checks.listForRef({
-              owner,
-              repo,
-              ref: pr.head.sha,
-            });
+            const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            let bugbot;
+            for (let attempt = 0; attempt < 30; attempt += 1) {
+              const { data } = await github.rest.checks.listForRef({
+                owner,
+                repo,
+                ref: pr.head.sha,
+              });
+              bugbot = data.check_runs.find((run) => run.name === "Cursor Bugbot");
+              if (bugbot?.status === "completed") break;
+              core.info(`Cursor Bugbot still ${bugbot?.status ?? "missing"} — waiting…`);
+              await wait(10_000);
+            }
 
-            const bugbot = data.check_runs.find((run) => run.name === "Cursor Bugbot");
             if (!bugbot) {
               core.setFailed(
                 "Maintainer PR requires Cursor Bugbot. Comment `bugbot run` on the PR or run `/review-bugbot` locally before push."
