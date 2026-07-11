@@ -28,7 +28,7 @@
 </p>
 
 <p align="center">
-  <sub><strong>Übersicht</strong> — KPI-Karten, Event-Trends, häufigste Fehler, Releases и Performance-Daten (Hell-/Dunkelmodus).</sub>
+  <sub><strong>Übersicht</strong> — KPI-Karten, Event-Trends, häufigste Fehler, Releases und Performance-Daten (Hell-/Dunkelmodus).</sub>
 </p>
 
 <p align="center">

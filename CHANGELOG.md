@@ -13,6 +13,19 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ---
 
+## [1.7.2] - 2026-07-11
+
+### Added
+
+- **Contributing** — README section pointing newcomers to `good first issue` labels ([#337](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/337))
+
+### Changed
+
+- **German README** — translate remaining English in screenshot captions ([#339](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/339))
+- **CI** — `bugbot-review` workflow: require Cursor Bugbot only on maintainer PRs; fork/external contributor PRs pass automatically ([#340](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/340))
+
+---
+
 ## [1.7.1] - 2026-07-09
 
 ### Changed
