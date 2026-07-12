@@ -258,6 +258,93 @@ describe.skipIf(!runDbIntegration)("Auth and RBAC (integration)", () => {
     expect(removedBody.user.avatarUrl).toBeNull();
   });
 
+  it("GET /api/auth/avatars/:userId returns 403 for shared membership in deleted org", async () => {
+    const suffix = randomBytes(8).toString("hex");
+    const emailA = `deleted-org-a-${suffix}@test.local`;
+    const emailB = `deleted-org-b-${suffix}@test.local`;
+
+    const org = await prisma.organization.create({
+      data: { name: `Deleted org ${suffix}` },
+    });
+
+    await prisma.user.create({
+      data: {
+        email: emailA,
+        password_hash: hashPassword(password),
+        memberships: {
+          create: { organization_id: org.id, role: OrgRole.EDITOR },
+        },
+      },
+    });
+    await prisma.user.create({
+      data: {
+        email: emailB,
+        password_hash: hashPassword(password),
+        memberships: {
+          create: { organization_id: org.id, role: OrgRole.VIEWER },
+        },
+      },
+    });
+
+    const png = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+      "base64"
+    );
+
+    const loginA = await app!.inject({
+      method: "POST",
+      url: "/api/auth/login",
+      headers: { "content-type": "application/json" },
+      payload: { email: emailA, password },
+    });
+    const { sessionId: sessionA } = JSON.parse(loginA.body) as {
+      sessionId: string;
+    };
+
+    const upload = await app!.inject({
+      method: "POST",
+      url: "/api/auth/me/avatar",
+      headers: {
+        authorization: `Bearer ${sessionA}`,
+        "content-type": "image/png",
+      },
+      payload: png,
+    });
+    expect(upload.statusCode).toBe(200);
+
+    const userA = await prisma.user.findUnique({
+      where: { email: emailA },
+      select: { id: true },
+    });
+
+    await prisma.organization.update({
+      where: { id: org.id },
+      data: { deleted_at: new Date() },
+    });
+
+    const loginB = await app!.inject({
+      method: "POST",
+      url: "/api/auth/login",
+      headers: { "content-type": "application/json" },
+      payload: { email: emailB, password },
+    });
+    const { sessionId: sessionB } = JSON.parse(loginB.body) as {
+      sessionId: string;
+    };
+
+    const avatar = await app!.inject({
+      method: "GET",
+      url: `/api/auth/avatars/${userA!.id}`,
+      headers: { authorization: `Bearer ${sessionB}` },
+    });
+    expect(avatar.statusCode).toBe(403);
+
+    await prisma.user.deleteMany({
+      where: { email: { in: [emailA, emailB] } },
+    });
+    await prisma.organization.delete({ where: { id: org.id } }).catch(() => {});
+  });
+
   it("avatar routes return 503 when R2 is not configured in production", async () => {
     const prevNodeEnv = process.env.NODE_ENV;
     const prevR2 = {

@@ -10,6 +10,7 @@ export async function canViewUserAvatar(
     where: {
       user_id: viewerUserId,
       organization: {
+        deleted_at: null,
         memberships: { some: { user_id: targetUserId } },
       },
     },
