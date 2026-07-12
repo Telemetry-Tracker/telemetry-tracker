@@ -73,11 +73,11 @@ jobs:
             echo "CHANGELOG section present at tag commit."
             exit 0
           fi
-          echo "CHANGELOG missing ## [${RELEASE_CURRENT}] at tag commit; checking origin/main"
+          echo "CHANGELOG missing ## [${RELEASE_CURRENT}] at tag commit; fetching from origin/main"
           git fetch origin main
           if git show origin/main:CHANGELOG.md | grep -qF "## [${RELEASE_CURRENT}]"; then
-            git checkout origin/main
-            echo "Checked out origin/main for release email (tag was pushed before CHANGELOG landed)."
+            git show origin/main:CHANGELOG.md > CHANGELOG.md
+            echo "Using CHANGELOG.md from origin/main for release email."
             exit 0
           fi
           echo "Could not find CHANGELOG section for ${RELEASE_CURRENT} on tag or main" >&2
