@@ -13,6 +13,87 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ---
 
+## [1.8.5] - 2026-07-12
+
+### Added
+
+- **Security settings** — list and revoke dashboard sessions (device/browser hints on sign-in), change password via API; settings page loads real session data ([#357](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/357), [#390](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/390))
+
+### Fixed
+
+- **Issue detail tabs** — ARIA `tablist` / `tab` / `tabpanel` roles and wiring for Stack trace and Occurrences ([#379](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/379), [#393](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/393), thanks [@MFA-G](https://github.com/MFA-G))
+- **Security settings** — refresh session list after password change; surface session fetch errors; correct iOS vs macOS labels in session user-agent parsing ([#390](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/390))
+
+---
+
+## [1.8.4] - 2026-07-12
+
+### Changed
+
+- **Marketing hero** — updated supporting line copy under the primary CTAs
+
+---
+
+## [1.8.3] - 2026-07-12
+
+### Added
+
+- **Dashboard Sentry** — optional `@sentry/nextjs` error monitoring (client, server, edge); gated on `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN`; `error.tsx` / `global-error.tsx` capture; docs updated ([#385](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/385), closes [#385](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/385))
+
+---
+
+## [1.8.2] - 2026-07-12
+
+### Added
+
+- **Preferences settings** — `GET`/`PATCH /api/meta/dashboard-preferences` persist dashboard defaults (time range, table density, resolved issues, usage analytics); settings page loads and saves via server action ([#356](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/356), closes [#356](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/356))
+
+---
+
+## [1.8.1] - 2026-07-12
+
+### Fixed
+
+- **Release email ops** — shared `changelog-section` resolves `CHANGELOG.md` from the script module path (not cwd), parses dated semver section headers correctly, and the release-email workflow falls back to `origin/main` when a tag is pushed before the release merge lands ([#355](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/355))
+
+### Changed
+
+- **Release docs** — document release-email CHANGELOG lookup and tag/merge ordering ([#355](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/355))
+
+---
+
+## [1.8.0] - 2026-07-12
+
+### Added
+
+- **Profile settings** — `PATCH /api/auth/me` updates `displayName`; dashboard profile page loads real user data and saves via server action ([#98](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/98))
+
+### Changed
+
+- **Settings hub** — What's new reads `CHANGELOG.md` via `loadChangelog()`; contact support links to GitHub issues and shows platform version from API `/health`; profile and changelog nav items no longer marked coming soon ([#98](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/98))
+
+---
+
+## [1.7.4] - 2026-07-12
+
+### Added
+
+- **Production monitoring** — `docs/MONITORING.md` runbook (Sentry, uptime, on-call); `scripts/check-production-uptime.sh` external probe; GitHub Actions **Production uptime** workflow every 15 minutes on `main` ([#93](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/93))
+
+---
+
+## [1.7.3] - 2026-07-12
+
+### Added
+
+- **Registration policy** — document open vs invite-only production signup (`docs/REGISTRATION-POLICY.md`); optional `EXPECT_REGISTRATION_POLICY` check in `scripts/verify-prod-config.sh` ([#344](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/344), closes [#92](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/92))
+
+### Changed
+
+- **Deployment docs** — link `TELEMETRY_ALLOW_REGISTRATION` to registration policy runbook ([#344](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/344))
+
+---
+
 ## [1.7.2] - 2026-07-11
 
 ### Added

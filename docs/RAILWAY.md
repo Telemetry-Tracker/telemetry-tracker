@@ -47,6 +47,8 @@ Optional: Resend, Stripe, registration flags — [BILLING.md](./BILLING.md) and 
 
 **Resend (API service only):** set `RESEND_API_KEY`, `TELEMETRY_EMAIL_FROM`, and optionally `CONTACT_INBOX_EMAIL`. After deploy, `GET /health` should include `"email":"configured"`. Full DNS and verification steps: [BILLING.md → Production setup](./BILLING.md#production-setup-hosted-cloud).
 
+**Monitoring:** optional `SENTRY_DSN` on the API; optional `SENTRY_DSN` + `NEXT_PUBLIC_SENTRY_DSN` on the dashboard; external uptime via [MONITORING.md](./MONITORING.md) and [`.github/workflows/production-uptime.yml`](../.github/workflows/production-uptime.yml).
+
 ---
 
 ## Dashboard service
@@ -57,7 +59,7 @@ Optional: Resend, Stripe, registration flags — [BILLING.md](./BILLING.md) and 
 | Builder | **Dockerfile**, path `Dockerfile` |
 | Watch Paths (optional) | `apps/dashboard/**` |
 
-**Env:** `API_URL` = public API URL; `NEXT_PUBLIC_SITE_URL` = public dashboard URL (recommended).
+**Env:** `API_URL` = public API URL; `NEXT_PUBLIC_SITE_URL` = public dashboard URL (recommended). Optional: `SENTRY_DSN` and `NEXT_PUBLIC_SENTRY_DSN` (same value) for error monitoring — see [MONITORING.md](./MONITORING.md#sentry-optional).
 
 If the build fails with `Unsupported URL Type "workspace:"`, Railway is using npm/Nixpacks instead of Docker — clear Root Directory to repo root and set Builder to Dockerfile on **this service only**.
 

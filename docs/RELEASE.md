@@ -140,7 +140,7 @@ Always document **migrations**, **new env vars**, and **breaking changes** in CH
 2. **Deploy** — Railway rebuilds `main` automatically when the release PR merges; see [Deploy runbook](#deploy-runbook-railway).
 3. **Production DB** — run [migrations](#3-database-migrations-production) **before tagging** on MINOR (Y) / MAJOR (X) releases. The release email workflow reads production Postgres but does not migrate (use the public `DATABASE_URL` in GitHub secrets — see [MARKETING-EMAIL.md](./MARKETING-EMAIL.md#automated-send-minor--major-tags)).
 4. **Post-deploy** — [verification](#post-deploy-verification).
-5. **Tag** — after deploy and migrations are green (tag push triggers the product update email workflow for MINOR/MAJOR — **X** or **Y** bump, not Z-only hotfixes):
+5. **Tag** — after deploy and migrations are green (tag push triggers the product update email workflow for MINOR/MAJOR — **X** or **Y** bump, not Z-only hotfixes). **Push the tag only after the release PR is merged to `main`** so `CHANGELOG.md` contains the version section when the email workflow runs (an early tag push can fail once, then succeed on retag):
    ```bash
    git checkout main && git pull origin main
    git tag -a v1.1.0 -m "Telemetry Tracker v1.1.0"
@@ -257,6 +257,9 @@ Same `DATABASE_URL` as the API. See [RAILWAY.md](./RAILWAY.md#retention-cron).
 ```bash
 ./scripts/verify-prod-config.sh
 # Custom hosts: VERIFY_API_URL=... VERIFY_DASHBOARD_URL=... ./scripts/verify-prod-config.sh
+
+# Uptime probe (also runs every 15 min via GitHub Actions on main):
+./scripts/check-production-uptime.sh
 ```
 
 Or individual curls:

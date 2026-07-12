@@ -16,6 +16,7 @@
     "@radix-ui/react-label": "^2.1.10",
     "@radix-ui/react-separator": "^1.1.10",
     "@radix-ui/react-slot": "^1.3.0",
+    "@sentry/nextjs": "^9.15.0",
     "@telemetry-tracker/core": "workspace:*",
     "@telemetry-tracker/next": "workspace:*",
     "class-variance-authority": "^0.7.1",

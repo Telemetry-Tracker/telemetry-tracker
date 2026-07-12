@@ -1,0 +1,30 @@
+# External uptime monitor for the hosted cloud (#93).
+# Fails the workflow when production health checks fail — enable GitHub
+# notifications (Settings → Notifications → Actions) or add a third-party
+# uptime service; see docs/MONITORING.md.
+name: Production uptime
+
+on:
+  schedule:
+    # Every 15 minutes (GitHub schedule may drift a few minutes)
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-uptime
+  cancel-in-progress: false
+
+jobs:
+  uptime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Probe API health and dashboard
+        env:
+          UPTIME_API_URL: https://api.telemetry-tracker.com
+          UPTIME_DASHBOARD_URL: https://telemetry-tracker.com
+        run: bash scripts/check-production-uptime.sh

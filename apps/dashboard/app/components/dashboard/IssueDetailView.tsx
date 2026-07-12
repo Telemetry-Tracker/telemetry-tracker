@@ -12,6 +12,11 @@ import { cn } from "@/lib/cn";
 
 type TabId = "stack" | "occurrences";
 
+const ISSUE_DETAIL_TABS = [
+  { id: "stack" as const, label: "Stack trace" },
+  { id: "occurrences" as const, label: "Occurrences" },
+] as const;
+
 export function IssueDetailView({
   issueId,
   title,
@@ -68,31 +73,57 @@ export function IssueDetailView({
       <AnalyticsDetailLayout
         main={
           <AnalyticsPanel>
-            <div className="flex gap-0 border-b border-border px-4 sm:px-5">
-              {(
-                [
-                  { id: "stack" as const, label: "Stack trace" },
-                  { id: "occurrences" as const, label: "Occurrences" },
-                ] as const
-              ).map((t) => (
-                <button
+            <div
+              className="flex gap-0 border-b border-border px-4 sm:px-5"
+              role="tablist"
+              aria-label="Issue detail sections"
+            >
+              {ISSUE_DETAIL_TABS.map((t) => {
+                const selected = tab === t.id;
+                const tabId = `issue-${issueId}-${t.id}-tab`;
+                const panelId = `issue-${issueId}-${t.id}-panel`;
+
+                return (
+                  <button
+                    key={t.id}
+                    id={tabId}
+                    type="button"
+                    role="tab"
+                    aria-selected={selected}
+                    aria-controls={panelId}
+                    tabIndex={selected ? 0 : -1}
+                    onClick={() => setTab(t.id)}
+                    className={cn(
+                      "relative -mb-px border-b-2 px-3 py-3 text-[13px] transition-colors sm:px-4",
+                      selected
+                        ? "border-brand text-foreground"
+                        : "border-transparent text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {t.label}
+                  </button>
+                );
+              })}
+            </div>
+            {ISSUE_DETAIL_TABS.map((t) => {
+              const selected = tab === t.id;
+              const tabId = `issue-${issueId}-${t.id}-tab`;
+              const panelId = `issue-${issueId}-${t.id}-panel`;
+
+              return (
+                <div
                   key={t.id}
-                  type="button"
-                  onClick={() => setTab(t.id)}
-                  className={cn(
-                    "relative -mb-px border-b-2 px-3 py-3 text-[13px] transition-colors sm:px-4",
-                    tab === t.id
-                      ? "border-brand text-foreground"
-                      : "border-transparent text-muted-foreground hover:text-foreground"
-                  )}
+                  id={panelId}
+                  className="p-4 sm:p-5"
+                  role="tabpanel"
+                  aria-labelledby={tabId}
+                  hidden={!selected}
+                  aria-hidden={!selected}
                 >
-                  {t.label}
-                </button>
-              ))}
-            </div>
-            <div className="p-4 sm:p-5">
-              {tab === "stack" ? stackTrace : occurrences}
-            </div>
+                  {t.id === "stack" ? stackTrace : occurrences}
+                </div>
+              );
+            })}
           </AnalyticsPanel>
         }
         sidebar={

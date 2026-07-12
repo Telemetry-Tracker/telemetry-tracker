@@ -113,6 +113,47 @@ LOGIN_CODE=$(http_code "$DASH/login")
 if [[ "$LOGIN_CODE" == "200" ]]; then ok "/login → 200"; else bad "/login → $LOGIN_CODE"; fi
 log ""
 
+# --- Registration policy (TELEMETRY_ALLOW_REGISTRATION) ---
+log "7. Registration policy (optional — set EXPECT_REGISTRATION_POLICY=open|closed)"
+REG_POLICY="${EXPECT_REGISTRATION_POLICY:-}"
+if [[ -z "$REG_POLICY" ]]; then
+  warn_step "EXPECT_REGISTRATION_POLICY not set — skip registration probe (see docs/REGISTRATION-POLICY.md)"
+elif [[ "$REG_POLICY" != "open" && "$REG_POLICY" != "closed" ]]; then
+  bad "EXPECT_REGISTRATION_POLICY must be 'open' or 'closed' (got: $REG_POLICY)"
+else
+  PROBE_EMAIL="verify-reg-policy-$(date +%s)@telemetry-tracker-verify.test"
+  REG_RESP=$(curl -sS -X POST "$API/api/auth/register" \
+    -H 'Content-Type: application/json' \
+    -d "{\"email\":\"$PROBE_EMAIL\",\"password\":\"VerifyProbe-$(date +%s)!x\",\"displayName\":\"Verify Probe\",\"marketingOptIn\":false}" \
+    -w '\n%{http_code}' 2>/dev/null || echo -e '\n000')
+  REG_BODY=$(echo "$REG_RESP" | sed '$d')
+  REG_CODE=$(echo "$REG_RESP" | tail -1)
+  if [[ "$REG_POLICY" == "closed" ]]; then
+    if [[ "$REG_CODE" == "403" ]] && echo "$REG_BODY" | grep -qi 'disabled'; then
+      ok "Self-serve register → 403 (invite-only policy)"
+    elif [[ "$REG_CODE" == "201" ]]; then
+      warn_step "Probe account created: $PROBE_EMAIL — delete from User table if undesired"
+      if [[ "${REGISTRATION_BOOTSTRAP_COMPLETE:-}" == "1" ]]; then
+        bad "Self-serve register → 201 but EXPECT_REGISTRATION_POLICY=closed — set TELEMETRY_ALLOW_REGISTRATION=false on API"
+      else
+        warn_step "Got 201 on closed probe — User table may be empty (bootstrap allows first signup); set REGISTRATION_BOOTSTRAP_COMPLETE=1 after bootstrap to fail on open registration"
+      fi
+    else
+      bad "Self-serve register → $REG_CODE (expected 403 for closed policy) — $REG_BODY"
+    fi
+  else
+    if [[ "$REG_CODE" == "201" ]]; then
+      ok "Self-serve register → 201 (open policy)"
+      warn_step "Probe account created: $PROBE_EMAIL — delete from User table if undesired"
+    elif [[ "$REG_CODE" == "403" ]]; then
+      bad "Self-serve register → 403 but EXPECT_REGISTRATION_POLICY=open — set TELEMETRY_ALLOW_REGISTRATION=true on API"
+    else
+      bad "Self-serve register → $REG_CODE (expected 201 for open policy) — $REG_BODY"
+    fi
+  fi
+fi
+log ""
+
 log "=== Summary ==="
 log "PASS: $pass  FAIL: $fail  WARN: $warn"
 log ""
@@ -122,7 +163,10 @@ log "  - Dashboard env: API_URL=$API, NEXT_PUBLIC_SITE_URL=$DASH"
 log "  - prisma migrate deploy on production database"
 log "  - Retention cron scheduled (see docs/RAILWAY.md#retention-cron)"
 log "  - Postgres backups enabled (see docs/RAILWAY.md#postgresql-backups-and-restore)"
+log "  - Registration policy: TELEMETRY_ALLOW_REGISTRATION (see docs/REGISTRATION-POLICY.md)"
+log "  - Verify policy: EXPECT_REGISTRATION_POLICY=closed|open ./scripts/verify-prod-config.sh"
 log ""
 log "Full E2E flow (register, ingest, billing): scripts/smoke-production.sh"
+log "Uptime probe (ops): scripts/check-production-uptime.sh — see docs/MONITORING.md"
 
 if [[ "$fail" -gt 0 ]]; then exit 1; fi

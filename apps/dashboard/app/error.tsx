@@ -8,6 +8,7 @@ import {
   errorPrimaryBtn,
   errorSecondaryBtn,
 } from "@/app/components/error-pages/ErrorPageShell";
+import { captureClientException } from "@/lib/sentry";
 
 export default function AppError({
   error,
@@ -18,6 +19,7 @@ export default function AppError({
 }) {
   useEffect(() => {
     console.error(error);
+    captureClientException(error);
   }, [error]);
 
   const detail =

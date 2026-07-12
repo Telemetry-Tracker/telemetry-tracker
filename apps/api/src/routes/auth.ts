@@ -1,4 +1,4 @@
-import { randomUUID, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import type { FastifyInstance, FastifyPluginOptions } from "fastify";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/db.js";
@@ -9,8 +9,8 @@ import { sendTransactionalEmail } from "../lib/email.js";
 import { dashboardOriginOrNull } from "../lib/dashboard-origin.js";
 import { subscribeMarketingEmail, REGISTRATION_CONSENT_LABEL } from "../lib/marketing-subscriber.js";
 import { MarketingSubscriberSource } from "@prisma/client";
+import { createUserSession } from "../lib/user-session.js";
 
-const SESSION_DAYS = 30;
 const RESET_TOKEN_HOURS = 1;
 
 function normalizeEmail(raw: string): string {
@@ -145,15 +145,7 @@ export async function authRoutes(
         role: inviteOutcome.role,
       });
 
-      const sessionId = randomUUID();
-      const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
-      await prisma.userSession.create({
-        data: {
-          id: sessionId,
-          user_id: user.id,
-          expires_at: expiresAt,
-        },
-      });
+      const { sessionId, expiresAt } = await createUserSession(user.id, request);
 
       if (marketingOptIn) {
         await subscribeMarketingEmail(prisma, {
@@ -204,15 +196,7 @@ export async function authRoutes(
       select: { id: true, email: true, display_name: true },
     });
 
-    const sessionId = randomUUID();
-    const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
-    await prisma.userSession.create({
-      data: {
-        id: sessionId,
-        user_id: user.id,
-        expires_at: expiresAt,
-      },
-    });
+    const { sessionId, expiresAt } = await createUserSession(user.id, request);
 
     if (marketingOptIn) {
       await subscribeMarketingEmail(prisma, {
@@ -256,15 +240,7 @@ export async function authRoutes(
       return reply.status(401).send({ error: "Invalid email or password" });
     }
 
-    const sessionId = randomUUID();
-    const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
-    await prisma.userSession.create({
-      data: {
-        id: sessionId,
-        user_id: user.id,
-        expires_at: expiresAt,
-      },
-    });
+    const { sessionId, expiresAt } = await createUserSession(user.id, request);
 
     const firstMembership = await prisma.organizationMembership.findFirst({
       where: { user_id: user.id },
@@ -405,5 +381,166 @@ export async function authRoutes(
         role: m.role,
       })),
     });
+  });
+
+  app.patch("/auth/me", async (request, reply) => {
+    const session = await getSessionUser(request);
+    if (!session) {
+      return reply.status(401).send({ error: "Unauthorized" });
+    }
+
+    const body = (request.body ?? {}) as { displayName?: string };
+    if ("displayName" in body && typeof body.displayName !== "string") {
+      return reply.status(400).send({ error: "displayName must be a string" });
+    }
+
+    const existing = await prisma.user.findUnique({
+      where: { id: session.userId },
+      select: { id: true },
+    });
+    if (!existing) {
+      return reply.status(401).send({ error: "Unauthorized" });
+    }
+
+    const data: { display_name?: string | null } = {};
+    if ("displayName" in body) {
+      const trimmed = body.displayName!.trim();
+      data.display_name = trimmed !== "" ? trimmed.slice(0, 120) : null;
+    }
+
+    const user = await prisma.user.update({
+      where: { id: session.userId },
+      data,
+      select: { id: true, email: true, display_name: true },
+    });
+
+    return reply.send({
+      user: {
+        id: user.id,
+        email: user.email,
+        displayName: user.display_name,
+      },
+    });
+  });
+
+  app.get("/auth/sessions", async (request, reply) => {
+    const session = await getSessionUser(request);
+    if (!session) {
+      return reply.status(401).send({ error: "Unauthorized" });
+    }
+    const currentToken = getSessionTokenFromRequest(request);
+    const now = new Date();
+    const rows = await prisma.userSession.findMany({
+      where: { user_id: session.userId, expires_at: { gt: now } },
+      orderBy: { created_at: "desc" },
+      select: {
+        id: true,
+        created_at: true,
+        expires_at: true,
+        device_browser: true,
+        device_os: true,
+      },
+    });
+    return reply.send({
+      sessions: rows.map((row) => ({
+        id: row.id,
+        createdAt: row.created_at.toISOString(),
+        expiresAt: row.expires_at.toISOString(),
+        deviceBrowser: row.device_browser,
+        deviceOs: row.device_os,
+        current: row.id === currentToken,
+      })),
+    });
+  });
+
+  app.delete("/auth/sessions/others", async (request, reply) => {
+    const session = await getSessionUser(request);
+    if (!session) {
+      return reply.status(401).send({ error: "Unauthorized" });
+    }
+    const currentToken = getSessionTokenFromRequest(request);
+    if (!currentToken) {
+      return reply.status(401).send({ error: "Unauthorized" });
+    }
+    const result = await prisma.userSession.deleteMany({
+      where: {
+        user_id: session.userId,
+        id: { not: currentToken },
+      },
+    });
+    return reply.send({ revoked: result.count });
+  });
+
+  app.delete("/auth/sessions/:sessionId", async (request, reply) => {
+    const session = await getSessionUser(request);
+    if (!session) {
+      return reply.status(401).send({ error: "Unauthorized" });
+    }
+    const currentToken = getSessionTokenFromRequest(request);
+    const sessionId = (request.params as { sessionId?: string }).sessionId?.trim() ?? "";
+    if (!sessionId) {
+      return reply.status(400).send({ error: "sessionId required" });
+    }
+    if (sessionId === currentToken) {
+      return reply.status(400).send({ error: "Cannot revoke the current session" });
+    }
+    const row = await prisma.userSession.findFirst({
+      where: { id: sessionId, user_id: session.userId },
+      select: { id: true },
+    });
+    if (!row) {
+      return reply.status(404).send({ error: "Session not found" });
+    }
+    await prisma.userSession.delete({ where: { id: row.id } });
+    return reply.status(204).send();
+  });
+
+  app.post("/auth/change-password", async (request, reply) => {
+    const session = await getSessionUser(request);
+    if (!session) {
+      return reply.status(401).send({ error: "Unauthorized" });
+    }
+    const currentToken = getSessionTokenFromRequest(request);
+    const body = (request.body ?? {}) as {
+      currentPassword?: string;
+      newPassword?: string;
+    };
+    const currentPassword =
+      typeof body.currentPassword === "string" ? body.currentPassword : "";
+    const newPassword = typeof body.newPassword === "string" ? body.newPassword : "";
+    if (!currentPassword || !newPassword) {
+      return reply.status(400).send({ error: "currentPassword and newPassword required" });
+    }
+    if (!isStrongPassword(newPassword)) {
+      return reply.status(400).send({ error: "Password must be at least 8 characters" });
+    }
+    if (currentPassword === newPassword) {
+      return reply.status(400).send({ error: "New password must differ from current password" });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: session.userId },
+      select: { id: true, password_hash: true },
+    });
+    if (!user || !verifyPassword(currentPassword, user.password_hash)) {
+      return reply.status(401).send({ error: "Current password is incorrect" });
+    }
+
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: user.id },
+        data: { password_hash: hashPassword(newPassword) },
+      }),
+      prisma.passwordResetToken.deleteMany({ where: { user_id: user.id } }),
+      ...(currentToken
+        ? [
+            prisma.userSession.deleteMany({
+              where: { user_id: user.id, id: { not: currentToken } },
+            }),
+          ]
+        : [prisma.userSession.deleteMany({ where: { user_id: user.id } })]),
+    ]);
+
+    return reply.send({ ok: true });
   });
 }

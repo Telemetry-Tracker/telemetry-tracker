@@ -9,7 +9,7 @@ Use this before exposing Telemetry Tracker on the public internet or handing it 
 | Ingest auth | **`INGEST_ALLOW_UNAUTHENTICATED` must be off** in production. SDKs must send `apiKey` (`tt_live_…`). |
 | Dashboard reads | With `NODE_ENV=production`, `GET /api/*` requires a session. Do not set `TELEMETRY_ALLOW_UNAUTHENTICATED_READS` unless you have a deliberate legacy tooling need. |
 | CORS | Set `CORS_ORIGINS` or `DASHBOARD_ORIGIN` so only your dashboard origin can call the API with credentials. |
-| Registration | After bootstrap, set `TELEMETRY_ALLOW_REGISTRATION=false` if you do not want open signups. |
+| Registration | After bootstrap, set `TELEMETRY_ALLOW_REGISTRATION=false` (or omit) for invite-only; `true` for open signups. See [REGISTRATION-POLICY.md](./REGISTRATION-POLICY.md). |
 | Secrets | Store `DATABASE_URL`, Stripe keys, and API keys in your platform secret manager — never in git. |
 | HTTPS | Terminate TLS at your reverse proxy / Railway / load balancer for both API and dashboard. |
 
@@ -21,7 +21,7 @@ Use this before exposing Telemetry Tracker on the public internet or handing it 
 | Migrations | Run `pnpm --filter api exec prisma migrate deploy` on every API deploy (CI does this on `main`). |
 | Retention | Schedule the retention job nightly (see [RAILWAY.md](./RAILWAY.md#retention-cron)). Without it, telemetry grows until manual cleanup. Verify locally with `pnpm --filter api retention -- --dry-run`. |
 | Health | Set `HEALTH_CHECK_DATABASE=true` on the API so `GET /health` verifies Postgres and reports `database_latency_ms`. Optional `HEALTH_DETAILED=true` adds uptime and Node version. `/health` `version` is set at build from CHANGELOG; override with `TELEMETRY_API_VERSION` only if needed. |
-| Observability | Optional `SENTRY_DSN` on the API for uncaught errors. Monitor API 5xx, ingest 429 rate, and disk/DB size. `GET /health` reports `"email":"configured"` or `"not_configured"`, plus `version` on every response. |
+| Observability | Optional `SENTRY_DSN` on the API for uncaught errors. External uptime on `/health` and dashboard — see [MONITORING.md](./MONITORING.md). Monitor API 5xx, ingest 429 rate, and disk/DB size. `GET /health` reports `"email":"configured"` or `"not_configured"`, plus `version` on every response. |
 | Rate limits | Tune `RATE_LIMIT_*` env vars if you see false positives from shared IPs. Per-project ingest RPS follows plan tiers in `apps/api/src/config/plans.ts`. |
 
 ## Billing (optional)

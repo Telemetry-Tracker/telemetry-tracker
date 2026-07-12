@@ -1,3 +1,4 @@
+import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
 import path from "path";
 
@@ -11,4 +12,11 @@ const nextConfig: NextConfig = {
     ignoreDuringBuilds: true,
   },
 };
-export default nextConfig;
+
+export default withSentryConfig(nextConfig, {
+  // Source map upload is optional — set SENTRY_AUTH_TOKEN in CI when ready.
+  silent: !process.env.CI,
+  disableLogger: true,
+  widenClientFileUpload: true,
+  automaticVercelMonitors: false,
+});

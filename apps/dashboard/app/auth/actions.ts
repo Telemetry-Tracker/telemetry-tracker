@@ -1,6 +1,6 @@
 "use server";
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { API_BASE_URL } from "@/lib/api-url";
 import { clearPreferenceCookies, preferenceCookiesAllowedFromCookies, applyCookieConsentFromForm } from "@/lib/cookie-consent-server";
@@ -66,6 +66,11 @@ function cookieBase() {
   };
 }
 
+async function clientUserAgentHeader(): Promise<Record<string, string>> {
+  const userAgent = (await headers()).get("user-agent");
+  return userAgent ? { "User-Agent": userAgent.slice(0, 512) } : {};
+}
+
 async function setBootstrapPreferenceCookies(
   c: Awaited<ReturnType<typeof cookies>>,
   projectId: string | undefined,
@@ -102,7 +107,10 @@ export async function login(
   await applyCookieConsentFromForm(formData);
   const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(await clientUserAgentHeader()),
+    },
     body: JSON.stringify({ email, password }),
   });
   const data = (await res.json().catch(() => ({}))) as {
@@ -157,7 +165,10 @@ export async function register(
   await applyCookieConsentFromForm(formData);
   const res = await fetch(`${API_BASE_URL}/api/auth/register`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(await clientUserAgentHeader()),
+    },
     body: JSON.stringify({
       email,
       password,

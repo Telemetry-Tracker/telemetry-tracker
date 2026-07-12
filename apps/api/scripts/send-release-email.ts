@@ -1,6 +1,5 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { prisma } from "../src/lib/db.js";
+import { loadChangelogSection } from "../src/lib/changelog-section.js";
 import {
   buildMarketingUnsubscribeUrl,
   generateMarketingUnsubscribeToken,
@@ -72,18 +71,6 @@ function markdownToHtml(markdown: string): string {
     .join("\n");
 }
 
-function extractChangelogSection(version: string): string | null {
-  const changelogPath = resolve(process.cwd(), "../../CHANGELOG.md");
-  const content = readFileSync(changelogPath, "utf8");
-  const header = version === "Unreleased" ? "## [Unreleased]" : `## [${version}]`;
-  const start = content.indexOf(header);
-  if (start === -1) return null;
-  const rest = content.slice(start + header.length);
-  const nextHeader = rest.search(/\n## \[/);
-  const section = (nextHeader === -1 ? rest : rest.slice(0, nextHeader)).trim();
-  return section || null;
-}
-
 function isResendDomainVerificationError(error: string | undefined): boolean {
   const message = error?.toLowerCase() ?? "";
   return (
@@ -112,7 +99,7 @@ async function main() {
     process.exit(1);
   }
 
-  const section = extractChangelogSection(version);
+  const section = loadChangelogSection(version);
   if (!section) {
     console.error(`Could not find CHANGELOG section for ${version}`);
     process.exit(1);

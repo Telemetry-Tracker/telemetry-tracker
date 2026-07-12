@@ -15,9 +15,17 @@ import {
   type NotificationPreferences,
 } from "@/lib/notification-preferences-shared";
 import {
+  parseDashboardPreferences,
+  type DashboardPreferences,
+} from "@/lib/dashboard-preferences-shared";
+import {
   parseProjectAlertSettings,
   type ProjectAlertSettings,
 } from "@/lib/alert-settings";
+import {
+  fetchAuthSessions,
+  type FetchAuthSessionsResult,
+} from "@/lib/security-settings";
 import {
   DEFAULT_PROJECT_ID,
   TELEMETRY_PROJECT_COOKIE,
@@ -63,6 +71,33 @@ export async function resetDashboardProjectId(): Promise<void> {
     secure: process.env.NODE_ENV === "production",
   });
   revalidatePath("/dashboard", "layout");
+}
+
+export async function updateProfileAction(
+  displayName: string
+): Promise<{ ok: true; displayName: string | null } | { ok: false; error: string }> {
+  const trimmed = displayName.trim();
+  const res = await dashboardApiFetch(
+    "/api/auth/me",
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ displayName: trimmed }),
+    },
+    { omitOrganizationHeader: true, omitProjectHeader: true }
+  );
+  if (!res.ok) {
+    const t = await res.text();
+    return { ok: false, error: t.slice(0, 400) || res.statusText };
+  }
+  try {
+    const data = (await res.json()) as { user?: { displayName?: string | null } };
+    revalidatePath("/dashboard", "layout");
+    revalidatePath("/dashboard/settings/profile");
+    return { ok: true, displayName: data.user?.displayName ?? null };
+  } catch {
+    return { ok: false, error: "Invalid response from server" };
+  }
 }
 
 const cookieOpts = {
@@ -515,6 +550,30 @@ export async function saveNotificationPreferencesAction(
   }
 }
 
+export async function saveDashboardPreferencesAction(
+  preferences: DashboardPreferences
+): Promise<
+  | { ok: true; preferences: DashboardPreferences }
+  | { ok: false; error: string }
+> {
+  const res = await dashboardApiFetch("/api/meta/dashboard-preferences", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(preferences),
+  });
+  if (!res.ok) {
+    const t = await res.text();
+    return { ok: false, error: t.slice(0, 400) || res.statusText };
+  }
+  try {
+    const data = (await res.json()) as { preferences?: unknown };
+    revalidatePath("/dashboard/settings/preferences");
+    return { ok: true, preferences: parseDashboardPreferences(data.preferences) };
+  } catch {
+    return { ok: false, error: "Invalid response from server" };
+  }
+}
+
 async function notificationApiFetchOptions(): Promise<
   Pick<DashboardApiFetchOptions, "projectIdOverride" | "organizationIdOverride">
 > {
@@ -625,6 +684,80 @@ export async function listProjectSourceMapsAction(
   try {
     const data = (await res.json()) as { artifacts?: SourceMapArtifactSummaryRow[] };
     return { ok: true, artifacts: data.artifacts ?? [] };
+  } catch {
+    return { ok: false, error: "Invalid response from server" };
+  }
+}
+
+async function readApiError(res: Response): Promise<string> {
+  const text = await res.text();
+  try {
+    const data = JSON.parse(text) as { error?: string };
+    if (typeof data.error === "string" && data.error.trim()) return data.error;
+  } catch {
+    /* ignore */
+  }
+  return text.slice(0, 400) || res.statusText;
+}
+
+export async function fetchAuthSessionsAction(): Promise<FetchAuthSessionsResult> {
+  return fetchAuthSessions();
+}
+
+export async function changePasswordAction(
+  currentPassword: string,
+  newPassword: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const res = await dashboardApiFetch(
+    "/api/auth/change-password",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ currentPassword, newPassword }),
+    },
+    { omitOrganizationHeader: true, omitProjectHeader: true }
+  );
+  if (!res.ok) {
+    return { ok: false, error: await readApiError(res) };
+  }
+  revalidatePath("/dashboard/settings/security");
+  return { ok: true };
+}
+
+export async function revokeAuthSessionAction(
+  sessionId: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const trimmed = sessionId.trim();
+  if (!trimmed) {
+    return { ok: false, error: "Session id required" };
+  }
+  const res = await dashboardApiFetch(
+    `/api/auth/sessions/${encodeURIComponent(trimmed)}`,
+    { method: "DELETE" },
+    { omitOrganizationHeader: true, omitProjectHeader: true }
+  );
+  if (!res.ok) {
+    return { ok: false, error: await readApiError(res) };
+  }
+  revalidatePath("/dashboard/settings/security");
+  return { ok: true };
+}
+
+export async function revokeOtherAuthSessionsAction(): Promise<
+  { ok: true; revoked: number } | { ok: false; error: string }
+> {
+  const res = await dashboardApiFetch(
+    "/api/auth/sessions/others",
+    { method: "DELETE" },
+    { omitOrganizationHeader: true, omitProjectHeader: true }
+  );
+  if (!res.ok) {
+    return { ok: false, error: await readApiError(res) };
+  }
+  try {
+    const data = (await res.json()) as { revoked?: number };
+    revalidatePath("/dashboard/settings/security");
+    return { ok: true, revoked: typeof data.revoked === "number" ? data.revoked : 0 };
   } catch {
     return { ok: false, error: "Invalid response from server" };
   }

@@ -39,6 +39,7 @@ model User {
   password_hash  String                     @map("password_hash")
   display_name   String?                    @map("display_name")
   notification_preferences Json?            @map("notification_preferences")
+  dashboard_preferences    Json?            @map("dashboard_preferences")
   created_at     DateTime                   @default(now()) @map("created_at")
   updated_at     DateTime                   @updatedAt @map("updated_at")
   sessions       UserSession[]
@@ -112,11 +113,14 @@ model OrganizationInvite {
 
 /// Opaque server-side session (cookie value = id).
 model UserSession {
-  id         String   @id @default(uuid())
-  user_id    String   @map("user_id")
-  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  expires_at DateTime @map("expires_at")
-  created_at DateTime @default(now()) @map("created_at")
+  id             String   @id @default(uuid())
+  user_id        String   @map("user_id")
+  user           User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  expires_at     DateTime @map("expires_at")
+  user_agent     String?  @map("user_agent")
+  device_browser String?  @map("device_browser")
+  device_os      String?  @map("device_os")
+  created_at     DateTime @default(now()) @map("created_at")
 
   @@index([user_id])
   @@index([expires_at])

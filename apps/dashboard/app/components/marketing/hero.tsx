@@ -89,8 +89,7 @@ export function Hero({ isAuthenticated = false }: { isAuthenticated?: boolean })
         </div>
 
         <p className="mt-5 text-xs text-muted-foreground">
-          Used by engineering teams shipping to{" "}
-          <span className="text-foreground/80">production</span> daily.
+          Designed for teams building modern web applications.
         </p>
       </div>
 

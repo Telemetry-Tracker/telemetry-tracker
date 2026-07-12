@@ -139,6 +139,52 @@ describe.skipIf(!runDbIntegration)("Auth and RBAC (integration)", () => {
     expect(meBody.memberships.some((m) => m.role === "VIEWER")).toBe(true);
   });
 
+  it("PATCH /api/auth/me updates displayName for authenticated user", async () => {
+    const login = await app!.inject({
+      method: "POST",
+      url: "/api/auth/login",
+      headers: { "content-type": "application/json" },
+      payload: { email: emailEditor, password },
+    });
+    expect(login.statusCode).toBe(200);
+    const { sessionId } = JSON.parse(login.body) as { sessionId: string };
+
+    const patch = await app!.inject({
+      method: "PATCH",
+      url: "/api/auth/me",
+      headers: {
+        authorization: `Bearer ${sessionId}`,
+        "content-type": "application/json",
+      },
+      payload: { displayName: "Updated Editor" },
+    });
+    expect(patch.statusCode).toBe(200);
+    const patchBody = JSON.parse(patch.body) as {
+      user: { displayName: string | null; email: string };
+    };
+    expect(patchBody.user.displayName).toBe("Updated Editor");
+    expect(patchBody.user.email).toBe(emailEditor);
+
+    const me = await app!.inject({
+      method: "GET",
+      url: "/api/auth/me",
+      headers: { authorization: `Bearer ${sessionId}` },
+    });
+    expect(me.statusCode).toBe(200);
+    const meBody = JSON.parse(me.body) as { user: { displayName: string | null } };
+    expect(meBody.user.displayName).toBe("Updated Editor");
+  });
+
+  it("PATCH /api/auth/me returns 401 without session", async () => {
+    const res = await app!.inject({
+      method: "PATCH",
+      url: "/api/auth/me",
+      headers: { "content-type": "application/json" },
+      payload: { displayName: "Nobody" },
+    });
+    expect(res.statusCode).toBe(401);
+  });
+
   it("GET /api/errors returns 401 without session in production", async () => {
     const prevNodeEnv = process.env.NODE_ENV;
     const prevAllowReads = process.env.TELEMETRY_ALLOW_UNAUTHENTICATED_READS;
@@ -253,5 +299,202 @@ describe.skipIf(!runDbIntegration)("Auth and RBAC (integration)", () => {
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body) as { resolved_at: string | null };
     expect(body.resolved_at).not.toBeNull();
+  });
+
+  it("GET /api/auth/sessions lists active sessions with current flag", async () => {
+    const loginA = await app!.inject({
+      method: "POST",
+      url: "/api/auth/login",
+      headers: {
+        "content-type": "application/json",
+        "user-agent":
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      },
+      payload: { email: emailViewer, password },
+    });
+    expect(loginA.statusCode).toBe(200);
+    const { sessionId: sessionA } = JSON.parse(loginA.body) as { sessionId: string };
+
+    const loginB = await app!.inject({
+      method: "POST",
+      url: "/api/auth/login",
+      headers: {
+        "content-type": "application/json",
+        "user-agent":
+          "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+      },
+      payload: { email: emailViewer, password },
+    });
+    expect(loginB.statusCode).toBe(200);
+    const { sessionId: sessionB } = JSON.parse(loginB.body) as { sessionId: string };
+
+    const list = await app!.inject({
+      method: "GET",
+      url: "/api/auth/sessions",
+      headers: { authorization: `Bearer ${sessionB}` },
+    });
+    expect(list.statusCode).toBe(200);
+    const body = JSON.parse(list.body) as {
+      sessions: {
+        id: string;
+        current: boolean;
+        deviceBrowser: string | null;
+        deviceOs: string | null;
+      }[];
+    };
+    expect(body.sessions.length).toBeGreaterThanOrEqual(2);
+    const current = body.sessions.find((s) => s.id === sessionB);
+    const other = body.sessions.find((s) => s.id === sessionA);
+    expect(current?.current).toBe(true);
+    expect(current?.deviceBrowser).toBe("Safari");
+    expect(current?.deviceOs).toBe("iOS");
+    expect(other?.current).toBe(false);
+    expect(other?.deviceBrowser).toBe("Chrome");
+    expect(other?.deviceOs).toBe("macOS");
+  });
+
+  it("DELETE /api/auth/sessions/:id revokes another session", async () => {
+    const loginA = await app!.inject({
+      method: "POST",
+      url: "/api/auth/login",
+      headers: { "content-type": "application/json" },
+      payload: { email: emailEditor, password },
+    });
+    const { sessionId: sessionA } = JSON.parse(loginA.body) as { sessionId: string };
+
+    const loginB = await app!.inject({
+      method: "POST",
+      url: "/api/auth/login",
+      headers: { "content-type": "application/json" },
+      payload: { email: emailEditor, password },
+    });
+    const { sessionId: sessionB } = JSON.parse(loginB.body) as { sessionId: string };
+
+    const revoke = await app!.inject({
+      method: "DELETE",
+      url: `/api/auth/sessions/${sessionA}`,
+      headers: { authorization: `Bearer ${sessionB}` },
+    });
+    expect(revoke.statusCode).toBe(204);
+
+    const me = await app!.inject({
+      method: "GET",
+      url: "/api/auth/me",
+      headers: { authorization: `Bearer ${sessionA}` },
+    });
+    expect(me.statusCode).toBe(401);
+  });
+
+  it("DELETE /api/auth/sessions/others revokes all but current session", async () => {
+    const loginA = await app!.inject({
+      method: "POST",
+      url: "/api/auth/login",
+      headers: { "content-type": "application/json" },
+      payload: { email: emailViewer, password },
+    });
+    const { sessionId: sessionA } = JSON.parse(loginA.body) as { sessionId: string };
+
+    await app!.inject({
+      method: "POST",
+      url: "/api/auth/login",
+      headers: { "content-type": "application/json" },
+      payload: { email: emailViewer, password },
+    });
+
+    const loginC = await app!.inject({
+      method: "POST",
+      url: "/api/auth/login",
+      headers: { "content-type": "application/json" },
+      payload: { email: emailViewer, password },
+    });
+    const { sessionId: sessionC } = JSON.parse(loginC.body) as { sessionId: string };
+
+    const revokeOthers = await app!.inject({
+      method: "DELETE",
+      url: "/api/auth/sessions/others",
+      headers: { authorization: `Bearer ${sessionC}` },
+    });
+    expect(revokeOthers.statusCode).toBe(200);
+    const revokedBody = JSON.parse(revokeOthers.body) as { revoked: number };
+    expect(revokedBody.revoked).toBeGreaterThanOrEqual(2);
+
+    const meA = await app!.inject({
+      method: "GET",
+      url: "/api/auth/me",
+      headers: { authorization: `Bearer ${sessionA}` },
+    });
+    expect(meA.statusCode).toBe(401);
+
+    const meC = await app!.inject({
+      method: "GET",
+      url: "/api/auth/me",
+      headers: { authorization: `Bearer ${sessionC}` },
+    });
+    expect(meC.statusCode).toBe(200);
+  });
+
+  it("POST /api/auth/change-password updates password and revokes other sessions", async () => {
+    const loginA = await app!.inject({
+      method: "POST",
+      url: "/api/auth/login",
+      headers: { "content-type": "application/json" },
+      payload: { email: emailEditor, password },
+    });
+    const { sessionId: sessionA } = JSON.parse(loginA.body) as { sessionId: string };
+
+    const loginB = await app!.inject({
+      method: "POST",
+      url: "/api/auth/login",
+      headers: { "content-type": "application/json" },
+      payload: { email: emailEditor, password },
+    });
+    const { sessionId: sessionB } = JSON.parse(loginB.body) as { sessionId: string };
+
+    const newPassword = "newpass987";
+    const change = await app!.inject({
+      method: "POST",
+      url: "/api/auth/change-password",
+      headers: {
+        authorization: `Bearer ${sessionB}`,
+        "content-type": "application/json",
+      },
+      payload: { currentPassword: password, newPassword },
+    });
+    expect(change.statusCode).toBe(200);
+
+    const meA = await app!.inject({
+      method: "GET",
+      url: "/api/auth/me",
+      headers: { authorization: `Bearer ${sessionA}` },
+    });
+    expect(meA.statusCode).toBe(401);
+
+    const meB = await app!.inject({
+      method: "GET",
+      url: "/api/auth/me",
+      headers: { authorization: `Bearer ${sessionB}` },
+    });
+    expect(meB.statusCode).toBe(200);
+
+    const oldLogin = await app!.inject({
+      method: "POST",
+      url: "/api/auth/login",
+      headers: { "content-type": "application/json" },
+      payload: { email: emailEditor, password },
+    });
+    expect(oldLogin.statusCode).toBe(401);
+
+    const newLogin = await app!.inject({
+      method: "POST",
+      url: "/api/auth/login",
+      headers: { "content-type": "application/json" },
+      payload: { email: emailEditor, password: newPassword },
+    });
+    expect(newLogin.statusCode).toBe(200);
+
+    await prisma.user.update({
+      where: { email: emailEditor },
+      data: { password_hash: hashPassword(password) },
+    });
   });
 });

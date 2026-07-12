@@ -24,6 +24,7 @@ Next.js App Router. All data access goes through the Fastify API — **no direct
 
 - Billing portal and Stripe actions: only OWNER/EDITOR capabilities per [docs/RBAC.md](../../docs/RBAC.md).
 - Usage cards (`OrganizationUsageCard`) rely on `usageQuota` from session context — `nearQuota`/`quotaExceeded` flags must reflect API-computed thresholds, not client-side math on stale data.
+- **Dashboard preferences persistence** (`/api/meta/dashboard-preferences`, settings page): storing defaults without yet applying them to list pages, bootstrap, or analytics is intentional until a follow-up wires consumption — do not flag as incomplete persistence work.
 
 ## Accessibility and UX
 

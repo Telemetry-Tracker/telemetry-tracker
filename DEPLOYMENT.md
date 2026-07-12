@@ -33,7 +33,7 @@ Copy `apps/api/.env.example` and `apps/dashboard/.env.example` for local dev.
 | `HEALTH_CHECK_DATABASE` | `true` — `GET /health` checks Postgres and reports `database_latency_ms` |
 | `HEALTH_DETAILED` | `true` — add `uptime_seconds` and `node_version` to `/health` (no secrets) |
 | `TELEMETRY_API_VERSION` | Optional override for `/health` `version`; normally set automatically at build from [CHANGELOG.md](../CHANGELOG.md) |
-| `TELEMETRY_ALLOW_REGISTRATION` | Set `false` after bootstrap if you do not want open signups |
+| `TELEMETRY_ALLOW_REGISTRATION` | `true` for open signups; omit or `false` for invite-only after bootstrap — see [docs/REGISTRATION-POLICY.md](docs/REGISTRATION-POLICY.md) |
 | `SENTRY_DSN` | Optional uncaught-error reporting |
 
 ### API — never in production
@@ -53,6 +53,8 @@ Rate limits (`RATE_LIMIT_*`), legacy org fallback (`TELEMETRY_ORGANIZATION_ID`),
 |----------|-------------|
 | `API_URL` | Public API base URL (no trailing `/`). Default locally: `http://localhost:3001` |
 | `NEXT_PUBLIC_SITE_URL` | Public dashboard URL for SEO/metadata (recommended in production) |
+| `SENTRY_DSN` | Optional server/edge uncaught-error reporting |
+| `NEXT_PUBLIC_SENTRY_DSN` | Optional browser error reporting (same DSN value as `SENTRY_DSN`) |
 
 Do not set `NEXT_PUBLIC_TELEMETRY_PUBLIC_DASHBOARD=true` on a public production URL.
 

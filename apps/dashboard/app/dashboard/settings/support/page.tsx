@@ -1,13 +1,18 @@
-"use client";
-
 import Link from "next/link";
 import {
   SettingsPageBody,
   SettingsPageHeader,
 } from "@/app/components/dashboard/settings/SettingsPageHeader";
 import { Section, SettingsBtn } from "@/app/components/dashboard/settings/settings-ui";
+import { fetchPlatformVersion } from "@/lib/platform-version-server";
 
-export default function SupportSettingsPage() {
+export const dynamic = "force-dynamic";
+
+const GITHUB_ISSUES_URL = "https://github.com/Telemetry-Tracker/telemetry-tracker/issues";
+
+export default async function SupportSettingsPage() {
+  const version = await fetchPlatformVersion();
+
   return (
     <>
       <SettingsPageHeader
@@ -26,14 +31,16 @@ export default function SupportSettingsPage() {
             <Link href="/contact">
               <SettingsBtn variant="primary">Contact form</SettingsBtn>
             </Link>
-            <SettingsBtn variant="outline">GitHub issues</SettingsBtn>
+            <Link href={GITHUB_ISSUES_URL} target="_blank" rel="noopener noreferrer">
+              <SettingsBtn variant="outline">GitHub issues</SettingsBtn>
+            </Link>
           </div>
         </Section>
         <Section title="System info">
           <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {[
-              ["Dashboard", "Next.js 15"],
-              ["Version", "0.0.1"],
+              ["Platform version", version ? `v${version}` : "Unknown"],
+              ["Dashboard", "Next.js"],
               ["Region", "Self-hosted"],
               ["Support tier", "Community"],
             ].map(([k, v]) => (

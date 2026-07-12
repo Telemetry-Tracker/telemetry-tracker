@@ -11,12 +11,12 @@ const GROUPS: Group[] = [
   {
     label: "Account",
     items: [
-      { href: "/dashboard/settings/profile", label: "Profile", comingSoon: true },
-      { href: "/dashboard/settings/preferences", label: "Preferences", comingSoon: true },
+      { href: "/dashboard/settings/profile", label: "Profile" },
+      { href: "/dashboard/settings/preferences", label: "Preferences" },
       { href: "/dashboard/settings/appearance", label: "Appearance" },
       { href: "/dashboard/settings/notifications", label: "Notifications" },
       { href: "/dashboard/settings/shortcuts", label: "Keyboard shortcuts" },
-      { href: "/dashboard/settings/security", label: "Security", comingSoon: true },
+      { href: "/dashboard/settings/security", label: "Security" },
       { href: "/dashboard/settings/keys", label: "API keys" },
       { href: "/dashboard/settings/source-maps", label: "Source maps" },
     ],
@@ -36,7 +36,7 @@ const GROUPS: Group[] = [
     label: "Resources",
     items: [
       { href: "/docs", label: "Documentation" },
-      { href: "/dashboard/settings/changelog", label: "What's new", comingSoon: true },
+      { href: "/dashboard/settings/changelog", label: "What's new" },
       { href: "/dashboard/settings/support", label: "Contact support" },
     ],
   },

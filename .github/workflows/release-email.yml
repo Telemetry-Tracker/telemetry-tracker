@@ -65,6 +65,24 @@ jobs:
           echo "previous=$PREVIOUS" >> "$GITHUB_OUTPUT"
           echo "Release ${CURRENT} (previous: ${PREVIOUS:-none})"
 
+      - name: Ensure CHANGELOG at release version
+        env:
+          RELEASE_CURRENT: ${{ steps.tags.outputs.current }}
+        run: |
+          if grep -qF "## [${RELEASE_CURRENT}]" CHANGELOG.md; then
+            echo "CHANGELOG section present at tag commit."
+            exit 0
+          fi
+          echo "CHANGELOG missing ## [${RELEASE_CURRENT}] at tag commit; fetching from origin/main"
+          git fetch origin main
+          if git show origin/main:CHANGELOG.md | grep -qF "## [${RELEASE_CURRENT}]"; then
+            git show origin/main:CHANGELOG.md > CHANGELOG.md
+            echo "Using CHANGELOG.md from origin/main for release email."
+            exit 0
+          fi
+          echo "Could not find CHANGELOG section for ${RELEASE_CURRENT} on tag or main" >&2
+          exit 1
+
       - name: Check minor/major bump
         id: bump
         working-directory: apps/api

@@ -63,7 +63,7 @@ const dataTable = [
 const optionalServices = [
   { name: "Stripe", role: "Optional payment processing", note: "When configured on the API" },
   { name: "Resend", role: "Optional transactional email", note: "Invites, password reset, contact, product updates" },
-  { name: "Sentry", role: "Optional API error monitoring", note: "When SENTRY_DSN is set" },
+  { name: "Sentry", role: "Optional error monitoring", note: "When SENTRY_DSN is set on the API and/or dashboard" },
 ];
 
 const rights = [

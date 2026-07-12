@@ -3,12 +3,14 @@
 import Link from "next/link";
 import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
+import { useEffect } from "react";
 import {
   ErrorPageShell,
   ErrorRetryIcon,
   errorPrimaryBtn,
   errorSecondaryBtn,
 } from "@/app/components/error-pages/ErrorPageShell";
+import { captureClientException } from "@/lib/sentry";
 import "./globals.css";
 
 /**
@@ -22,6 +24,11 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  useEffect(() => {
+    console.error(error);
+    captureClientException(error);
+  }, [error]);
+
   const detail =
     process.env.NODE_ENV === "development" && error.message
       ? `${error.name ?? "Error"}: ${error.message}`
