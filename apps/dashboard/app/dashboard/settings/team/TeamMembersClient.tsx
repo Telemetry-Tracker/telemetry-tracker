@@ -6,16 +6,15 @@ import {
   inviteOrganizationMemberAction,
   updateOrganizationMemberRoleAction,
 } from "@/app/dashboard/actions";
-import { Section, SettingsAvatar, SettingsBtn, SettingsInput } from "@/app/components/dashboard/settings/settings-ui";
-import { toDashboardAvatarUrl } from "@/lib/avatar-url";
+import { Section, SettingsBtn, SettingsInput } from "@/app/components/dashboard/settings/settings-ui";
 import { Table, TableWrap, tableDateColumnClass } from "@/app/components/ui/Table";
 import { TimeAgo } from "@/app/components/TimeAgo";
+import { toast } from "sonner";
 
 export type TeamMemberRow = {
   userId: string;
   email: string;
   displayName: string | null;
-  avatarUrl?: string | null;
   role: string;
   joinedAt: string;
 };
@@ -137,10 +136,28 @@ export function TeamMembersClient({
               </p>
             ) : null}
             {inviteUrl ? (
-              <p className="text-sm text-muted-foreground">
-                Share this link to register:{" "}
-                <code className="break-all text-xs text-foreground">{inviteUrl}</code>
-              </p>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <p className="text-sm text-muted-foreground">
+                  Share this link to register:{" "}
+                  <code className="break-all text-xs text-foreground">{inviteUrl}</code>
+                </p>
+                <SettingsBtn
+                  type="button"
+                  variant="default"
+                  size="sm"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(inviteUrl);
+                      toast.success("Invite link copied to clipboard");
+                    } catch {
+                      toast.error("Could not copy invite link.");
+                    }
+                  }}
+                  aria-label="Copy invite link"
+                >
+                  Copy link
+                </SettingsBtn>
+              </div>
             ) : null}
             <SettingsBtn type="submit" variant="primary" disabled={pending}>
               {pending ? "Sending…" : "Add or invite"}
@@ -163,7 +180,6 @@ export function TeamMembersClient({
             <Table>
               <thead>
                 <tr>
-                  <th className="w-10" aria-label="Avatar" />
                   <th>Email</th>
                   <th className="hidden sm:table-cell">Name</th>
                   <th>Role</th>
@@ -177,13 +193,6 @@ export function TeamMembersClient({
                   const canEditRole = canManageMembers && !(isSelf && isOnlyOwner);
                   return (
                     <tr key={m.userId}>
-                      <td>
-                        <SettingsAvatar
-                          name={m.displayName?.trim() || m.email}
-                          src={toDashboardAvatarUrl(m.avatarUrl ?? null)}
-                          size={28}
-                        />
-                      </td>
                       <td>{m.email}</td>
                       <td className="hidden sm:table-cell">{m.displayName ?? "—"}</td>
                       <td>
