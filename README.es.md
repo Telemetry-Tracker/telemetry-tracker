@@ -195,7 +195,7 @@ packages/
 
 ## Hoja de ruta
 
-Las funcionalidades ya implementadas se encuentran en **[Características](#features)** más arriba. A continuación se detalla el trabajo **planificado y en exploración** — agrupado por área, no por calendario de lanzamiento. Los elementos marcados como *Próximamente* en el dashboard coinciden con esta lista ([#96](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/96)).
+Las funcionalidades ya implementadas se encuentran en **[Características](#características)** más arriba. A continuación se detalla el trabajo **planificado y en exploración** — agrupado por área, no por calendario de lanzamiento. Los elementos marcados como *Próximamente* en el dashboard coinciden con esta lista ([#96](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/96)).
 
 | Estado | Significado |
 |--------|-------------|
