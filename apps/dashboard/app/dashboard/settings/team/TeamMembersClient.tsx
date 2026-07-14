@@ -6,7 +6,8 @@ import {
   inviteOrganizationMemberAction,
   updateOrganizationMemberRoleAction,
 } from "@/app/dashboard/actions";
-import { Section, SettingsBtn, SettingsInput } from "@/app/components/dashboard/settings/settings-ui";
+import { Section, SettingsAvatar, SettingsBtn, SettingsInput } from "@/app/components/dashboard/settings/settings-ui";
+import { toDashboardAvatarUrl } from "@/lib/avatar-url";
 import { Table, TableWrap, tableDateColumnClass } from "@/app/components/ui/Table";
 import { TimeAgo } from "@/app/components/TimeAgo";
 import { toast } from "sonner";
@@ -15,6 +16,7 @@ export type TeamMemberRow = {
   userId: string;
   email: string;
   displayName: string | null;
+  avatarUrl?: string | null;
   role: string;
   joinedAt: string;
 };
@@ -180,6 +182,7 @@ export function TeamMembersClient({
             <Table>
               <thead>
                 <tr>
+                  <th className="w-10" aria-label="Avatar" />
                   <th>Email</th>
                   <th className="hidden sm:table-cell">Name</th>
                   <th>Role</th>
@@ -193,6 +196,13 @@ export function TeamMembersClient({
                   const canEditRole = canManageMembers && !(isSelf && isOnlyOwner);
                   return (
                     <tr key={m.userId}>
+                      <td>
+                        <SettingsAvatar
+                          name={m.displayName?.trim() || m.email}
+                          src={toDashboardAvatarUrl(m.avatarUrl ?? null)}
+                          size={28}
+                        />
+                      </td>
                       <td>{m.email}</td>
                       <td className="hidden sm:table-cell">{m.displayName ?? "—"}</td>
                       <td>
