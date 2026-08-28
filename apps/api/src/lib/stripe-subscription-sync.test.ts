@@ -25,6 +25,7 @@ describe("parsePlanTierFromStripeSubscription", () => {
       },
     } as unknown as Stripe.Subscription;
     expect(parsePlanTierFromStripeSubscription(sub)).toBe(PlanTier.PRO);
+    // Tier comes from metadata — not from matching STRIPE_PRICE_PRO — so legacy €29 Prices stay PRO.
   });
 
   it("falls back to price metadata", () => {
@@ -43,6 +44,16 @@ describe("parsePlanTierFromStripeSubscription", () => {
       items: { data: [] },
     } as unknown as Stripe.Subscription;
     expect(parsePlanTierFromStripeSubscription(sub)).toBeNull();
+  });
+
+  it("keeps PRO for a legacy Price id when price metadata has plan_tier", () => {
+    const sub = {
+      metadata: {},
+      items: {
+        data: [{ price: { id: "price_legacy_eur_29", metadata: { plan_tier: "PRO" } } }],
+      },
+    } as unknown as Stripe.Subscription;
+    expect(parsePlanTierFromStripeSubscription(sub)).toBe(PlanTier.PRO);
   });
 });
 

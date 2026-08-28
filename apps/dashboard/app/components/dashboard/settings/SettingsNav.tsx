@@ -87,7 +87,7 @@ export function SettingsNav() {
       <div className="mb-4 px-2 text-[11px] uppercase tracking-wider text-muted-foreground">
         Settings
       </div>
-      <nav className="space-y-5 text-sm">
+      <nav aria-label="Settings"  className="space-y-5 text-sm">
         {GROUPS.map((g) => (
           <div key={g.label}>
             <div className="mb-1 px-2 text-[10px] uppercase tracking-wider text-muted-foreground">

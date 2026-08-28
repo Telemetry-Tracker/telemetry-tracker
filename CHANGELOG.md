@@ -21,6 +21,15 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ---
 
+## [1.17.4] - 2026-08-28
+
+### Changed
+
+- **Hosted Pro pricing** — list price €15/month (was €29); new checkouts use the Price id in `STRIPE_PRICE_PRO`. Existing Pro subscriptions keep their prior Stripe Price and stay PRO via `plan_tier` metadata ([#613](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/613))
+- **Dashboard a11y** — `aria-label` on settings sidebar navigation ([#610](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/610))
+
+---
+
 ## [1.17.3] - 2026-07-19
 
 ### Changed

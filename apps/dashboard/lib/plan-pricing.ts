@@ -4,7 +4,7 @@
  */
 export const PLAN_LIST_PRICES_EUR = {
   FREE: 0,
-  PRO: 29,
+  PRO: 15,
   BUSINESS: 99,
 } as const;
 

@@ -11,8 +11,11 @@ import {
 describe("plan-pricing", () => {
   it("formats EUR list prices", () => {
     expect(formatPlanPriceEur(PLAN_LIST_PRICES_EUR.FREE)).toBe("€0");
-    expect(formatPlanPriceEur(PLAN_LIST_PRICES_EUR.PRO)).toMatch(/29/);
+    expect(formatPlanPriceEur(PLAN_LIST_PRICES_EUR.PRO)).toMatch(/15/);
     expect(formatPlanPriceEur(PLAN_LIST_PRICES_EUR.BUSINESS)).toMatch(/99/);
+    expect(PLAN_LIST_PRICES_EUR.PRO).toBe(15);
+    expect(PLAN_LIST_PRICES_EUR.FREE).toBe(0);
+    expect(PLAN_LIST_PRICES_EUR.BUSINESS).toBe(99);
   });
 
   it("falls back to usage plan tier for effective plan display", () => {
