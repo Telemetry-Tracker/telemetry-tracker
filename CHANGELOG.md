@@ -17,6 +17,8 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ### Changed
 
+- **Hosted Pro pricing** — list price €15/month (was €29); new checkouts use the Price id in `STRIPE_PRICE_PRO`. Existing Pro subscriptions keep their prior Stripe Price and stay PRO via `plan_tier` metadata
+
 ### Database
 
 ---
