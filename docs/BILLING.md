@@ -110,7 +110,7 @@ Set these on the **API** service to enable checkout, billing portal, and webhook
 |----------|-------------|
 | `STRIPE_SECRET_KEY` | `sk_live_…` or test key |
 | `STRIPE_WEBHOOK_SECRET` | `whsec_…` for `POST /webhooks/stripe` |
-| `STRIPE_PRICE_PRO` | Stripe Price id for Pro (**EUR**, list price €29/mo) |
+| `STRIPE_PRICE_PRO` | Stripe Price id for Pro (**EUR**, list price €15/mo). New checkouts use this Price; existing subscribers keep their prior Price until they change plan. |
 | `STRIPE_PRICE_BUSINESS` | Stripe Price id for Business (**EUR**, list price €99/mo) |
 | `TELEMETRY_DASHBOARD_ORIGIN` or `DASHBOARD_ORIGIN` | Dashboard URL for checkout return links |
 

@@ -57,7 +57,7 @@ const faqs = [
   },
   {
     q: "Is there a free plan?",
-    a: "Yes — the Free tier includes 250K ingest units per month, 14-day retention, and one project. Pro (€29/mo) and Business (€99/mo) add volume and retention on the hosted cloud.",
+    a: "Yes — the Free tier includes 250K ingest units per month, 14-day retention, and one project. Pro (€15/mo) and Business (€99/mo) add volume and retention on the hosted cloud.",
   },
   {
     q: "Where is data stored?",

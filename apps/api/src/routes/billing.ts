@@ -8,6 +8,7 @@ import {
   getMembershipRoleForOrganization,
 } from "../lib/org-permissions.js";
 import { dashboardOriginOrNull } from "../lib/dashboard-origin.js";
+import { stripePriceIdForTier } from "../lib/stripe-price-config.js";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -16,13 +17,6 @@ function stripeClient(): Stripe | null {
   const key = process.env.STRIPE_SECRET_KEY?.trim();
   if (!key) return null;
   return new Stripe(key);
-}
-
-function priceIdForTier(tier: "PRO" | "BUSINESS"): string | null {
-  if (tier === "PRO") {
-    return process.env.STRIPE_PRICE_PRO?.trim() ?? null;
-  }
-  return process.env.STRIPE_PRICE_BUSINESS?.trim() ?? null;
 }
 
 function parseUpgradeTier(raw: unknown): "PRO" | "BUSINESS" | null {
@@ -114,7 +108,7 @@ export async function billingRoutes(
       if (!tier) {
         return reply.status(400).send({ error: "planTier must be PRO or BUSINESS" });
       }
-      const priceId = priceIdForTier(tier);
+      const priceId = stripePriceIdForTier(tier);
       if (!priceId) {
         return reply.status(503).send({ error: "Stripe price not configured for this tier" });
       }
