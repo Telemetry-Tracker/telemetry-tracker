@@ -38,7 +38,11 @@ export function AppearanceSettingsClient() {
       />
       <SettingsPageBody>
         <Section title="Theme">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div 
+            role="radiogroup" 
+            aria-label="Theme"
+            className="grid grid-cols-1 gap-3 sm:grid-cols-3"
+          >
             {THEMES.map((t) => {
               const Icon = t.icon;
               const selected = active !== null && active === t.id;
@@ -46,6 +50,8 @@ export function AppearanceSettingsClient() {
                 <button
                   key={t.id}
                   type="button"
+                  role="radio"
+                  aria-checked={selected}
                   disabled={!mounted}
                   onClick={() => setTheme(t.id)}
                   className={`rounded-xl border p-4 text-left transition-colors ${

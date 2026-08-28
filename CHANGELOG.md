@@ -21,6 +21,14 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ---
 
+## [1.17.5] - 2026-08-28
+
+### Changed
+
+- **Dashboard a11y** — theme picker uses `radiogroup` / `radio` ARIA semantics so screen readers announce the active theme ([#372](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/372), [#612](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/612))
+
+---
+
 ## [1.17.4] - 2026-08-28
 
 ### Changed
