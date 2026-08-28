@@ -13,6 +13,7 @@ import { StackTracePanel } from "@/app/components/dashboard/StackTracePanel";
 import { StackTraceView } from "@/app/components/dashboard/StackTraceView";
 import { MiniSparkline, type SparklinePoint } from "@/app/components/dashboard/MiniSparkline";
 import { ErrorResolveButton } from "../ErrorResolveButton";
+import { ErrorExportActions } from "../ErrorExportActions";
 import { dashboardApiFetch } from "@/lib/dashboard-api";
 import { parseDashboardApiResourceId } from "@/lib/dashboard-api-url";
 import { buildDashboardScopedListHref } from "@/lib/overview-scope-url";
@@ -295,7 +296,25 @@ export default async function ErrorDetailPage({
             {resolved ? <ResolvedBadge /> : null}
           </>
         }
-        actions={<ErrorResolveButton errorGroupId={group.id} resolved={resolved} />}
+        actions={
+          <>
+            <ErrorExportActions
+              errorGroupId={group.id}
+              scope={{
+                app,
+                environment,
+                platform,
+                release,
+                range,
+                from,
+                to,
+                metricsUntil,
+                metricsSince,
+              }}
+            />
+            <ErrorResolveButton errorGroupId={group.id} resolved={resolved} />
+          </>
+        }
         metrics={[
           { label: "Occurrences", value: group.occurrences.toLocaleString() },
           {

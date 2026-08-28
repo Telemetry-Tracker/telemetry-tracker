@@ -132,6 +132,7 @@ import {
   resolveReadProjectId,
   resolveReadProjectIdWithSession,
 } from "../lib/read-project-request.js";
+import { loadIssueExportDocument } from "../lib/issue-export-load.js";
 import { releasePrismaWhere } from "../lib/release-key.js";
 import {
   EVENT_SORT_SQL,
@@ -1168,6 +1169,41 @@ export async function apiRoutes(
       occurrences_list,
       sparkline: sparklineMap.get(id) ?? [],
     });
+  });
+
+  app.get<{ Params: { id: string } }>("/errors/:id/export", async (request, reply) => {
+    const projectId = await resolveReadProjectId(request, reply);
+    if (projectId === null) return;
+    const { id } = request.params;
+    const query = request.query as {
+      app?: string;
+      environment?: string;
+      platform?: string;
+      release?: string;
+      range?: string;
+      from?: string;
+      to?: string;
+      metricsUntil?: string;
+      metricsSince?: string;
+    };
+    const doc = await loadIssueExportDocument(prisma, projectId, id, {
+      app: queryApp(query.app),
+      environment: queryString(query.environment),
+      platform: queryString(query.platform),
+      release: queryString(query.release),
+      range: queryString(query.range),
+      from: queryString(query.from),
+      to: queryString(query.to),
+      metricsUntil: queryString(query.metricsUntil),
+      metricsSince: queryString(query.metricsSince),
+    });
+    if (!doc) return reply.status(404).send({ error: "Not found" });
+    return reply
+      .header(
+        "Content-Disposition",
+        `attachment; filename="issue-${id}.json"`
+      )
+      .send(doc);
   });
 
   app.get("/events/summary", async (request, reply) => {
