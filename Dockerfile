@@ -42,7 +42,10 @@ COPY apps/dashboard/package.json apps/dashboard/package.json
 COPY packages/telemetry-core/package.json packages/telemetry-core/package.json
 COPY packages/telemetry-next/package.json packages/telemetry-next/package.json
 
-RUN pnpm install --frozen-lockfile --prod=false
+# Production install only. The build stage (no NODE_ENV=production) installs
+# devDependencies for `next build` / TypeScript. Do not pass `--prod=false` here
+# or those leak into the runtime image. `NODE_ENV=production` already omits them.
+RUN pnpm install --frozen-lockfile
 
 COPY --from=build /app/apps apps
 COPY --from=build /app/packages packages

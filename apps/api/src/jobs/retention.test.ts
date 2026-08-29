@@ -9,9 +9,63 @@ function sqlFromExecuteRaw(query: unknown): string {
   return (query as { strings: string[] }).strings.join("");
 }
 
+type OrgFields = {
+  plan_tier: PlanTier;
+  stripe_subscription_status: string | null;
+  deleted_at: Date | null;
+};
+
+type ProjectRow = {
+  id: string;
+  organization: OrgFields;
+};
+
+const freeOrg: OrgFields = {
+  plan_tier: PlanTier.FREE,
+  stripe_subscription_status: null,
+  deleted_at: null,
+};
+
+function mockFindMany(projects: ProjectRow[]) {
+  const sorted = [...projects].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  return vi.fn(
+    async ({
+      take,
+      where,
+    }: {
+      take?: number;
+      where?: { deleted_at?: null; id?: { gt?: string } };
+    }) => {
+      const gt = where?.id?.gt;
+      let rows = sorted;
+      if (gt) rows = rows.filter((p) => p.id > gt);
+      return rows.slice(0, take ?? rows.length);
+    }
+  );
+}
+
+function liveTx() {
+  const executeRaw = vi.fn(async (query: unknown) => {
+    if (sqlFromExecuteRaw(query).includes("SourceMapArtifact")) return 3;
+    return 0;
+  });
+  return {
+    errorOccurrence: { deleteMany: vi.fn(async () => ({ count: 0 })) },
+    event: { deleteMany: vi.fn(async () => ({ count: 0 })) },
+    session: {
+      deleteMany: vi.fn(async ({ where }: { where: Record<string, unknown> }) => {
+        return { count: "ended_at" in where ? 1 : 2 };
+      }),
+    },
+    errorGroup: { deleteMany: vi.fn(async () => ({ count: 0 })) },
+    $executeRaw: executeRaw,
+  };
+}
+
 describe("runRetentionSweep", () => {
   afterEach(() => {
     vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   it("expires sessions by end time so open long-running sessions are retained", async () => {
@@ -19,34 +73,10 @@ describe("runRetentionSweep", () => {
     vi.setSystemTime(new Date("2026-05-06T10:00:00.000Z"));
 
     const cutoff = new Date("2026-04-22T10:00:00.000Z");
-    const sessionDeleteMany = vi.fn(async ({ where }: { where: Record<string, unknown> }) => {
-      // Simulate one old closed session and one old still-open session. A started_at
-      // predicate would delete both; ended_at deletes only the closed one.
-      return { count: "ended_at" in where ? 1 : 2 };
-    });
-    const executeRaw = vi.fn(async (query: unknown) => {
-      if (sqlFromExecuteRaw(query).includes("SourceMapArtifact")) return 3;
-      return 0;
-    });
-    const tx = {
-      errorOccurrence: { deleteMany: vi.fn(async () => ({ count: 0 })) },
-      event: { deleteMany: vi.fn(async () => ({ count: 0 })) },
-      session: { deleteMany: sessionDeleteMany },
-      errorGroup: { deleteMany: vi.fn(async () => ({ count: 0 })) },
-      $executeRaw: executeRaw,
-    };
+    const tx = liveTx();
     const prisma = {
       project: {
-        findMany: vi.fn(async () => [
-          {
-            id: "project-1",
-            organization: {
-              plan_tier: PlanTier.FREE,
-              stripe_subscription_status: null,
-              deleted_at: null,
-            },
-          },
-        ]),
+        findMany: mockFindMany([{ id: "project-1", organization: freeOrg }]),
       },
       $transaction: vi.fn(async (fn: (txArg: typeof tx) => Promise<unknown>) => fn(tx)),
     };
@@ -55,14 +85,15 @@ describe("runRetentionSweep", () => {
 
     expect(result.sessionsDeleted).toBe(1);
     expect(result.sourceMapsDeleted).toBe(3);
-    expect(sessionDeleteMany).toHaveBeenCalledWith({
+    expect(result.projectsFailed).toBe(0);
+    expect(tx.session.deleteMany).toHaveBeenCalledWith({
       where: {
         project_id: "project-1",
         ended_at: { lt: cutoff },
       },
     });
 
-    const mapDeleteSql = executeRaw.mock.calls
+    const mapDeleteSql = tx.$executeRaw.mock.calls
       .map(([query]) => sqlFromExecuteRaw(query))
       .find((sql) => sql.includes("SourceMapArtifact"));
     expect(mapDeleteSql).toBeDefined();
@@ -95,16 +126,7 @@ describe("runRetentionSweep", () => {
     };
     const prisma = {
       project: {
-        findMany: vi.fn(async () => [
-          {
-            id: "project-1",
-            organization: {
-              plan_tier: PlanTier.FREE,
-              stripe_subscription_status: null,
-              deleted_at: null,
-            },
-          },
-        ]),
+        findMany: mockFindMany([{ id: "project-1", organization: freeOrg }]),
       },
       $transaction: vi.fn(async (fn: (txArg: typeof tx) => Promise<unknown>) => fn(tx)),
     };
@@ -112,6 +134,7 @@ describe("runRetentionSweep", () => {
     const result = await runRetentionSweep(prisma as never);
 
     expect(result.sourceMapsDeleted).toBe(0);
+    expect(result.projectsFailed).toBe(0);
     expect(executeRaw.mock.calls.some(([query]) => sqlFromExecuteRaw(query).includes("SourceMapArtifact"))).toBe(
       true
     );
@@ -154,16 +177,7 @@ describe("runRetentionSweep", () => {
     };
     const prisma = {
       project: {
-        findMany: vi.fn(async () => [
-          {
-            id: "project-1",
-            organization: {
-              plan_tier: PlanTier.FREE,
-              stripe_subscription_status: null,
-              deleted_at: null,
-            },
-          },
-        ]),
+        findMany: mockFindMany([{ id: "project-1", organization: freeOrg }]),
       },
       $transaction: vi.fn(async (fn: (txArg: typeof tx) => Promise<unknown>) => fn(tx)),
     };
@@ -172,6 +186,7 @@ describe("runRetentionSweep", () => {
 
     expect(result).toEqual({
       projectsProcessed: 1,
+      projectsFailed: 0,
       errorOccurrencesDeleted: 8,
       eventsDeleted: 2,
       sessionsDeleted: 1,
@@ -184,5 +199,73 @@ describe("runRetentionSweep", () => {
     expect(errorGroup.deleteMany).not.toHaveBeenCalled();
     expect(queryRaw).toHaveBeenCalledTimes(2);
     expect(executeRaw).not.toHaveBeenCalled();
+  });
+
+  it("loads projects in keyset batches without skipping or double-processing", async () => {
+    const tx = liveTx();
+    const findMany = mockFindMany([
+      { id: "project-a", organization: freeOrg },
+      { id: "project-b", organization: freeOrg },
+      { id: "project-c", organization: freeOrg },
+    ]);
+    const prisma = {
+      project: { findMany },
+      $transaction: vi.fn(async (fn: (txArg: typeof tx) => Promise<unknown>) => fn(tx)),
+    };
+
+    const result = await runRetentionSweep(prisma as never, { projectBatchSize: 2 });
+
+    expect(result.projectsProcessed).toBe(3);
+    expect(result.projectsFailed).toBe(0);
+    expect(findMany).toHaveBeenCalledTimes(2);
+    expect(findMany.mock.calls[0]?.[0]).toMatchObject({ take: 2, orderBy: { id: "asc" } });
+    expect(findMany.mock.calls[0]?.[0].where).toEqual({ deleted_at: null });
+    expect(findMany.mock.calls[1]?.[0].where).toEqual({
+      deleted_at: null,
+      id: { gt: "project-b" },
+    });
+    const processedIds = tx.session.deleteMany.mock.calls.map(
+      ([args]) => (args as { where: { project_id: string } }).where.project_id
+    );
+    expect(processedIds).toEqual(["project-a", "project-b", "project-c"]);
+  });
+
+  it("continues after one project fails and still processes later projects", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const tx = liveTx();
+    let txCalls = 0;
+    const prisma = {
+      project: {
+        findMany: mockFindMany([
+          { id: "project-a", organization: freeOrg },
+          { id: "project-b", organization: freeOrg },
+          { id: "project-c", organization: freeOrg },
+        ]),
+      },
+      $transaction: vi.fn(async (fn: (txArg: typeof tx) => Promise<unknown>) => {
+        txCalls += 1;
+        if (txCalls === 2) {
+          throw new Error("simulated project-b failure");
+        }
+        return fn(tx);
+      }),
+    };
+
+    const result = await runRetentionSweep(prisma as never, { projectBatchSize: 1 });
+
+    expect(result.projectsProcessed).toBe(2);
+    expect(result.projectsFailed).toBe(1);
+    expect(result.sessionsDeleted).toBe(2);
+    expect(txCalls).toBe(3);
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    const logged = JSON.parse(String(errorSpy.mock.calls[0]?.[0])) as {
+      projectId: string;
+      error: string;
+      job: string;
+    };
+    expect(logged.job).toBe("retention");
+    expect(logged.projectId).toBe("project-b");
+    expect(logged.error).toBe("simulated project-b failure");
+    expect(logged).not.toHaveProperty("databaseUrl");
   });
 });
