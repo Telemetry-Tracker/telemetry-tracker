@@ -21,10 +21,12 @@ Production cron (after build): node dist/jobs/run-retention.js
 
 async function main(): Promise<void> {
   const result = await runRetentionSweep(prisma, { dryRun: DRY_RUN });
+  const ok = result.projectsFailed === 0;
   console.log(
-    JSON.stringify({ ok: true, dryRun: DRY_RUN, ...result, at: new Date().toISOString() })
+    JSON.stringify({ ok, dryRun: DRY_RUN, ...result, at: new Date().toISOString() })
   );
   await prisma.$disconnect();
+  if (!ok) process.exit(1);
 }
 
 main().catch((e) => {

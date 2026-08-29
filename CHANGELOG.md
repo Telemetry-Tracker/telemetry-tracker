@@ -15,7 +15,11 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ### Fixed
 
+- **Retention job** — process projects in keyset batches and continue after a per-project failure; the cron still exits non-zero if any project failed
+
 ### Changed
+
+- **Dashboard Docker image** — runtime `pnpm install` no longer forces devDependencies (`--prod=false`); `NODE_ENV=production` installs production deps only
 
 ### Database
 
