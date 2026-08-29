@@ -21,6 +21,18 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ---
 
+## [1.17.6] - 2026-08-29
+
+### Fixed
+
+- **Retention job** — process projects in keyset batches and continue after a per-project failure; the cron still exits non-zero if any project failed ([#635](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/635))
+
+### Changed
+
+- **Dashboard Docker image** — runtime `pnpm install` no longer forces devDependencies (`--prod=false`); `NODE_ENV=production` installs production deps only ([#635](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/635))
+
+---
+
 ## [1.17.5] - 2026-08-28
 
 ### Changed

@@ -85,7 +85,7 @@ Railway cron is configured per service in the dashboard — it cannot be declare
 7. Deploy once, then use **Run now** (or wait for the schedule) and confirm logs show JSON like:
 
    ```json
-   {"ok":true,"dryRun":false,"projectsProcessed":1,"errorOccurrencesDeleted":0,"eventsDeleted":0,"sessionsDeleted":0,"errorGroupsDeleted":0,"sourceMapsDeleted":0,"at":"2026-07-09T03:00:01.234Z"}
+   {"ok":true,"dryRun":false,"projectsProcessed":1,"projectsFailed":0,"errorOccurrencesDeleted":0,"eventsDeleted":0,"sessionsDeleted":0,"errorGroupsDeleted":0,"sourceMapsDeleted":0,"at":"2026-07-09T03:00:01.234Z"}
    ```
 
 8. Confirm the deployment **exits** after the log line (status returns to inactive). If it stays running, fix the start command or unclosed DB handles before relying on the schedule.
