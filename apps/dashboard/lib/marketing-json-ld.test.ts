@@ -8,5 +8,9 @@ describe("marketingJsonLd", () => {
     const types = graph.map((node) => node["@type"]);
     expect(types).toEqual(["Organization", "SoftwareApplication", "WebSite"]);
     expect(graph[0]?.url).toBe("https://telemetry-tracker.com/");
+    const app = graph.find((node) => node["@type"] === "SoftwareApplication") as {
+      offers?: { priceCurrency?: string };
+    };
+    expect(app?.offers?.priceCurrency).toBe("EUR");
   });
 });

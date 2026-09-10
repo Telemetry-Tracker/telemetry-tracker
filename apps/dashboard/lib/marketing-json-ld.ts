@@ -27,12 +27,12 @@ export function marketingJsonLd(origin = marketingSiteOrigin()): Record<string, 
         operatingSystem: "Web",
         url: home,
         description:
-          "Capture errors, events and sessions with lightweight SDKs. One fast, developer-first observability platform for modern applications.",
+          "Free error tracking for side projects. Open-source and self-hostable. SDKs for Next.js, React, Node.js, and React Native.",
         publisher: { "@id": `${origin}/#organization` },
         offers: {
           "@type": "Offer",
           price: "0",
-          priceCurrency: "USD",
+          priceCurrency: "EUR",
         },
       },
       {

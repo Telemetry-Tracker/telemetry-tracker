@@ -11,12 +11,12 @@ import {
 } from "./stack-icons";
 
 const sdks = [
-  { Icon: ReactIcon, label: "React", href: "/docs/sdk" },
-  { Icon: NextJsIcon, label: "Next.js", href: "/docs/nextjs", className: "text-foreground" },
+  { Icon: ReactIcon, label: "React", href: "/error-tracking/react" },
+  { Icon: NextJsIcon, label: "Next.js", href: "/error-tracking/nextjs", className: "text-foreground" },
   { Icon: VueIcon, label: "Vue", href: "/docs/vue" },
   { Icon: NuxtIcon, label: "Nuxt", href: "/docs/nuxt" },
-  { Icon: ReactNativeIcon, label: "React Native", href: "/docs/react-native" },
-  { Icon: NodeJsIcon, label: "Node.js", href: "/docs/node" },
+  { Icon: ReactNativeIcon, label: "React Native", href: "/error-tracking/react-native" },
+  { Icon: NodeJsIcon, label: "Node.js", href: "/error-tracking/nodejs" },
   { Icon: NestJsIcon, label: "NestJS", href: "/docs/nestjs" },
 ] satisfies ReadonlyArray<{
   Icon: ComponentType<SVGProps<SVGSVGElement>>;
@@ -40,7 +40,7 @@ export function SupportedSdks() {
             <li key={label}>
               <Link
                 href={href}
-                aria-label={`${label} SDK documentation`}
+                aria-label={`${label} error tracking`}
                 className="group flex flex-col items-center gap-1.5 text-center transition-colors"
               >
                 <Icon className={`h-7 w-7 shrink-0 ${className ?? ""}`} />

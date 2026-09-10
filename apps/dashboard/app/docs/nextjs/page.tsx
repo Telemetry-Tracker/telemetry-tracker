@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { CodeBlock } from "@/app/components/docs/CodeBlock";
+import { DocsAlsoSee } from "@/app/components/docs/DocsAlsoSee";
 import { DocsArticle } from "@/app/components/docs/DocsArticle";
 
 export const metadata: Metadata = {
@@ -94,6 +95,14 @@ trackEvent("signup_clicked", { source: "hero" });
 screen("/settings");
 identify(user.id);  // after login
 identify(null);     // on logout`}
+      />
+
+      <DocsAlsoSee
+        links={[
+          { href: "/error-tracking/nextjs", label: "Next.js error tracking guide" },
+          { href: "/error-tracking/react", label: "React error tracking" },
+          { href: "/docs/hosted-cloud", label: "Hosted cloud getting started" },
+        ]}
       />
     </DocsArticle>
   );

@@ -13,9 +13,14 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ### Added
 
+- **Acquisition guides** — public landing pages for Sentry alternative, self-hosted error tracking, and Next.js / React / Node.js / React Native setup, using the same SDK snippets as the docs
+
 ### Fixed
 
 ### Changed
+
+- **Homepage positioning** — H1 and metadata now lead with free error tracking for side projects (no credit card, open source, self-hostable)
+- **SoftwareApplication JSON-LD** — offer currency is EUR to match hosted pricing
 
 ### Database
 

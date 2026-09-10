@@ -39,14 +39,15 @@ export function Hero({ isAuthenticated = false }: { isAuthenticated?: boolean })
         </Link>
 
         <h1 className="mt-7 text-balance text-3xl font-semibold leading-[1.08] tracking-tight sm:text-5xl md:text-6xl lg:text-7xl">
-          Observability for
+          Free error tracking
           <br />
-          <span className="text-muted-foreground">teams that ship.</span>
+          <span className="text-muted-foreground">for side projects.</span>
         </h1>
 
         <p className="mx-auto mt-6 max-w-xl text-balance text-base text-muted-foreground sm:text-lg">
-          Capture errors, events and sessions with lightweight SDKs. Alert on spikes, symbolicated
-          stacks with source maps — one fast platform for the signals you actually act on.
+          Catch and investigate application errors from Next.js, React, Node.js, and React Native.
+          Grouped issues, symbolicated stacks when you upload source maps — without a large
+          observability stack.
         </p>
 
         <div className="mt-9 flex flex-wrap items-center justify-center gap-2">
@@ -89,7 +90,7 @@ export function Hero({ isAuthenticated = false }: { isAuthenticated?: boolean })
         </div>
 
         <p className="mt-5 text-xs text-muted-foreground">
-          Designed for teams building modern web applications.
+          No credit card. Install the SDK and see your first error in minutes.
         </p>
       </div>
 

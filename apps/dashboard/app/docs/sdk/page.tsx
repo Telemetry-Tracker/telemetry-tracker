@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { CodeBlock } from "@/app/components/docs/CodeBlock";
+import { DocsAlsoSee } from "@/app/components/docs/DocsAlsoSee";
 import { DocsArticle } from "@/app/components/docs/DocsArticle";
 
 export const metadata: Metadata = {
@@ -93,6 +94,14 @@ export default function DocsSdkPage() {
           docs to learn how data appears in the UI.
         </p>
       </section>
+
+      <DocsAlsoSee
+        links={[
+          { href: "/error-tracking/react", label: "React error tracking guide" },
+          { href: "/error-tracking/nextjs", label: "Next.js error tracking" },
+          { href: "/docs/hosted-cloud", label: "Hosted cloud getting started" },
+        ]}
+      />
     </DocsArticle>
   );
 }

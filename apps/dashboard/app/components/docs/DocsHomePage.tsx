@@ -22,6 +22,26 @@ export function DocsHomePage() {
         <Link href="/docs/hosted-cloud" className="text-brand hover:underline">
           Hosted cloud getting started
         </Link>
+        . Framework setup without the full docs sidebar:{" "}
+        <Link href="/error-tracking/nextjs" className="text-brand hover:underline">
+          Next.js
+        </Link>
+        ,{" "}
+        <Link href="/error-tracking/react" className="text-brand hover:underline">
+          React
+        </Link>
+        ,{" "}
+        <Link href="/error-tracking/nodejs" className="text-brand hover:underline">
+          Node.js
+        </Link>
+        ,{" "}
+        <Link href="/error-tracking/react-native" className="text-brand hover:underline">
+          React Native
+        </Link>
+        . Comparing to a larger platform?{" "}
+        <Link href="/sentry-alternative" className="text-brand hover:underline">
+          Sentry alternative
+        </Link>
         .
       </p>
 
@@ -206,6 +226,10 @@ trackEvent("plan.upgraded", { from: "free", to: "pro" });`}</DocsCodeBlock>
           database setup, and optional Stripe billing. Upgrade paths by version:{" "}
           <Link href="/docs/releases" className="text-brand hover:underline">
             Release notes
+          </Link>
+          . Narrative overview:{" "}
+          <Link href="/self-hosted-error-tracking" className="text-brand hover:underline">
+            Self-hosted error tracking
           </Link>
           .
         </p>

@@ -19,10 +19,10 @@ export function Cta({ isAuthenticated = false }: { isAuthenticated?: boolean }) 
 
           <div className="relative">
             <h2 className="text-balance text-3xl font-semibold tracking-tight sm:text-5xl">
-              Ship with confidence.
+              See your first error in minutes.
             </h2>
             <p className="mx-auto mt-4 max-w-xl text-balance text-muted-foreground">
-              Bring the signals you need into one tool your team will actually open.
+              No credit card. Free plan for side projects. Open source if you want to self-host.
             </p>
             <div className="mt-8 flex flex-wrap justify-center gap-2">
               <MarketingNavLink

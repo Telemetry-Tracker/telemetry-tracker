@@ -17,5 +17,6 @@ describe("marketing SEO head flushing", () => {
     expect(src).toMatch(/export default function LandingPage/);
     expect(src).not.toMatch(/getDashboardSessionId/);
     expect(src).not.toMatch(/cookies\(/);
+    expect(src).toContain("Free Error Tracking for Side Projects");
   });
 });

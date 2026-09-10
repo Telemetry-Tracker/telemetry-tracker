@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { CodeBlock } from "@/app/components/docs/CodeBlock";
+import { DocsAlsoSee } from "@/app/components/docs/DocsAlsoSee";
 import { DocsArticle } from "@/app/components/docs/DocsArticle";
 
 export const metadata: Metadata = {
@@ -92,6 +93,14 @@ identify(user.id);`}
         unhandled JavaScript errors are sent to the ingest API. The previous handler is not
         re-invoked (to avoid duplicate reports).
       </p>
+
+      <DocsAlsoSee
+        links={[
+          { href: "/error-tracking/react-native", label: "React Native error tracking guide" },
+          { href: "/error-tracking/react", label: "React error tracking" },
+          { href: "/docs/hosted-cloud", label: "Hosted cloud getting started" },
+        ]}
+      />
     </DocsArticle>
   );
 }

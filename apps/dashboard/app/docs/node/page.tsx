@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { CodeBlock } from "@/app/components/docs/CodeBlock";
+import { DocsAlsoSee } from "@/app/components/docs/DocsAlsoSee";
 import { DocsArticle } from "@/app/components/docs/DocsArticle";
 
 export const metadata: Metadata = {
@@ -85,6 +86,14 @@ app.use((req, res, next) => {
         </Link>
         .
       </p>
+
+      <DocsAlsoSee
+        links={[
+          { href: "/error-tracking/nodejs", label: "Node.js error tracking guide" },
+          { href: "/docs/nestjs", label: "NestJS docs" },
+          { href: "/self-hosted-error-tracking", label: "Self-hosted error tracking" },
+        ]}
+      />
     </DocsArticle>
   );
 }

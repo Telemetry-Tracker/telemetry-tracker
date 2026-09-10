@@ -17,7 +17,7 @@ const sdks: Sdk[] = [
     id: "next",
     label: "Next.js",
     install: "pnpm add @telemetry-tracker/next",
-    docHref: "/docs/nextjs",
+    docHref: "/error-tracking/nextjs",
     code: `// app/layout.tsx
 import { TelemetryProvider } from "@telemetry-tracker/next";
 
@@ -39,7 +39,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     id: "node",
     label: "Node.js",
     install: "pnpm add @telemetry-tracker/node",
-    docHref: "/docs/node",
+    docHref: "/error-tracking/nodejs",
     code: `import { init, middleware } from "@telemetry-tracker/node";
 
 init({
@@ -107,7 +107,7 @@ createApp(App).use(router).mount("#app");`,
     id: "web",
     label: "Web / React",
     install: "pnpm add @telemetry-tracker/core",
-    docHref: "/docs/sdk",
+    docHref: "/error-tracking/react",
     code: `import { init, trackEvent } from "@telemetry-tracker/core";
 
 init({
@@ -122,7 +122,7 @@ trackEvent("button_click", { id: "submit" });`,
     id: "rn",
     label: "React Native",
     install: "pnpm add @telemetry-tracker/react-native",
-    docHref: "/docs/react-native",
+    docHref: "/error-tracking/react-native",
     code: `import { init } from "@telemetry-tracker/react-native";
 
 init({
@@ -199,7 +199,7 @@ export function Sdks() {
                 ))}
               </ul>
               <Link href={active.docHref} className="mt-6 inline-block text-sm text-brand hover:underline">
-                View {active.label} docs →
+                View {active.label} setup →
               </Link>
             </div>
             <div className="min-w-0 bg-background p-0">

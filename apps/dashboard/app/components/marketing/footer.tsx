@@ -9,7 +9,18 @@ const cols: { heading: string; links: { label: string; href: string }[] }[] = [
       { label: "Features", href: "/#features" },
       { label: "SDKs", href: "/#sdks" },
       { label: "Pricing", href: "/#pricing" },
-      { label: "Dashboard", href: "/dashboard/overview" },
+      { label: "Start free", href: "/register" },
+    ],
+  },
+  {
+    heading: "Guides",
+    links: [
+      { label: "Sentry alternative", href: "/sentry-alternative" },
+      { label: "Self-hosted error tracking", href: "/self-hosted-error-tracking" },
+      { label: "Next.js", href: "/error-tracking/nextjs" },
+      { label: "React", href: "/error-tracking/react" },
+      { label: "Node.js", href: "/error-tracking/nodejs" },
+      { label: "React Native", href: "/error-tracking/react-native" },
     ],
   },
   {
@@ -38,12 +49,12 @@ export function Footer() {
   return (
     <footer className="border-t border-border">
       <div className="mx-auto max-w-6xl px-6 py-16">
-        <div className="grid gap-12 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
+        <div className="grid gap-12 md:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1fr_1fr]">
           <div>
             <Logo />
             <p className="mt-4 max-w-xs text-sm text-muted-foreground">
-              Lightweight observability for modern applications. Errors, events and sessions in one
-              place.
+              Free error tracking for side projects. Open source, self-hostable, no credit card on
+              the hosted free plan.
             </p>
             <p className="mt-6 inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3 py-1 text-xs text-muted-foreground">
               <span className="relative flex h-1.5 w-1.5">

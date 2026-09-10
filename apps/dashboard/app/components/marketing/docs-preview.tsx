@@ -9,28 +9,34 @@ const guides = [
     href: "/docs/hosted-cloud",
   },
   {
-    title: "Quickstart",
-    desc: "Install an SDK and capture your first event in under a minute.",
-    time: "2 min",
-    href: "/docs#quickstart",
-  },
-  {
-    title: "Capturing errors",
-    desc: "Group, fingerprint and resolve exceptions across your apps.",
-    time: "5 min",
-    href: "/docs#errors",
-  },
-  {
-    title: "Sessions",
-    desc: "Track session start and end events with user context.",
+    title: "Sentry alternative",
+    desc: "When a smaller open-source tracker is enough for a side project.",
     time: "4 min",
-    href: "/docs#sessions",
+    href: "/sentry-alternative",
   },
   {
-    title: "Next.js integration",
-    desc: "Provider, error boundary, and server-side capture.",
+    title: "Next.js error tracking",
+    desc: "Provider, error boundary, and the first test error.",
     time: "5 min",
-    href: "/docs/nextjs",
+    href: "/error-tracking/nextjs",
+  },
+  {
+    title: "React error tracking",
+    desc: "init() with @telemetry-tracker/core and trackError.",
+    time: "4 min",
+    href: "/error-tracking/react",
+  },
+  {
+    title: "Node.js error tracking",
+    desc: "uncaughtException, unhandledRejection, optional request middleware.",
+    time: "5 min",
+    href: "/error-tracking/nodejs",
+  },
+  {
+    title: "React Native error tracking",
+    desc: "ErrorUtils, sessions, and screen tracking.",
+    time: "5 min",
+    href: "/error-tracking/react-native",
   },
   {
     title: "NestJS integration",
@@ -45,16 +51,10 @@ const guides = [
     href: "/docs/vue",
   },
   {
-    title: "Self-hosting",
+    title: "Self-hosted error tracking",
     desc: "Run the API and dashboard on your own infrastructure.",
     time: "10 min",
-    href: "/docs#self-hosting",
-  },
-  {
-    title: "Platform release notes",
-    desc: "What shipped in each API and dashboard version — upgrade paths and changelog.",
-    time: "3 min",
-    href: "/docs/releases",
+    href: "/self-hosted-error-tracking",
   },
 ];
 

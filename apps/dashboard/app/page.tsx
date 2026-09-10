@@ -12,9 +12,9 @@ import { Footer } from "@/app/components/marketing/footer";
 import { socialPreviewImage } from "@/lib/social-image";
 import { metadataBaseOrFallback } from "@/lib/site-url";
 
-const homeTitle = "Telemetry Tracker — Observability for teams that ship";
+const homeTitle = "Free Error Tracking for Side Projects | Telemetry Tracker";
 const homeDescription =
-  "Capture errors, events and sessions with lightweight SDKs. One fast, developer-first observability platform for modern applications.";
+  "Free error tracking for side projects. No credit card. Install a Next.js, React, Node.js, or React Native SDK and see your first error in minutes. Open source and self-hostable.";
 
 export function generateMetadata(): Metadata {
   const origin = metadataBaseOrFallback().origin;

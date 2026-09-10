@@ -25,10 +25,9 @@ export const viewport: Viewport = {
   ],
 };
 
-const defaultTitle =
-  "Telemetry Tracker — Observability for teams that ship";
+const defaultTitle = "Free Error Tracking for Side Projects | Telemetry Tracker";
 const defaultDescription =
-  "Capture errors, events and sessions with lightweight SDKs. One fast, developer-first observability platform for modern applications.";
+  "Free error tracking for side projects. No credit card. Install a Next.js, React, Node.js, or React Native SDK and see your first error in minutes. Open source and self-hostable.";
 
 const metadataBase = metadataBaseOrFallback();
 const googleVerification = process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION?.trim();
@@ -42,13 +41,14 @@ export const metadata: Metadata = {
   description: defaultDescription,
   applicationName: "Telemetry Tracker",
   keywords: [
-    "error tracking",
-    "session monitoring",
-    "product analytics",
-    "observability",
-    "Next.js",
-    "open source",
-    "SDK",
+    "free error tracking",
+    "open source error tracking",
+    "Sentry alternative",
+    "self-hosted error tracking",
+    "Next.js error tracking",
+    "React error tracking",
+    "Node.js error tracking",
+    "React Native error tracking",
   ],
   robots: { index: true, follow: true },
   manifest: "/site.webmanifest",

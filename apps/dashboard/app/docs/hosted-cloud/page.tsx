@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { DocsAlsoSee } from "@/app/components/docs/DocsAlsoSee";
 import { DocsArticle } from "@/app/components/docs/DocsArticle";
 import { DocsCodeBlock } from "@/app/components/docs/DocsCodeBlock";
 import { HOSTED_API_URL, HOSTED_DASHBOARD_URL } from "@/lib/hosted-cloud";
@@ -192,6 +193,14 @@ trackEvent("app.started");`}</DocsCodeBlock>
           .
         </p>
       </section>
+
+      <DocsAlsoSee
+        links={[
+          { href: "/sentry-alternative", label: "Sentry alternative" },
+          { href: "/self-hosted-error-tracking", label: "Self-hosted error tracking" },
+          { href: "/error-tracking/nextjs", label: "Next.js error tracking" },
+        ]}
+      />
     </DocsArticle>
   );
 }
