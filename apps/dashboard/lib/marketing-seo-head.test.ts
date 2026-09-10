@@ -10,6 +10,8 @@ describe("marketing SEO head flushing", () => {
     expect(src).not.toMatch(/getCookieConsentChoiceFromCookies/);
     expect(src).not.toMatch(/await cookies\(/);
     expect(src).toMatch(/export default function RootLayout/);
+    expect(src).not.toMatch(/openGraph:\s*\{[^}]*title:/s);
+    expect(src).not.toMatch(/twitter:\s*\{[^}]*title:/s);
   });
 
   it("homepage is a static server page with no session cookie read", () => {

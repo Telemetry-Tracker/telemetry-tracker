@@ -66,13 +66,11 @@ export const metadata: Metadata = {
     type: "website",
     locale: "en_US",
     siteName: "Telemetry Tracker",
-    title: defaultTitle,
     description: defaultDescription,
     images: [socialPreviewImage],
   },
   twitter: {
     card: "summary_large_image",
-    title: defaultTitle,
     description: defaultDescription,
     images: [socialPreviewImage.url],
   },
