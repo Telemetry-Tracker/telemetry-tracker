@@ -15,6 +15,8 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ### Fixed
 
+- **Dashboard loading placeholders** — sidebar scope skeletons stay inside the rail (org and project) instead of spilling over the header, and page skeletons line up with the title and metric grids
+
 ### Changed
 
 ### Database
