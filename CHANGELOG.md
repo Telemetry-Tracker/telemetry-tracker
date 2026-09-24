@@ -16,6 +16,7 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 ### Fixed
 
 - **Dashboard loading placeholders** — sidebar scope skeletons stay inside the rail (org and project) instead of spilling over the header, and page skeletons line up with the title and metric grids
+- **Stripe billing toast** — the informational “Stripe billing” popup no longer appears on every first dashboard load. Past-due, unpaid, and canceled subscriptions still show the in-page billing banner
 
 ### Changed
 
