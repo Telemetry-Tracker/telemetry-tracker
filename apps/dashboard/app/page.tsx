@@ -11,6 +11,7 @@ import { Cta } from "@/app/components/marketing/cta";
 import { Footer } from "@/app/components/marketing/footer";
 import { socialPreviewImage } from "@/lib/social-image";
 import { metadataBaseOrFallback } from "@/lib/site-url";
+import { getDashboardSessionId } from "@/lib/dashboard-project";
 
 const homeTitle = "Free Error Tracking for Side Projects | Telemetry Tracker";
 const homeDescription =
@@ -37,18 +38,20 @@ export function generateMetadata(): Metadata {
   };
 }
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  const isAuthenticated = Boolean(await getDashboardSessionId());
+
   return (
     <main id="main-content" className="marketing-main-offset min-h-screen bg-background text-foreground">
-      <Nav />
-      <Hero />
+      <Nav isAuthenticated={isAuthenticated} />
+      <Hero isAuthenticated={isAuthenticated} />
       <SupportedSdks />
       <Features />
       <Sdks />
       <ProductShots />
-      <Pricing />
+      <Pricing isAuthenticated={isAuthenticated} />
       <DocsPreview />
-      <Cta />
+      <Cta isAuthenticated={isAuthenticated} />
       <Footer />
     </main>
   );
