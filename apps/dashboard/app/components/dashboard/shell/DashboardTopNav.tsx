@@ -52,12 +52,12 @@ export function DashboardTopNav({
       user={user}
       commandPaletteEnabled={commandPaletteEnabled}
       sidebarWorkspace={
-        <Suspense fallback={<NavScopePickersSkeleton />}>
+        <Suspense fallback={<NavScopePickersSkeleton variant="sidebar" />}>
           <NavScopePickersLoader {...pickerProps} variant="sidebar" />
         </Suspense>
       }
       headerScope={
-        <Suspense fallback={<NavScopePickersSkeleton />}>
+        <Suspense fallback={<NavScopePickersSkeleton variant="header" />}>
           <NavScopePickersLoader {...pickerProps} variant="header" />
         </Suspense>
       }

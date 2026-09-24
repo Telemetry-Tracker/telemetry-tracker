@@ -161,7 +161,7 @@ export function DashboardSidebar({
             </button>
           </div>
 
-          <div className="px-3 pb-3">{workspaceSlot}</div>
+          <div className="min-w-0 overflow-hidden px-3 pb-3">{workspaceSlot}</div>
 
           <nav
             className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2 pb-3"
