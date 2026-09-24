@@ -1,12 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { toast } from "sonner";
 import { useDashboardCapabilities } from "./DashboardCapabilitiesContext";
 import { DashboardKeyboardShortcuts } from "./shell/DashboardKeyboardShortcuts";
 import type { DashboardSessionContext } from "@/lib/dashboard-capabilities";
-
-const BILLING_TOAST_SESSION_KEY = "tt_dashboard_billing_toast_v1";
 
 function formatPeriodEnd(iso: string | null): string | null {
   if (!iso) return null;
@@ -19,27 +15,6 @@ function formatPeriodEnd(iso: string | null): string | null {
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const capabilities = useDashboardCapabilities();
-  const billingToastShownRef = useRef(false);
-
-  useEffect(() => {
-    if (!capabilities || billingToastShownRef.current) return;
-    try {
-      if (sessionStorage.getItem(BILLING_TOAST_SESSION_KEY) === "1") {
-        billingToastShownRef.current = true;
-        return;
-      }
-      sessionStorage.setItem(BILLING_TOAST_SESSION_KEY, "1");
-    } catch {
-      /* ignore */
-    }
-    billingToastShownRef.current = true;
-    toast.message("Stripe billing", {
-      id: "dashboard-billing-info",
-      description:
-        "Plan tier syncs from Stripe after checkout or when a subscription changes. Past-due, unpaid, or canceled subscriptions also show a banner here.",
-      duration: 12_000,
-    });
-  }, [capabilities]);
 
   return (
     <>

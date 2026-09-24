@@ -10,9 +10,9 @@ export function DashboardTopNavFallback() {
         <div className="px-3 pt-3 pb-2">
           <div className="h-7 w-40 animate-pulse rounded-md bg-muted" />
         </div>
-        <div className="space-y-1.5 px-3 pb-3">
-          <div className="h-9 w-full animate-pulse rounded-md bg-muted" />
-          <div className="h-9 w-full animate-pulse rounded-md bg-muted" />
+        <div className="min-w-0 space-y-1.5 overflow-hidden px-3 pb-3">
+          <div className="h-8 w-full animate-pulse rounded-md bg-muted" />
+          <div className="h-8 w-full animate-pulse rounded-md bg-muted" />
         </div>
         <div className="space-y-1 px-3">
           {Array.from({ length: 8 }).map((_, i) => (

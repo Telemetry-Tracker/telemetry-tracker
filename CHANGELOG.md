@@ -21,6 +21,16 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ---
 
+## [1.17.14] - 2026-09-24
+
+### Fixed
+
+- **Dashboard loading placeholders** — sidebar scope skeletons stay inside the rail (org and project) instead of spilling over the header, and page skeletons line up with the title and metric grids ([#660](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/660))
+- **Stripe billing toast** — the informational “Stripe billing” popup no longer appears on every first dashboard load. Past-due, unpaid, and canceled subscriptions still show the in-page billing banner ([#660](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/660))
+- **Landing page CTAs** — signed-in visitors see Open dashboard instead of Sign in and Start tracking on the nav, hero, pricing, and closing section ([#660](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/660))
+
+---
+
 ## [1.17.13] - 2026-09-10
 
 ### Changed
