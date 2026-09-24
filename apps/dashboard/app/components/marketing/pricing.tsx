@@ -65,7 +65,7 @@ const tiers = [
   },
 ];
 
-export function Pricing() {
+export function Pricing({ isAuthenticated = false }: { isAuthenticated?: boolean }) {
   return (
     <section id="pricing" className="relative scroll-mt-28 py-28">
       <div className="mx-auto max-w-6xl px-6">
@@ -108,8 +108,11 @@ export function Pricing() {
                 <p className="mt-2 text-sm text-muted-foreground">{t.desc}</p>
 
                 {t.signup ? (
-                  <Link href="/register" className={ctaClassName}>
-                    {t.cta}
+                  <Link
+                    href={isAuthenticated ? "/dashboard/overview" : "/register"}
+                    className={ctaClassName}
+                  >
+                    {isAuthenticated ? "Open dashboard" : t.cta}
                   </Link>
                 ) : (
                   <Link href={t.href!} className={ctaClassName}>
