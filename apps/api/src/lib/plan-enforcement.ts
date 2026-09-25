@@ -299,6 +299,7 @@ export async function createApiKeyWithPlanLimitCheck(
     secret_hash: string;
     name: string | null;
     allowed_app: string | null;
+    source_map_upload?: boolean;
   }
 ): Promise<CreateApiKeyPlanResult> {
   return runSerializableTransaction(prisma, async (tx) => {
@@ -340,6 +341,7 @@ export async function createApiKeyWithPlanLimitCheck(
         secret_hash: data.secret_hash,
         name: data.name,
         allowed_app: data.allowed_app,
+        source_map_upload: data.source_map_upload ?? false,
       },
     });
     return { ok: true };

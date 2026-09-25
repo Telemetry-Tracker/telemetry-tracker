@@ -144,6 +144,19 @@ export function ApiKeysClient({ keys }: { keys: ApiKeyRow[] }) {
                 {formError}
               </p>
             ) : null}
+            <label className="flex items-start gap-2 text-[13px] text-muted-foreground" htmlFor="key-source-maps">
+              <input
+                id="key-source-maps"
+                name="sourceMapUpload"
+                type="checkbox"
+                className="mt-0.5"
+                disabled={pending}
+              />
+              <span>
+                Allow source map uploads. Use this only for CI. Leave it off for keys embedded in
+                client apps.
+              </span>
+            </label>
             <SettingsBtn type="submit" variant="primary" disabled={pending}>
               {pending ? "Creating…" : "Create API key"}
             </SettingsBtn>

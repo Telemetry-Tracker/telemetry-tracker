@@ -1,5 +1,27 @@
+import { execFileSync } from "node:child_process";
+import { createRequire } from "node:module";
 import { isTransactionalEmailConfigured } from "./lib/email.js";
 import { initSentryIfConfigured } from "./lib/observability.js";
+
+/** Apply pending migrations before listen so a new revision cannot serve without them. */
+function migrateDeployBeforeListen(): void {
+  if (process.env.NODE_ENV !== "production") return;
+  const require = createRequire(import.meta.url);
+  let prismaEntry: string;
+  try {
+    prismaEntry = require.resolve("prisma/build/index.js");
+  } catch {
+    console.error("[api] prisma CLI is not installed; refusing to listen before migrate deploy");
+    process.exit(1);
+  }
+  console.log("[api] prisma migrate deploy");
+  execFileSync(process.execPath, [prismaEntry, "migrate", "deploy"], {
+    stdio: "inherit",
+    env: process.env,
+  });
+}
+
+migrateDeployBeforeListen();
 
 /** Sentry must init before any module that should be auto-instrumented (http, pg, …). Static imports of `./app.js` would load Fastify/Prisma/routes first. */
 await initSentryIfConfigured();

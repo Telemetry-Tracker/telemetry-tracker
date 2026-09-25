@@ -8,6 +8,7 @@ export type GeneratedApiKey = {
   publicId: string;
   name: string | null;
   allowedApp: string | null;
+  sourceMapUpload: boolean;
 };
 
 export function generateApiKeyMaterial(): {
@@ -27,7 +28,7 @@ export function generateApiKeyMaterial(): {
 export async function createProjectApiKey(
   prisma: PrismaClient,
   projectId: string,
-  options?: { name?: string | null; allowedApp?: string | null }
+  options?: { name?: string | null; allowedApp?: string | null; sourceMapUpload?: boolean }
 ): Promise<
   | { ok: true; key: GeneratedApiKey }
   | { ok: false; error: string; code?: string }
@@ -47,6 +48,7 @@ export async function createProjectApiKey(
     secret_hash: secretHash,
     name,
     allowed_app: allowedApp,
+    source_map_upload: options?.sourceMapUpload === true,
   });
 
   if (!created.ok) {
@@ -55,6 +57,12 @@ export async function createProjectApiKey(
 
   return {
     ok: true,
-    key: { fullKey, publicId, name, allowedApp },
+    key: {
+      fullKey,
+      publicId,
+      name,
+      allowedApp,
+      sourceMapUpload: options?.sourceMapUpload === true,
+    },
   };
 }

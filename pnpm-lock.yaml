@@ -69,6 +69,9 @@ importers:
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
+      prisma:
+        specifier: ^6.1.0
+        version: 6.19.2(typescript@5.9.3)
       stripe:
         specifier: ^22.0.2
         version: 22.0.2(@types/node@22.19.15)
@@ -79,9 +82,6 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.15
-      prisma:
-        specifier: ^6.1.0
-        version: 6.19.2(typescript@5.9.3)
       tsx:
         specifier: ^4.19.2
         version: 4.21.0
@@ -242,6 +242,9 @@ importers:
       typescript:
         specifier: ^5.6.3
         version: 5.9.3
+      vitest:
+        specifier: ^3.2.6
+        version: 3.2.6(@types/node@22.19.15)(jiti@2.6.1)(jsdom@26.1.0)(terser@5.49.0)(tsx@4.21.0)(yaml@2.9.0)
 
   packages/telemetry-react-native:
     dependencies:
@@ -2977,6 +2980,7 @@ packages:
   eslint@9.39.4:
     resolution: {integrity: sha512-XoMjdBOwe/esVgEvLmNsD3IRHkm7fbKIUGvrleloJXUZgDHig2IPWNniv+GwjyJXzuNqVjlr5+4yVUZjycJwfQ==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+    deprecated: This version is no longer supported. Please see https://eslint.org/version-support for other options.
     hasBin: true
     peerDependencies:
       jiti: '*'
