@@ -13,13 +13,19 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ### Added
 
-- **Pricing page** — `/pricing` shows the plan comparison instead of a 404. Nav and footer link to it.
-
 ### Fixed
 
 ### Changed
 
 ### Database
+
+---
+
+## [1.17.17] - 2026-09-25
+
+### Added
+
+- **Pricing page** — `/pricing` shows the plan comparison instead of a 404. Nav and footer link to it ([#669](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/669))
 
 ---
 
