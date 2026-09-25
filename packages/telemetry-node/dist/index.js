@@ -1,12 +1,16 @@
-import { init as coreInit, identify, trackEvent, trackError as coreTrackError, getConfigOrNull, } from "@telemetry-tracker/core";
+import { init as coreInit, identify, trackEvent, trackError as coreTrackError, ingestError, getConfigOrNull, } from "@telemetry-tracker/core";
+import { flushFatalError } from "./fatal.js";
+export { FATAL_FLUSH_TIMEOUT_MS, flushFatalError } from "./fatal.js";
 let installed = false;
 function installGlobalHandlers() {
     if (installed)
         return;
     installed = true;
     process.on("uncaughtException", (err) => {
-        coreTrackError(err, { source: "uncaughtException" });
-        throw err;
+        flushFatalError(err, "uncaughtException", {
+            ingest: ingestError,
+            exit: (code) => process.exit(code),
+        });
     });
     process.on("unhandledRejection", (reason) => {
         const err = reason instanceof Error ? reason : new Error(String(reason));
