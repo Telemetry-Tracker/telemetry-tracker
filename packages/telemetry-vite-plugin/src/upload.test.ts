@@ -1,14 +1,27 @@
+import { createRequire } from "node:module";
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  bundleFileForSourceMap,
   bundleUrlForMapFile,
   findMapFiles,
+  parseSourceMappingURL,
   resolveUploadEndpoint,
   uploadSourceMapFile,
   uploadSourceMaps,
 } from "./upload.js";
+
+const require = createRequire(import.meta.url);
+const { resolveBundleUrl } = require("../../../.github/actions/upload-source-maps/upload.cjs") as {
+  resolveBundleUrl: (
+    mapFilePath: string,
+    artifactPath: string,
+    baseUrl: string,
+    bundleFiles: string[]
+  ) => string;
+};
 
 describe("resolveUploadEndpoint", () => {
   it("defaults to hosted cloud API", () => {
@@ -73,6 +86,42 @@ describe("bundleUrlForMapFile", () => {
   });
 });
 
+describe("GitHub Action bundle URL", () => {
+  it("follows sourceMappingURL when the map hash differs from the chunk", () => {
+    const dir = mkdtempSync(join(tmpdir(), "tt-action-maps-"));
+    try {
+      const bundle = join(dir, "foo.abc123.js");
+      const map = join(dir, "bar.def456.js.map");
+      writeFileSync(bundle, "//# sourceMappingURL=bar.def456.js.map\n");
+      writeFileSync(map, "{}");
+      expect(resolveBundleUrl(map, dir, "https://example.com/_next/static/chunks", [bundle])).toBe(
+        "https://example.com/_next/static/chunks/foo.abc123.js"
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("bundleFileForSourceMap", () => {
+  it("uses the file that references the map, not the map basename", () => {
+    const outDir = "/app/.next/static/chunks";
+    const mapPath = `${outDir}/bar.def456.js.map`;
+    const bundlePath = `${outDir}/foo.abc123.js`;
+    expect(parseSourceMappingURL("var x=1\n//# sourceMappingURL=bar.def456.js.map\n")).toBe(
+      "bar.def456.js.map"
+    );
+    expect(
+      bundleFileForSourceMap(mapPath, [
+        { filePath: bundlePath, source: "//# sourceMappingURL=bar.def456.js.map" },
+      ])
+    ).toBe(bundlePath);
+    expect(bundleUrlForMapFile(bundlePath, outDir, "https://example.com")).toBe(
+      "https://example.com/foo.abc123.js"
+    );
+  });
+});
+
 describe("findMapFiles", () => {
   let tempDir = "";
 
@@ -133,6 +182,34 @@ describe("uploadSourceMaps", () => {
       release: "1.2.0",
       bundle_url: "https://cdn.example.com/app.js",
     });
+
+    const hashedBundle = join(tempDir, "foo.abc123.js");
+    const hashedMap = join(tempDir, "bar.def456.js.map");
+    writeFileSync(hashedBundle, "//# sourceMappingURL=bar.def456.js.map\n");
+    writeFileSync(hashedMap, JSON.stringify({ version: 3, sources: [], mappings: "" }));
+    const hashedFetch = vi.fn(async () => new Response(null, { status: 201 }));
+    await uploadSourceMaps({
+      apiKey: "tt_live_pub_secret",
+      projectId: "project-uuid",
+      release: "1.2.0",
+      app: "web",
+      outDir: tempDir,
+      baseUrl: "https://cdn.example.com",
+      fetchImpl: hashedFetch,
+    });
+    const hashedBodies = hashedFetch.mock.calls.map((call) =>
+      JSON.parse(String((call[1] as RequestInit).body))
+    );
+    expect(hashedBodies).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ bundle_url: "https://cdn.example.com/foo.abc123.js" }),
+      ])
+    );
+    expect(hashedBodies).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ bundle_url: "https://cdn.example.com/bar.def456.js" }),
+      ])
+    );
     expect(deleteFile).toHaveBeenCalledWith(mapPath);
   });
 

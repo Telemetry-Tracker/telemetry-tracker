@@ -3,14 +3,18 @@ import {
   identify,
   trackEvent,
   trackError as coreTrackError,
+  ingestError,
   getConfigOrNull,
   type TelemetryConfig,
 } from "@telemetry-tracker/core";
+import { flushFatalError } from "./fatal.js";
 
 export type TelemetryNodeConfig = TelemetryConfig & {
   app: string;
   platform?: string;
 };
+
+export { FATAL_FLUSH_TIMEOUT_MS, flushFatalError } from "./fatal.js";
 
 let installed = false;
 
@@ -19,8 +23,10 @@ function installGlobalHandlers(): void {
   installed = true;
 
   process.on("uncaughtException", (err: Error) => {
-    coreTrackError(err, { source: "uncaughtException" });
-    throw err;
+    flushFatalError(err, "uncaughtException", {
+      ingest: ingestError,
+      exit: (code) => process.exit(code),
+    });
   });
 
   process.on("unhandledRejection", (reason: unknown) => {

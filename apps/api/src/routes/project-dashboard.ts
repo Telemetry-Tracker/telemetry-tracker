@@ -1576,6 +1576,7 @@ export async function projectDashboardRoutes(
         public_id: true,
         name: true,
         allowed_app: true,
+        source_map_upload: true,
         created_at: true,
         last_used_at: true,
         revoked_at: true,
@@ -1588,6 +1589,7 @@ export async function projectDashboardRoutes(
         publicId: k.public_id,
         name: k.name,
         allowedApp: k.allowed_app,
+        sourceMapUpload: k.source_map_upload,
         createdAt: k.created_at.toISOString(),
         lastUsedAt: k.last_used_at?.toISOString() ?? null,
         revokedAt: k.revoked_at?.toISOString() ?? null,
@@ -1605,7 +1607,11 @@ export async function projectDashboardRoutes(
     if (!canCreateApiKey(projRole)) {
       return reply.status(403).send({ error: "Forbidden" });
     }
-    const body = (request.body ?? {}) as { name?: string; allowedApp?: string };
+    const body = (request.body ?? {}) as {
+      name?: string;
+      allowedApp?: string;
+      sourceMapUpload?: boolean;
+    };
     const name =
       typeof body.name === "string" && body.name.trim() !== ""
         ? body.name.trim().slice(0, 120)
@@ -1615,7 +1621,11 @@ export async function projectDashboardRoutes(
       allowedApp = body.allowedApp.trim().slice(0, 64);
     }
 
-    const keyCreated = await createProjectApiKey(prisma, projectId, { name, allowedApp });
+    const keyCreated = await createProjectApiKey(prisma, projectId, {
+      name,
+      allowedApp,
+      sourceMapUpload: body.sourceMapUpload === true,
+    });
     if (!keyCreated.ok) {
       if (keyCreated.code === "project_not_found") {
         return reply.status(403).send({ error: keyCreated.error });
@@ -1630,6 +1640,7 @@ export async function projectDashboardRoutes(
       publicId: keyCreated.key.publicId,
       name: keyCreated.key.name,
       allowedApp: keyCreated.key.allowedApp,
+      sourceMapUpload: keyCreated.key.sourceMapUpload,
       message:
         "Copy this key now. It will not be shown again. Store it as a secret (e.g. environment variable).",
     });

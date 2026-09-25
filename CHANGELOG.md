@@ -13,7 +13,14 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ### Added
 
+### Security
+
+- **Source map upload keys** — `POST /api/project/source-maps` no longer accepts an ingest-only project API key. New keys are ingest-only unless source map upload is enabled. Keys that already existed keep upload access so CI does not break; rotate any key embedded in a client app.
+
 ### Fixed
+
+- **Source map bundle URLs** — the Vite plugin and GitHub Action derive `bundle_url` from `sourceMappingURL`, so Next.js 16 Turbopack maps with a different content hash than the chunk still symbolicate.
+- **Node fatal errors** — `uncaughtException` waits for the error ingest request (up to 2s) before exiting, instead of rethrowing immediately and dropping the report.
 
 ### Changed
 

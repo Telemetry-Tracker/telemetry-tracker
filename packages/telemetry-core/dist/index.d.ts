@@ -53,6 +53,11 @@ export declare function trackError(error: Error | {
     message: string;
     stack?: string;
 }, context?: Record<string, unknown>): void;
+/** Send an error and resolve after the ingest request settles. Fatal handlers await this. */
+export declare function ingestError(error: Error | {
+    message: string;
+    stack?: string;
+}, context?: Record<string, unknown>): Promise<void>;
 export declare function screen(name: string): void;
 export declare function getUserId(): string | null;
 export declare function getConfigOrNull(): TelemetryConfig | null;

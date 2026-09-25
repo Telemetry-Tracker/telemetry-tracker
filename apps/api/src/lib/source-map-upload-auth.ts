@@ -60,6 +60,13 @@ export async function resolveSourceMapUploadAuth(
     await reply.status(403).send({ error: "API key does not belong to this project" });
     return null;
   }
+  if (!verified.sourceMapUpload) {
+    await reply.status(403).send({
+      error:
+        "This API key cannot upload source maps. Create a CI key with source map upload enabled and keep browser ingest keys ingest-only.",
+    });
+    return null;
+  }
 
   return {
     projectId: verified.projectId,

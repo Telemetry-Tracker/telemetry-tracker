@@ -289,6 +289,8 @@ model ApiKey {
   deleted_at   DateTime? @map("deleted_at")
   /// If set, ingest `app` must match this string for this key.
   allowed_app  String?   @map("allowed_app")
+  /// CI-only. Ingest keys embedded in client apps must leave this false.
+  source_map_upload Boolean @default(false) @map("source_map_upload")
 
   @@index([project_id])
   @@index([deleted_at])

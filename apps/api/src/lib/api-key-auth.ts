@@ -26,6 +26,8 @@ export type VerifiedApiKey = {
   organizationPlanTier: PlanTier;
   /** If set, ingest payloads must use this `app` value. */
   allowedApp: string | null;
+  /** When false, the key may ingest but must not upload source maps. */
+  sourceMapUpload: boolean;
 };
 
 /**
@@ -96,6 +98,7 @@ export async function verifyIngestApiKey(
     projectId: row.project_id,
     organizationPlanTier: tier,
     allowedApp: row.allowed_app,
+    sourceMapUpload: row.source_map_upload,
   };
 }
 

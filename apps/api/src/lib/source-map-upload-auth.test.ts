@@ -85,6 +85,7 @@ describe("resolveSourceMapUploadAuth", () => {
       projectId: PROJECT_ID,
       organizationPlanTier: "FREE",
       allowedApp: null,
+      sourceMapUpload: true,
     });
 
     const reply = mockReply();
@@ -97,6 +98,27 @@ describe("resolveSourceMapUploadAuth", () => {
     expect(result).toEqual({ projectId: PROJECT_ID, apiKeyAllowedApp: null });
   });
 
+  it("rejects ingest-only API keys that cannot upload source maps", async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(null);
+    vi.mocked(verifyIngestApiKey).mockResolvedValue({
+      id: "key-1",
+      projectId: PROJECT_ID,
+      organizationPlanTier: "FREE",
+      allowedApp: null,
+      sourceMapUpload: false,
+    });
+
+    const reply = mockReply();
+    const result = await resolveSourceMapUploadAuth(
+      {} as never,
+      mockRequest({ "x-project-id": PROJECT_ID, "x-api-key": "tt_live_abc_def" }),
+      reply
+    );
+
+    expect(result).toBeNull();
+    expect(reply.status).toHaveBeenCalledWith(403);
+  });
+
   it("rejects API key when X-Project-Id is missing", async () => {
     vi.mocked(getSessionUser).mockResolvedValue(null);
     vi.mocked(verifyIngestApiKey).mockResolvedValue({
@@ -104,6 +126,7 @@ describe("resolveSourceMapUploadAuth", () => {
       projectId: PROJECT_ID,
       organizationPlanTier: "FREE",
       allowedApp: null,
+      sourceMapUpload: true,
     });
 
     const reply = mockReply();
@@ -124,6 +147,7 @@ describe("resolveSourceMapUploadAuth", () => {
       projectId: PROJECT_ID,
       organizationPlanTier: "FREE",
       allowedApp: null,
+      sourceMapUpload: true,
     });
 
     const reply = mockReply();

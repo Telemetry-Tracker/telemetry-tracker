@@ -476,9 +476,10 @@ export async function createDashboardApiKey(
     typeof allowedRaw === "string" && allowedRaw.trim() !== ""
       ? allowedRaw.trim().slice(0, 64)
       : undefined;
-  const payload: { name?: string; allowedApp?: string } = {};
+  const payload: { name?: string; allowedApp?: string; sourceMapUpload?: boolean } = {};
   if (name) payload.name = name;
   if (allowedApp) payload.allowedApp = allowedApp;
+  if (formData.get("sourceMapUpload") === "on") payload.sourceMapUpload = true;
   const res = await dashboardApiFetch("/api/project/api-keys", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

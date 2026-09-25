@@ -23,6 +23,7 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
+    "test": "vitest run",
     "prepublishOnly": "pnpm run build"
   },
   "keywords": [
@@ -37,6 +38,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.9.0",
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "vitest": "^3.2.6"
   }
 }
