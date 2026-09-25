@@ -36,7 +36,12 @@ async function main(): Promise<void> {
   while (true) {
     const result = await runAlertRulesEvaluatorSweep(prisma);
     console.log(
-      JSON.stringify({ ok: true, ...result, at: new Date().toISOString() })
+      JSON.stringify({
+        ok: true,
+        job: "alert-rules-evaluator",
+        ...result,
+        at: new Date().toISOString(),
+      })
     );
     if (!LOOP) break;
     const intervalMinutes = resolveAlertRulesScheduleIntervalMinutes();

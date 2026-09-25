@@ -621,3 +621,11 @@ model SourceMapArtifact {
   @@index([project_id, release])
   @@index([project_id, uploaded_at])
 }
+
+/// Last successful run of a scheduled ops job. The API reads this so a missing
+/// cron is visible on /health instead of silently skipping scheduled alerts.
+model ScheduledJobHeartbeat {
+  job         String   @id
+  last_ok_at  DateTime @map("last_ok_at")
+  updated_at  DateTime @updatedAt @map("updated_at")
+}
