@@ -14,6 +14,7 @@ import {
   AlertTriangle,
   BarChart3,
   Bell,
+  Footprints,
   FolderPlus,
   Key,
   LayoutDashboard,
@@ -65,6 +66,14 @@ const COMMANDS: CommandItem[] = [
     href: "/dashboard/sessions",
     group: "Navigate",
     icon: BarChart3,
+  },
+  {
+    id: "visits",
+    label: "Visits",
+    href: "/dashboard/visits",
+    group: "Navigate",
+    keywords: ["sessions", "visitors", "screens", "country"],
+    icon: Footprints,
   },
   {
     id: "notifications",
