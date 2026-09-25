@@ -129,8 +129,10 @@ This service is **not** auto-provisioned — add it manually in Railway when you
 6. Confirm logs show JSON like:
 
    ```json
-   {"ok":true,"projectsScanned":1,"rulesEvaluated":2,"rulesFired":0,"intervalMinutes":5,"at":"2026-07-18T12:00:01.234Z"}
+   {"ok":true,"job":"alert-rules-evaluator","projectsScanned":1,"rulesEvaluated":2,"rulesFired":0,"intervalMinutes":5,"at":"2026-07-18T12:00:01.234Z"}
    ```
+
+   A successful sweep writes a heartbeat. `GET /health` (with `HEALTH_CHECK_DATABASE=true`) then includes `alert_rules_evaluator`: `ok` within two intervals, `stale` after that, or `never` if this service has not run. That field does not change `ok` or the HTTP status.
 
 | Setting | Value |
 |---------|--------|
