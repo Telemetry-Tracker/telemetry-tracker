@@ -179,7 +179,6 @@ export default async function VisitsPage({
           releases={filterOptions.releases}
           countries={filterOptions.countries}
           platforms={filterOptions.platforms}
-          onSortApply={() => undefined}
         />
         <VisitsPanels summary={summary} sessionsHref={sessionsHref} sessionHref={sessionHref} />
       </AnalyticsListShell>
