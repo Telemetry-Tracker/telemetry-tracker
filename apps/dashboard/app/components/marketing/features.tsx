@@ -109,21 +109,24 @@ export function SectionHeading({
   title,
   subtitle,
   align = "center",
+  headingLevel = "h2",
 }: {
   eyebrow?: string;
   title: ReactNode;
   subtitle?: ReactNode;
   align?: "center" | "left";
+  headingLevel?: "h1" | "h2";
 }) {
   const a = align === "center" ? "text-center mx-auto" : "text-left";
+  const Heading = headingLevel;
   return (
     <div className={`${a} max-w-2xl`}>
       {eyebrow && (
         <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">{eyebrow}</p>
       )}
-      <h2 className="mt-3 text-balance text-3xl font-semibold tracking-tight sm:text-4xl">
+      <Heading className="mt-3 text-balance text-3xl font-semibold tracking-tight sm:text-4xl">
         {title}
-      </h2>
+      </Heading>
       {subtitle && (
         <p className="mt-4 text-balance text-base text-muted-foreground">{subtitle}</p>
       )}

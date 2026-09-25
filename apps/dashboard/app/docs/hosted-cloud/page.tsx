@@ -178,7 +178,7 @@ trackEvent("app.started");`}</DocsCodeBlock>
         <h2 id="hosted-self-host-heading">Self-hosting instead?</h2>
         <p>
           The same SDKs and dashboard run on your infrastructure. See{" "}
-          <Link href="/docs#self-hosting" className="text-brand hover:underline">
+          <Link href="/docs/self-hosting" className="text-brand hover:underline">
             Self-hosting
           </Link>{" "}
           and the repository{" "}

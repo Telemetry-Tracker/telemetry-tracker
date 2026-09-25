@@ -6,7 +6,7 @@ import { Footer } from "@/app/components/marketing/footer";
 import { getDashboardSessionId } from "@/lib/dashboard-project";
 
 export const metadata: Metadata = {
-  title: "Pricing",
+  title: { absolute: "Pricing · Telemetry Tracker" },
   description:
     "Telemetry Tracker pricing in EUR. Free for side projects, then Pro and Business as ingest grows. No surprise overage bills.",
   alternates: { canonical: "./" },
@@ -23,7 +23,7 @@ export default async function PricingPage() {
   return (
     <main id="main-content" className="marketing-main-offset min-h-screen bg-background text-foreground">
       <Nav isAuthenticated={isAuthenticated} />
-      <Pricing isAuthenticated={isAuthenticated} />
+      <Pricing isAuthenticated={isAuthenticated} headingLevel="h1" />
       <Cta isAuthenticated={isAuthenticated} />
       <Footer />
     </main>
