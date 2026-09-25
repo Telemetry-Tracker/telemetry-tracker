@@ -46,6 +46,7 @@ import {
   resolveSessionListStartedAtBounds,
   resolveSessionsSummaryWindow,
 } from "../lib/sessions-page-summary.js";
+import { fetchVisitsSummary } from "../lib/visits-summary.js";
 import {
   buildPerformanceFilter,
   fetchPerformancePageSummary,
@@ -1770,6 +1771,37 @@ export async function apiRoutes(
       projectId,
       compared.window
     );
+    return reply.send(summary);
+  });
+
+  app.get("/visits/summary", async (request, reply) => {
+    const projectId = await resolveReadProjectId(request, reply);
+    if (projectId === null) return;
+    const query = request.query as {
+      app?: string | string[];
+      range?: string;
+      from?: string;
+      to?: string;
+      platform?: string;
+      environment?: string;
+      release?: string;
+      country?: string;
+      q?: string;
+      metricsUntil?: string;
+    };
+    const range = parseCreatedRange(query, "all");
+    const metricsAnchor = parseSessionsMetricsAnchor(queryString(query.metricsUntil));
+    const filter = buildSessionListFilter({
+      appId: queryApp(query.app),
+      platform: queryString(query.platform),
+      environment: queryString(query.environment),
+      release: queryString(query.release),
+      country: queryString(query.country),
+      q: queryString(query.q),
+      range,
+    });
+    const window = resolveSessionsSummaryWindow(range, metricsAnchor);
+    const summary = await fetchVisitsSummary(prisma, projectId, filter, window);
     return reply.send(summary);
   });
 

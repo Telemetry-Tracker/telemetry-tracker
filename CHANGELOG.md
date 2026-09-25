@@ -21,6 +21,14 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ---
 
+## [1.17.15] - 2026-09-25
+
+### Added
+
+- **Visits** — dashboard page for how many people visited, how long they stayed, which screens and actions they used, and country, platform, browser, and operating system breakdowns ([#663](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/663))
+
+---
+
 ## [1.17.14] - 2026-09-24
 
 ### Fixed

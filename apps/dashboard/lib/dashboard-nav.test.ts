@@ -18,4 +18,9 @@ describe("dashboard sidebar nav", () => {
   it("labels the overview route", () => {
     expect(navLabelForPath("/dashboard/overview")).toBe("Overview");
   });
+
+  it("labels the visits route", () => {
+    expect(navLabelForPath("/dashboard/visits")).toBe("Visits");
+    expect(isNavItemActive("/dashboard/visits", "/dashboard/sessions")).toBe(false);
+  });
 });

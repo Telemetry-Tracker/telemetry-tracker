@@ -7,6 +7,7 @@ import {
   LayoutGrid,
   Package,
   LayoutList,
+  Footprints,
   Radio,
   Search,
   Settings,
@@ -29,6 +30,7 @@ export type DashboardNavIcon =
   | "issues"
   | "events"
   | "sessions"
+  | "visits"
   | "traces"
   | "logs"
   | "performance"
@@ -48,6 +50,7 @@ export const DASHBOARD_NAV: SidebarNavItem[] = [
   { href: "/dashboard/errors", label: "Issues", enabled: true, icon: "issues" },
   { href: "/dashboard/events", label: "Events", enabled: true, icon: "events" },
   { href: "/dashboard/sessions", label: "Sessions", enabled: true, icon: "sessions" },
+  { href: "/dashboard/visits", label: "Visits", enabled: true, icon: "visits" },
   { href: "/dashboard/performance", label: "Performance", enabled: true, icon: "performance" },
   { href: "/dashboard/releases", label: "Releases", enabled: true, icon: "releases" },
   { href: "/dashboard/alerts", label: "Alerts", enabled: true, icon: "alerts" },
@@ -72,6 +75,7 @@ export const NAV_ICONS: Record<DashboardNavIcon, LucideIcon> = {
   issues: TriangleAlert,
   events: Zap,
   sessions: Radio,
+  visits: Footprints,
   traces: Activity,
   logs: LayoutList,
   performance: Gauge,
