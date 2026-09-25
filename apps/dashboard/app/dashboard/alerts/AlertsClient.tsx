@@ -146,6 +146,7 @@ export function AlertsClient({
   initialPiiSettings,
   piiSettingsLoadError = null,
   canEdit,
+  emailChannelEnabled = true,
 }: {
   initialSettings: ProjectAlertSettings;
   initialEvents: AlertEventRow[];
@@ -156,6 +157,8 @@ export function AlertsClient({
   /** When set, PII section is read-only — do not save (avoids wiping deny-keys). */
   piiSettingsLoadError?: string | null;
   canEdit: boolean;
+  /** Master email channel. Off means listed alert recipients never get mail. */
+  emailChannelEnabled?: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -702,6 +705,19 @@ export function AlertsClient({
           title="Email recipients"
           description="Who receives this project's alert emails (spike/quota) and new-error emails. Alert mail uses the Alerts email route; new-error mail uses the Issues route — both still need the global email channel on."
         >
+          {emailChannelEnabled ? null : (
+            <p
+              role="status"
+              className="mb-4 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-[13px] text-foreground"
+            >
+              The Email channel is off for your account, so alert rules will not send email
+              even when recipients are listed here.{" "}
+              <Link href="/dashboard/settings/notifications" className="text-link hover:underline">
+                Turn on the Email channel
+              </Link>
+              .
+            </p>
+          )}
           <FieldGroup>
             <Field label="Send alert emails for this project">
               <div className={canEdit ? undefined : "pointer-events-none opacity-50"}>
