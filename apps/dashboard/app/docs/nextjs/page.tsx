@@ -68,6 +68,30 @@ export default function RootLayout({ children }) {
         <code>next/navigation</code> and passes it to <code>useTrackPage(pathname)</code>.
       </p>
 
+      <h2>Server errors</h2>
+      <p>
+        <code>@telemetry-tracker/next/server</code> exports <code>createOnRequestError</code> for{" "}
+        <code>instrumentation.ts</code>. Next.js calls it for uncaught App Router errors in Server
+        Components, Route Handlers, and Server Actions. The helper uses <code>fetch</code> only, so
+        it runs on Node.js and Edge. It does not report errors you catch, browser errors, or
+        build failures. Use a server API key, not <code>NEXT_PUBLIC_</code>.
+      </p>
+      <CodeBlock
+        code={`// instrumentation.ts
+import { createOnRequestError } from "@telemetry-tracker/next/server";
+
+export const onRequestError = createOnRequestError({
+  ingestUrl: process.env.TELEMETRY_INGEST_URL ?? "",
+  apiKey: process.env.TELEMETRY_API_KEY,
+  app: process.env.TELEMETRY_APP ?? "web",
+  environment: process.env.NODE_ENV,
+});`}
+      />
+      <p>
+        This is in the repository as 1.3.2. It is not on npm until that version is published.
+        Published 1.3.1 is still browser-only.
+      </p>
+
       <h2>Errors</h2>
       <p>
         After <code>TelemetryProvider</code> calls <code>init()</code>, uncaught sync errors and

@@ -123,7 +123,7 @@ export default function SelfHostedErrorTrackingPage() {
           Ingest is authenticated with project API keys. Do not enable unauthenticated ingest in
           production. Details, health checks, and optional PII scrubbing flags are in DEPLOYMENT.md
           and the{" "}
-          <Link href="/docs#self-hosting" className="text-brand hover:underline">
+          <Link href="/docs/self-hosting" className="text-brand hover:underline">
             self-hosting docs
           </Link>
           .
@@ -173,7 +173,7 @@ export default function SelfHostedErrorTrackingPage() {
         <GuideRelatedLinks
           links={[
             {
-              href: "/docs#self-hosting",
+              href: "/docs/self-hosting",
               label: "Self-hosting in the docs",
               description: "Monorepo layout and upgrade notes.",
             },
