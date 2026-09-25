@@ -962,7 +962,7 @@ function hrefForHints(
     return "/dashboard/sessions";
   }
   if (hints.includes("overview") && !hints.includes("errors") && !hints.includes("sessions")) {
-    return "/dashboard";
+    return "/dashboard/overview?range=24h";
   }
   return "/dashboard/errors";
 }

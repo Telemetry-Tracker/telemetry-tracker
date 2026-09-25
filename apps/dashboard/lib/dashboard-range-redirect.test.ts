@@ -11,6 +11,24 @@ describe("dashboardRangeCanonicalHref", () => {
     );
   });
 
+  it("sends the dashboard root to overview before the page can redirect", () => {
+    expect(dashboardRangeCanonicalHref("/dashboard", "")).toBe(
+      "/dashboard/overview?range=24h"
+    );
+    expect(dashboardRangeCanonicalHref("/dashboard/", "")).toBe(
+      "/dashboard/overview?range=24h"
+    );
+    expect(dashboardRangeCanonicalHref("/dashboard", "?range=24h")).toBe(
+      "/dashboard/overview?range=24h"
+    );
+    expect(dashboardRangeCanonicalHref("/dashboard/", "?range=7d")).toBe(
+      "/dashboard/overview?range=7d"
+    );
+    expect(dashboardRangeCanonicalHref("/dashboard", "?app=web")).toBe(
+      "/dashboard/overview?app=web&range=24h"
+    );
+  });
+
   it("leaves explicit ranges and detail links alone", () => {
     expect(dashboardRangeCanonicalHref("/dashboard/overview", "?range=7d")).toBeNull();
     expect(dashboardRangeCanonicalHref("/dashboard/sessions", "?range=none")).toBeNull();

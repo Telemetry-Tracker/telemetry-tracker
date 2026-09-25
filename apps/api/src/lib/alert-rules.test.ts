@@ -864,7 +864,7 @@ describe("runScheduledAlertRuleEvaluation", () => {
       expect.objectContaining({
         rule: "ALERT_RULE",
         title: "Silence",
-        href: "/dashboard",
+        href: "/dashboard/overview?range=24h",
       })
     );
     expect(fireProjectAlert).toHaveBeenCalledWith(
