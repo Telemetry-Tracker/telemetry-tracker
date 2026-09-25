@@ -114,6 +114,14 @@ export async function sendNotificationEmailIfAllowed(
         },
       })
       .catch(() => undefined);
+    logNotificationEmailFailure(
+      new Error(result.error ?? "email_send_failed"),
+      {
+        userId,
+        email,
+        notificationKey: item.id,
+      }
+    );
     return false;
   }
 

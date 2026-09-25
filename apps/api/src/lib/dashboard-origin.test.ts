@@ -3,11 +3,14 @@ import { dashboardOriginOrNull, resolveDashboardOrigin } from "./dashboard-origi
 
 describe("dashboard origin", () => {
   const prevOrigin = process.env.TELEMETRY_DASHBOARD_ORIGIN;
+  const prevDashboardOrigin = process.env.DASHBOARD_ORIGIN;
   const prevNodeEnv = process.env.NODE_ENV;
 
   afterEach(() => {
     if (prevOrigin === undefined) delete process.env.TELEMETRY_DASHBOARD_ORIGIN;
     else process.env.TELEMETRY_DASHBOARD_ORIGIN = prevOrigin;
+    if (prevDashboardOrigin === undefined) delete process.env.DASHBOARD_ORIGIN;
+    else process.env.DASHBOARD_ORIGIN = prevDashboardOrigin;
     process.env.NODE_ENV = prevNodeEnv;
   });
 
@@ -32,5 +35,13 @@ describe("dashboard origin", () => {
     process.env.TELEMETRY_DASHBOARD_ORIGIN = "https://telemetry.example.com";
     process.env.NODE_ENV = "production";
     expect(dashboardOriginOrNull()).toBe("https://telemetry.example.com");
+  });
+
+  it("does not read DASHBOARD_ORIGIN for email/dashboard links", () => {
+    delete process.env.TELEMETRY_DASHBOARD_ORIGIN;
+    process.env.DASHBOARD_ORIGIN = "https://from-cors-var.example.com";
+    process.env.NODE_ENV = "production";
+    expect(resolveDashboardOrigin()).toBeNull();
+    expect(dashboardOriginOrNull()).toBeNull();
   });
 });
