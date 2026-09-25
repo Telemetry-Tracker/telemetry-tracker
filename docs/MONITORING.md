@@ -15,7 +15,7 @@ GitHub issue [#93](https://github.com/Telemetry-Tracker/telemetry-tracker/issues
 | **Ingest quota pressure** | Railway API logs / metrics — `429` responses | Sustained 429 rate above baseline |
 | **API 5xx** | Sentry + Railway deploy logs | Any 5xx spike after deploy |
 | **Retention cron** | Railway `retention-cron` service — last run exited 0 | Failed run, stuck deployment, or missing `"ok":true` in logs |
-| **Alert rules evaluator** | Railway `alert-rules-evaluator` cron — last run exited 0 | Failed/stuck run, or missing `"ok":true` (scheduled CUSTOM rules will not fire) |
+| **Alert rules evaluator** | Railway `alert-rules-evaluator` cron — last run exited 0. `/health` `alert_rules_evaluator` is `ok`, `stale`, or `never` | Failed/stuck run, missing `"ok":true`, or `never`/`stale` (scheduled CUSTOM rules will not fire). This field does not fail API `ok` |
 | **Alert webhook worker** | Railway `alert-webhook-worker` — continuous idle/processing JSON | Crash loop, missing `"ok":true`, or growing `PENDING` deliveries |
 | **Database backups** | Railway Postgres → Backups tab | Backup job failed or backups disabled |
 

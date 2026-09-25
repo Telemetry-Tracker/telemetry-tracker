@@ -82,9 +82,15 @@ describe("buildHealthResponse", () => {
     else process.env.TELEMETRY_EMAIL_FROM = prevFrom;
   });
 
-  function mockPrisma(queryImpl: () => Promise<unknown>): PrismaClient {
+  function mockPrisma(
+    queryImpl: () => Promise<unknown>,
+    heartbeat: { last_ok_at: Date } | null = null
+  ): PrismaClient {
     return {
       $queryRaw: vi.fn(queryImpl),
+      scheduledJobHeartbeat: {
+        findUnique: vi.fn(async () => heartbeat),
+      },
     } as unknown as PrismaClient;
   }
 
@@ -106,6 +112,27 @@ describe("buildHealthResponse", () => {
     expect(body.database).toBe("ok");
     expect(body.database_latency_ms).toEqual(expect.any(Number));
     expect(body.database_latency_ms).toBeGreaterThanOrEqual(0);
+    expect(body.alert_rules_evaluator).toBe("never");
+  });
+
+  it("reports a fresh alert-rules evaluator heartbeat without changing ok", async () => {
+    process.env.HEALTH_CHECK_DATABASE = "true";
+    const { statusCode, body } = await buildHealthResponse(
+      mockPrisma(async () => 1, { last_ok_at: new Date() })
+    );
+    expect(statusCode).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(body.alert_rules_evaluator).toBe("ok");
+  });
+
+  it("reports a stale evaluator heartbeat without taking the API down", async () => {
+    process.env.HEALTH_CHECK_DATABASE = "true";
+    const { statusCode, body } = await buildHealthResponse(
+      mockPrisma(async () => 1, { last_ok_at: new Date(Date.now() - 60 * 60 * 1000) })
+    );
+    expect(statusCode).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(body.alert_rules_evaluator).toBe("stale");
   });
 
   it("returns 503 when database probe fails", async () => {
