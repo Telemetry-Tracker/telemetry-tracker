@@ -13,6 +13,8 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ### Added
 
+- **Visits** — dashboard page for how many people visited, how long they stayed, which screens and actions they used, and country, platform, browser, and operating system breakdowns
+
 ### Fixed
 
 ### Changed

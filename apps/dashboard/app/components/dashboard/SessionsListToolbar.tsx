@@ -59,6 +59,8 @@ type Props = {
   /** When set, sort/order apply client-side without a full page navigation. */
   onSortApply?: (sort: string, order: string) => void;
   sortLoading?: boolean;
+  /** Visits uses the same filters without a sortable table. */
+  hideSort?: boolean;
 };
 
 export function SessionsListToolbar({
@@ -83,6 +85,7 @@ export function SessionsListToolbar({
   platforms,
   onSortApply,
   sortLoading = false,
+  hideSort = false,
 }: Props) {
   const fieldIds = useId();
   const rangeSummary = listFiltersRangeSummary(timeRange.key, timeRange.label);
@@ -209,14 +212,14 @@ export function SessionsListToolbar({
               listLabelledBy={id("plat-l")}
             />
           </FilterField>
-          {onSortApply ? (
+          {onSortApply || hideSort ? (
             <FilterSubmitWrap>
               <FilterSubmitBtn>Apply filters</FilterSubmitBtn>
             </FilterSubmitWrap>
           ) : null}
         </FilterRow>
 
-        {onSortApply ? (
+        {hideSort ? null : onSortApply ? (
           <ClientListSortRow
             sort={sort || "started_at"}
             order={order}
