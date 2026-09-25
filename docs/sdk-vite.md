@@ -37,7 +37,7 @@ export default defineConfig({
 });
 ```
 
-Create a project API key in **Settings → API keys** and store it as `TT_API_KEY`. Use the project UUID from **Settings → General** as `TT_PROJECT_ID`.
+Create a project API key in **Settings → API keys** with source map upload enabled and store it as `TT_API_KEY`. Do not use a browser ingest key. Use the project UUID from **Settings → General** as `TT_PROJECT_ID`.
 
 ### Options
 
