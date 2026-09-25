@@ -407,12 +407,17 @@ export function trackEvent(name, properties) {
     }
 }
 export function trackError(error, context) {
+    void ingestError(error, context);
+}
+/** Send an error and resolve after the ingest request settles. Fatal handlers await this. */
+export function ingestError(error, context) {
     const cfg = getConfigOrNull();
     if (!cfg)
-        return;
+        return Promise.resolve();
     const err = error instanceof Error ? error : { message: error.message, stack: error.stack };
-    if (err && typeof err === "object" && err[REPORTED])
-        return;
+    if (err && typeof err === "object" && err[REPORTED]) {
+        return Promise.resolve();
+    }
     let message = err instanceof Error ? err.message : err.message;
     let stack = err instanceof Error ? err.stack : err.stack;
     let scrubbedContext = context ?? undefined;
@@ -427,7 +432,7 @@ export function trackError(error, context) {
     }
     if (err instanceof Error)
         err[REPORTED] = true;
-    send("/ingest/error", {
+    return send("/ingest/error", {
         message,
         stack: stack ?? undefined,
         context: scrubbedContext,

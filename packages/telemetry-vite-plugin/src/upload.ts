@@ -1,5 +1,5 @@
 import { readFileSync, readdirSync, statSync, unlinkSync } from "node:fs";
-import { basename, relative, resolve } from "node:path";
+import { basename, dirname, relative, resolve } from "node:path";
 
 const DEFAULT_BASE_API_URL = "https://api.telemetry-tracker.com";
 
@@ -50,6 +50,38 @@ function appendToUrl(base: string, ...pathParts: string[]): string {
   return url.href;
 }
 
+const BUNDLE_SOURCE_EXTENSIONS = new Set([".js", ".mjs", ".cjs", ".css"]);
+
+/** Last non-inline sourceMappingURL comment in a built file. */
+export function parseSourceMappingURL(source: string): string | null {
+  const matches = source.match(/[#@]\s*sourceMappingURL=([^\s*'"]+)/g);
+  if (!matches || matches.length === 0) return null;
+  const last = matches[matches.length - 1] ?? "";
+  const raw = last.split("=").slice(1).join("=").replace(/[),;]+$/, "");
+  if (!raw || raw.startsWith("data:")) return null;
+  return raw;
+}
+
+/**
+ * Bundle file that points at this map via sourceMappingURL.
+ * Next.js 16 Turbopack hashes the map independently of the chunk name.
+ */
+export function bundleFileForSourceMap(
+  mapFilePath: string,
+  bundleSources: { filePath: string; source: string }[]
+): string | null {
+  const resolvedMap = resolve(mapFilePath);
+  for (const bundle of bundleSources) {
+    const ref = parseSourceMappingURL(bundle.source);
+    if (!ref) continue;
+    const clean = ref.split("?")[0]?.split("#")[0] ?? ref;
+    if (resolve(dirname(bundle.filePath), clean) === resolvedMap) {
+      return bundle.filePath;
+    }
+  }
+  return null;
+}
+
 export function bundleUrlForMapFile(
   mapFilePath: string,
   outDir: string,
@@ -75,6 +107,22 @@ export function bundleUrlForMapFile(
   return `${prefix}/${normalizedJsPath}`;
 }
 
+export function findBundleSources(dir: string): { filePath: string; source: string }[] {
+  const results: { filePath: string; source: string }[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const fullPath = resolve(dir, entry.name);
+    if (entry.isDirectory()) {
+      results.push(...findBundleSources(fullPath));
+    } else if (entry.isFile()) {
+      const ext = entry.name.slice(entry.name.lastIndexOf("."));
+      if (BUNDLE_SOURCE_EXTENSIONS.has(ext)) {
+        results.push({ filePath: fullPath, source: readFileSync(fullPath, "utf8") });
+      }
+    }
+  }
+  return results;
+}
+
 export function findMapFiles(dir: string): string[] {
   const results: string[] = [];
 
@@ -91,7 +139,8 @@ export function findMapFiles(dir: string): string[] {
 
 export async function uploadSourceMapFile(
   options: UploadSourceMapsOptions,
-  mapFilePath: string
+  mapFilePath: string,
+  bundleSources: { filePath: string; source: string }[] = []
 ): Promise<void> {
   const fetchImpl = options.fetchImpl ?? fetch;
   const endpoint = resolveUploadEndpoint(options.baseApiUrl ?? DEFAULT_BASE_API_URL);
@@ -107,7 +156,7 @@ export async function uploadSourceMapFile(
     app: options.app,
     release: options.release,
     bundle_url: bundleUrlForMapFile(
-      mapFilePath,
+      bundleFileForSourceMap(mapFilePath, bundleSources) ?? mapFilePath,
       options.outDir,
       options.baseUrl,
       options.viteBase
@@ -146,9 +195,10 @@ export async function uploadSourceMaps(
     return { uploaded: 0, skipped: 0, files: [] };
   }
 
+  const bundleSources = findBundleSources(resolvedOutDir);
   const uploadedFiles: string[] = [];
   for (const mapFile of mapFiles) {
-    await uploadSourceMapFile(options, mapFile);
+    await uploadSourceMapFile(options, mapFile, bundleSources);
     uploadedFiles.push(mapFile);
   }
 

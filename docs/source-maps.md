@@ -146,7 +146,7 @@ export default defineConfig({
 });
 ```
 
-Create a project API key in **Settings → API keys** (same key as ingest). `baseUrl` must match the public URL where your minified JS is served — the plugin derives `bundle_url` from each `.map` path under `build.outDir`.
+Create a project API key in **Settings → API keys** and enable **Allow source map uploads**. Do not use that key in client apps. Browser ingest keys are rejected for upload. `baseUrl` must match the public URL where your minified JS is served. The plugin and GitHub Action set `bundle_url` from the built file’s `sourceMappingURL` comment (Next.js 16 Turbopack hashes maps separately from chunks). When no comment points at the map, the URL falls back to the `.map` path with `.map` removed.
 
 See [sdk-vite.md](./sdk-vite.md) for full options and a Vue + Vite example. Full option reference: [sdk-vite.md](./sdk-vite.md).
 
@@ -174,9 +174,10 @@ Symbolication is display-only; grouping fingerprints stay on raw minified stacks
 
 ## Security
 
-- Upload: dashboard session (EDITOR+) or project API key scoped to `X-Project-Id`; rate limit per project.
+- Upload: dashboard session (EDITOR+) or a project API key with source map upload enabled, scoped to `X-Project-Id`. Ingest-only keys (the kind embedded in browsers) cannot upload or replace maps.
+- Existing keys created before this flag keep upload access so current CI keeps working. Rotate any key that is shipped to clients and create a separate CI key.
 - Maps may contain source — treat as sensitive; same retention as telemetry.
-- Reuses existing project API keys (same as ingest); per-key `allowed_app` applies to the upload `app` field.
+- Per-key `allowed_app` applies to the upload `app` field.
 
 ## References
 
@@ -210,7 +211,7 @@ jobs:
           base_url: "https://example.com"
 ```
 
-Create a project API key in **Settings → API keys** and store it as `TT_API_KEY` in your repository secrets.
+Create a project API key in **Settings → API keys** with source map upload enabled and store it as `TT_API_KEY` in your repository secrets. Do not reuse a key that is embedded in a client app.
 
 ### Self-hosted API
 

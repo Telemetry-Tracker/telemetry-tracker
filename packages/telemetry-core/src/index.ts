@@ -501,10 +501,20 @@ export function trackError(
   error: Error | { message: string; stack?: string },
   context?: Record<string, unknown>
 ): void {
+  void ingestError(error, context);
+}
+
+/** Send an error and resolve after the ingest request settles. Fatal handlers await this. */
+export function ingestError(
+  error: Error | { message: string; stack?: string },
+  context?: Record<string, unknown>
+): Promise<void> {
   const cfg = getConfigOrNull();
-  if (!cfg) return;
+  if (!cfg) return Promise.resolve();
   const err = error instanceof Error ? error : { message: error.message, stack: error.stack };
-  if (err && typeof err === "object" && (err as unknown as Record<symbol, boolean>)[REPORTED]) return;
+  if (err && typeof err === "object" && (err as unknown as Record<symbol, boolean>)[REPORTED]) {
+    return Promise.resolve();
+  }
   let message = err instanceof Error ? err.message : err.message;
   let stack = err instanceof Error ? err.stack : err.stack;
   let scrubbedContext = context ?? undefined;
@@ -517,7 +527,7 @@ export function trackError(
     }
   }
   if (err instanceof Error) (err as unknown as Record<symbol, boolean>)[REPORTED] = true;
-  send("/ingest/error", {
+  return send("/ingest/error", {
     message,
     stack: stack ?? undefined,
     context: scrubbedContext,

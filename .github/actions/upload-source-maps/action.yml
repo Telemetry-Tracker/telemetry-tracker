@@ -2,7 +2,7 @@ name: 'Upload Source Maps'
 description: 'Uploads source maps to Telemetry-Tracker on release'
 inputs:
   api_key:
-    description: 'Project API key (tt_live_...) for CI uploads'
+    description: 'Project API key with source map upload enabled (not a browser ingest key)'
     required: true
   project_id:
     description: 'Telemetry-Tracker Project ID (X-Project-Id)'
@@ -38,97 +38,4 @@ runs:
         RELEASE: ${{ inputs.release }}
         PROJECT_ID: ${{ inputs.project_id }}
         API_KEY: ${{ inputs.api_key }}
-      run: |
-        # Quoted heredoc so bash does not expand process.env.* in the Node script.
-        node <<'NODE'
-        const fs = require('fs');
-        const path = require('path');
-
-        const apiUrl = new URL(process.env.BASE_API_URL || 'https://api.telemetry-tracker.com');
-        const http = require(apiUrl.protocol === 'https:' ? 'https' : 'http');
-        const pathPrefix = apiUrl.pathname.replace(/\/$/, '');
-        const uploadPath = `${pathPrefix}/api/project/source-maps`;
-        const artifactPath = process.env.ARTIFACT_PATH || './dist';
-        const baseUrl = (process.env.BASE_URL || '').replace(/\/$/, '');
-        const appName = process.env.APP_NAME || '';
-        const release = process.env.RELEASE || '';
-        const projectId = process.env.PROJECT_ID || '';
-        const apiKey = process.env.API_KEY || '';
-
-        function findFiles(dir) {
-          let results = [];
-          if (!fs.existsSync(dir)) return results;
-          const list = fs.readdirSync(dir);
-          list.forEach(file => {
-            file = path.join(dir, file);
-            const stat = fs.statSync(file);
-            if (stat && stat.isDirectory()) results = results.concat(findFiles(file));
-            else if (file.endsWith('.map')) results.push(file);
-          });
-          return results;
-        }
-
-        function uploadFile(filePath) {
-          return new Promise((resolve, reject) => {
-            const content = fs.readFileSync(filePath, 'utf8');
-            const resolvedArtifactPath = path.resolve(artifactPath);
-            const resolvedFilePath = path.resolve(filePath);
-            const relativePath = path.relative(resolvedArtifactPath, resolvedFilePath);
-            const jsPath = relativePath.replace(/\.map$/, '');
-            const bundleUrl = `${baseUrl}/${jsPath}`;
-
-            const payload = JSON.stringify({
-              app: appName,
-              release: release,
-              bundle_url: bundleUrl,
-              content: JSON.parse(content)
-            });
-
-            const options = {
-              hostname: apiUrl.hostname,
-              port: apiUrl.port || undefined,
-              path: uploadPath,
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'X-Project-Id': projectId,
-                'X-API-Key': apiKey,
-                'Content-Length': Buffer.byteLength(payload)
-              }
-            };
-
-            const req = http.request(options, (res) => {
-              let body = '';
-              res.on('data', chunk => body += chunk);
-              res.on('end', () => {
-                if (res.statusCode >= 400) {
-                  reject(new Error(`Failed to upload ${path.basename(filePath)}: ${res.statusCode} - ${body}`));
-                } else {
-                  console.log(`Successfully uploaded ${path.basename(filePath)}`);
-                  resolve();
-                }
-              });
-            });
-
-            req.on('error', (e) => reject(e));
-            req.write(payload);
-            req.end();
-          });
-        }
-
-        (async () => {
-          try {
-            const files = findFiles(artifactPath);
-            if (files.length === 0) {
-              console.log('No source maps found to upload.');
-              return;
-            }
-            for (const file of files) {
-              await uploadFile(file);
-            }
-          } catch (err) {
-            console.error(err.message);
-            process.exit(1);
-          }
-        })();
-        NODE
+      run: node "$GITHUB_ACTION_PATH/upload.cjs"
