@@ -39,9 +39,8 @@ export function ApiKeysEmptyState({
           <div>
             <p className="font-medium text-foreground">No API keys yet</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              Your project has historical telemetry in the database, but the SDK cannot send new
-              events or errors until you create a key. Keys belong to the project selected in the
-              header.
+              The SDK cannot send events or errors until you create a key. Keys belong to the
+              project selected in the header.
             </p>
           </div>
           {canCreate ? (
