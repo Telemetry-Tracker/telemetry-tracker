@@ -66,6 +66,45 @@ describe("notifyOrganizationMembersByEmail", () => {
 
     expect(createMany).toHaveBeenCalledTimes(1);
   });
+
+  it("still emails the other members when one createMany fails", async () => {
+    const createMany = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("Response from the Engine was empty"))
+      .mockResolvedValueOnce({ count: 1 });
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const prisma = {
+      organizationMembership: {
+        findMany: vi.fn(async () => [
+          {
+            user: {
+              id: "owner-1",
+              email: "owner@example.com",
+              notification_preferences: emailEnabledPrefs,
+            },
+          },
+          {
+            user: {
+              id: "editor-1",
+              email: "editor@example.com",
+              notification_preferences: emailEnabledPrefs,
+            },
+          },
+        ]),
+      },
+      notificationEmailLog: {
+        createMany,
+        delete: vi.fn(),
+      },
+    } as unknown as Parameters<typeof notifyOrganizationMembersByEmail>[0];
+
+    await expect(
+      notifyOrganizationMembersByEmail(prisma, "org-1", teamItem)
+    ).resolves.toBeUndefined();
+    expect(createMany).toHaveBeenCalledTimes(2);
+    expect(errorSpy).toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
 });
 
 describe("notifyProjectMembersByEmail", () => {

@@ -877,6 +877,53 @@ describe("runScheduledAlertRuleEvaluation", () => {
     );
   });
 
+  it("continues the sweep when one scheduled rule fails to fire", async () => {
+    const failing = {
+      id: "rule-fail",
+      name: "Failing",
+      enabled: true,
+      conditions: [
+        { type: "NO_EVENTS" as const, windowMinutes: 5, environment: null },
+      ],
+      destination_ids: [PROJECT_EMAIL_DESTINATION_ID],
+      cooldown_minutes: 15,
+      created_at: new Date(),
+      updated_at: new Date(),
+    };
+    const ok = {
+      id: "rule-ok",
+      name: "Still runs",
+      enabled: true,
+      conditions: [
+        { type: "NO_EVENTS" as const, windowMinutes: 5, environment: null },
+      ],
+      destination_ids: [PROJECT_EMAIL_DESTINATION_ID],
+      cooldown_minutes: 15,
+      created_at: new Date(),
+      updated_at: new Date(),
+    };
+    fireProjectAlert.mockRejectedValueOnce(new Error("Response from the Engine was empty"));
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const prisma = {
+      alertRule: {
+        findMany: vi
+          .fn()
+          .mockResolvedValueOnce([{ project_id: "p1" }])
+          .mockResolvedValueOnce([failing, ok]),
+        updateMany: claimAlways(),
+      },
+      project: { findFirst: async () => ({ id: "p1" }) },
+      event: { count: async () => 0 },
+    } as never;
+
+    const result = await runScheduledAlertRuleEvaluation(prisma);
+    expect(result.rulesEvaluated).toBe(2);
+    expect(result.rulesFired).toBe(1);
+    expect(fireProjectAlert).toHaveBeenCalledTimes(2);
+    errorSpy.mockRestore();
+    fireProjectAlert.mockResolvedValue(true);
+  });
+
   it("fires NO_EVENTS on the scheduled path when the window is empty", async () => {
     const ruleRow = {
       id: "rule-ne",

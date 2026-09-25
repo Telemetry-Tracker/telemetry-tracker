@@ -21,6 +21,14 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ---
 
+## [1.17.22] - 2026-09-25
+
+### Fixed
+
+- **Alert rules evaluator** — the cron waits for notification email logging to finish before disconnecting Prisma, so `notificationEmailLog.createMany` no longer hits an empty engine response. One email or rule failure is logged and does not stop the rest of the sweep ([#687](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/687))
+
+---
+
 ## [1.17.21] - 2026-09-25
 
 ### Fixed
