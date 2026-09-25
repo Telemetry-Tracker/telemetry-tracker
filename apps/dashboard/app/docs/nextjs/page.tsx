@@ -90,8 +90,9 @@ export const onRequestError = createOnRequestError({
 });`}
       />
       <p>
-        This is in the repository as 1.3.2. It is not on npm until that version is published.
-        Published 1.3.1 is still browser-only.
+        Requires <code>@telemetry-tracker/next@1.3.2</code> or newer (
+        <code>import … from "@telemetry-tracker/next/server"</code>). Browser capture stays on the
+        main package entry.
       </p>
 
       <h2>Errors</h2>

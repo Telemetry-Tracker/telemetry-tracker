@@ -5,7 +5,7 @@ The hosted dashboard and marketing site (`apps/dashboard`) still initialize Sent
 ## What Telemetry Tracker can cover
 
 - Browser errors and page views, once `TelemetryProvider` is configured with a public ingest key. `ProductTelemetry` already does this when `NEXT_PUBLIC_TELEMETRY_*` is set.
-- Server Component, Route Handler, and Server Action errors, once `@telemetry-tracker/next/server` `createOnRequestError` is wired and version 1.3.2 is published. The repository contains that helper. Production npm `1.3.1` does not.
+- Server Component, Route Handler, and Server Action errors via `@telemetry-tracker/next/server` `createOnRequestError` (npm `1.3.2+`), once wired from `instrumentation.ts`. The marketing site has not switched off Sentry yet.
 
 ## What Telemetry Tracker does not replace yet
 

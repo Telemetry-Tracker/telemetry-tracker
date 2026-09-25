@@ -15,7 +15,7 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ### Fixed
 
-- **Next.js server errors** — `@telemetry-tracker/next/server` `createOnRequestError` reports uncaught App Router server errors (Node and Edge). It never throws into Next.js, does not forward request headers, strips query strings from the path, and skips duplicate Error/digest reports. Browser 1.3.1 is unchanged until 1.3.2 is published
+- **Next.js server errors** — `@telemetry-tracker/next/server` `createOnRequestError` (npm `1.3.2`) reports uncaught App Router server errors (Node and Edge). It never throws into Next.js, does not forward request headers, strips query strings from the path, and skips duplicate Error/digest reports
 - **Source map Action** — external repositories must use `Telemetry-Tracker/telemetry-tracker/.github/actions/upload-source-maps`. Docs cover Next.js webpack and Turbopack bundle URLs
 - **Docs and pricing** — `/docs/source-maps`, `/docs/self-hosting`, and `/docs/alerts`; pricing H1, ingest-unit and cap copy; sitemap `lastmod`; `/llms.txt`; metadata stays in `<head>` for crawlers. Self-hosting docs no longer imply a production Compose stack
 
