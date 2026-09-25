@@ -15,12 +15,18 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ### Fixed
 
-- **Dashboard root** — `/dashboard` and `/dashboard/` go to `/dashboard/overview` in middleware, including when `range` is already set, so the page-level redirect no longer flashes React #310. Overview alert links use that same URL
-- **API keys empty state** — a project with no keys no longer claims it has historical telemetry
-
 ### Changed
 
 ### Database
+
+---
+
+## [1.17.20] - 2026-09-25
+
+### Fixed
+
+- **Dashboard root** — `/dashboard` and `/dashboard/` go to `/dashboard/overview` in middleware, including when `range` is already set, so the page-level redirect no longer flashes React #310. Overview alert links use that same URL ([#680](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/680))
+- **API keys empty state** — a project with no keys no longer claims it has historical telemetry ([#680](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/680))
 
 ---
 
