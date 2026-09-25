@@ -15,6 +15,12 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ### Fixed
 
+- **Dashboard project context** — rejecting optional cookies no longer clears or hides the selected organization and project. Those cookies are essential; the API was falling back to another organization's default project and returning 403
+- **Overview Web Vitals and Sessions summaries** — the dashboard telemetry proxy now forwards `performance/summary` and `sessions/summary`
+- **Dashboard URLs without `range`** — middleware adds `?range=24h` before list pages render, so the shell no longer flashes an application error (React #310) while a server `redirect()` runs
+- **Alert email for new accounts** — the master Email channel defaults to on, matching alert routing. The Alerts page warns when that channel is off so listed recipients are not skipped silently
+- **`@telemetry-tracker/next` 1.3.1** — publishes the July `useLayoutEffect` session fix. npm `1.3.0` (2026-07-02) still initializes in `useEffect`, so the first page view can miss the session
+
 ### Changed
 
 ### Database

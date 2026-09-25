@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { isPostLoginRedirectPath, resolvePostLoginPath } from "@/lib/auth-href";
+import { dashboardRangeCanonicalHref } from "@/lib/dashboard-range-redirect";
 
 /** Keep in sync with `TELEMETRY_SESSION_COOKIE` in `lib/dashboard-project.ts`. */
 const SESSION_COOKIE = "telemetry_session";
@@ -101,6 +102,14 @@ export function middleware(request: NextRequest) {
   }
 
   if (hasValidSession(request)) {
+    const canonical = dashboardRangeCanonicalHref(pathname, request.nextUrl.search);
+    if (canonical) {
+      const url = request.nextUrl.clone();
+      const qIndex = canonical.indexOf("?");
+      url.pathname = qIndex === -1 ? canonical : canonical.slice(0, qIndex);
+      url.search = qIndex === -1 ? "" : canonical.slice(qIndex);
+      return NextResponse.redirect(url);
+    }
     return NextResponse.next();
   }
 

@@ -18,6 +18,16 @@ export function preferenceCookiesAllowed(
   return choice === "accepted";
 }
 
+/**
+ * Selected organization and project are required for dashboard API calls.
+ * Rejecting optional analytics cookies must not drop that context.
+ */
+export function workspaceCookiesDependOnConsent(
+  _choice: CookieConsentChoice | null | undefined
+): boolean {
+  return false;
+}
+
 export function cookieConsentDocumentCookie(choice: CookieConsentChoice): string {
   const secure =
     typeof window !== "undefined" && window.location.protocol === "https:"
@@ -57,7 +67,7 @@ export function readStoredCookieConsentChoice(): CookieConsentChoice | null {
 }
 
 export const PREFERENCE_COOKIES_REQUIRED_MSG =
-  "Accept cookies in the banner to save your workspace selection.";
+  "Accept cookies in the banner to enable optional analytics.";
 
 export const PREFERENCE_COOKIES_REJECTED_MSG =
-  "Optional cookies are off, so your workspace selection is not saved. Change preferences below to enable saving.";
+  "Optional analytics cookies are off. Your selected organization and project are still saved.";

@@ -201,7 +201,10 @@ describe("sendNotificationEmailIfAllowed", () => {
       "user-1",
       "user@example.com",
       teamItem,
-      DEFAULT_NOTIFICATION_PREFERENCES
+      {
+        ...DEFAULT_NOTIFICATION_PREFERENCES,
+        channels: { inapp: true, email: false },
+      }
     );
 
     expect(sent).toBe(false);
