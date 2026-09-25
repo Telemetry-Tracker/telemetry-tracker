@@ -126,7 +126,7 @@ export default function SentryAlternativePage() {
           The official cloud has a free tier at €0: 250K ingest units per month, 14-day retention,
           one project, two API keys. No credit card to register. Ingest stops at the plan cap —
           there is no automatic overage bill.{" "}
-          <Link href="/#pricing" className="text-brand hover:underline">
+          <Link href="/pricing" className="text-brand hover:underline">
             Pro and Business
           </Link>{" "}
           raise volume and retention if you outgrow that.
@@ -188,7 +188,7 @@ export default function SentryAlternativePage() {
               description: "Quickstart, ingest API, and platform guides.",
             },
             {
-              href: "/#pricing",
+              href: "/pricing",
               label: "Pricing",
               description: "Free, Pro, and Business in EUR.",
             },

@@ -144,7 +144,7 @@ export default function NextJsErrorTrackingPage() {
         <p>
           The free hosted plan is €0 with no credit card: 250K ingest units per month, 14-day
           retention, one project. See{" "}
-          <Link href="/#pricing" className="text-brand hover:underline">
+          <Link href="/pricing" className="text-brand hover:underline">
             pricing
           </Link>
           .

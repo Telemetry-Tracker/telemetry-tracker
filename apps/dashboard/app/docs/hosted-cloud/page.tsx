@@ -166,7 +166,7 @@ trackEvent("app.started");`}</DocsCodeBlock>
         <p>
           The hosted cloud offers Free, Pro, and Business tiers (EUR via Stripe). Usage limits,
           retention windows, and source map quotas follow your organization plan — see{" "}
-          <Link href="/#pricing" className="text-brand hover:underline">
+          <Link href="/pricing" className="text-brand hover:underline">
             pricing
           </Link>{" "}
           and <strong className="text-foreground">Settings → Billing & usage</strong> in the
