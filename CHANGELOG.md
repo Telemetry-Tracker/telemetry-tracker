@@ -15,11 +15,21 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ### Fixed
 
-- **Scheduled alert rules** — `HEARTBEAT`, `NO_EVENTS`, `SESSION_DROP`, `QUOTA_PERCENT`, and scheduled `ERROR_RATE` only run from the `alert-rules-evaluator` cron. Each successful sweep records a heartbeat, and `/health` reports `alert_rules_evaluator` as `ok`, `stale`, or `never` without failing the API when the cron is missing
-
 ### Changed
 
 ### Database
+
+---
+
+## [1.17.21] - 2026-09-25
+
+### Fixed
+
+- **Scheduled alert rules** — `HEARTBEAT`, `NO_EVENTS`, `SESSION_DROP`, `QUOTA_PERCENT`, and scheduled `ERROR_RATE` only run from the `alert-rules-evaluator` cron. Each successful sweep records a heartbeat, and `/health` reports `alert_rules_evaluator` as `ok`, `stale`, or `never` without failing the API when the cron is missing ([#683](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/683))
+
+### Database
+
+- `20260925170000_scheduled_job_heartbeat` — `ScheduledJobHeartbeat`. The production API runs `prisma migrate deploy` before it listens.
 
 ---
 
