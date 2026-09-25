@@ -96,7 +96,9 @@ export async function fireProjectAlert(
 
   const sendEmail = payload.destinations?.email !== false;
   if (sendEmail) {
-    void notifyProjectMembersByEmail(prisma, payload.projectId, item, {
+    // The evaluator cron disconnects Prisma as soon as the sweep returns.
+    // Email logging must finish first or createMany hits a dead engine.
+    await notifyProjectMembersByEmail(prisma, payload.projectId, item, {
       rule: payload.rule,
     });
   }
