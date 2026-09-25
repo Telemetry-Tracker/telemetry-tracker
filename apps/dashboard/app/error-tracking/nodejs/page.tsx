@@ -133,7 +133,7 @@ export default function NodeJsErrorTrackingPage() {
         </p>
         <p>
           Free hosted plan: €0, no credit card, 250K ingest units per month, 14-day retention.{" "}
-          <Link href="/#pricing" className="text-brand hover:underline">
+          <Link href="/pricing" className="text-brand hover:underline">
             Pricing
           </Link>
           .

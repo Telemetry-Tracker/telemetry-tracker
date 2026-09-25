@@ -16,6 +16,7 @@ export const PUBLIC_SEO_PATHS = [
   "/docs/react-native",
   "/docs/releases",
   "/contact",
+  "/pricing",
   "/privacy",
   "/terms",
   "/cookies",

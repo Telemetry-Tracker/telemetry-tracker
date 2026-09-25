@@ -8,7 +8,7 @@ const cols: { heading: string; links: { label: string; href: string }[] }[] = [
     links: [
       { label: "Features", href: "/#features" },
       { label: "SDKs", href: "/#sdks" },
-      { label: "Pricing", href: "/#pricing" },
+      { label: "Pricing", href: "/pricing" },
       { label: "Start free", href: "/register" },
     ],
   },
