@@ -29,14 +29,14 @@ const rows: Row[] = [
   },
   {
     name: "telemetry_organization_id",
-    purpose: "Remembers your selected organization in the dashboard.",
-    type: "Preferences",
+    purpose: "Remembers the organization the dashboard must send with API requests.",
+    type: "Essential",
     retention: "Up to 400 days",
   },
   {
     name: "telemetry_project_id",
-    purpose: "Remembers your selected project in the dashboard.",
-    type: "Preferences",
+    purpose: "Remembers the project the dashboard must send with API requests.",
+    type: "Essential",
     retention: "Up to 400 days",
   },
   {
@@ -114,9 +114,9 @@ export function CookiesPageContent() {
             <div className="max-w-full rounded-2xl border border-border bg-surface/60 p-5">
               <p className="text-xs uppercase tracking-[0.16em] text-foreground">In short</p>
               <p className="mt-2 break-words text-foreground/85">
-                Essential cookies always run — they sign you in and remember your consent choice.
-                Optional analytics (Google Analytics on the official hosted site) and preference
-                cookies load only when you accept in the banner.
+                Essential cookies always run — they sign you in, remember the selected
+                organization and project, and store your consent choice. Optional analytics
+                (Google Analytics on the official hosted site) load only when you accept in the banner.
               </p>
             </div>
 
