@@ -15,11 +15,17 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ### Fixed
 
-- **Visits page** — `/dashboard/visits` no longer crashes on load. The filters toolbar was receiving a function from the server render.
-
 ### Changed
 
 ### Database
+
+---
+
+## [1.17.16] - 2026-09-25
+
+### Fixed
+
+- **Visits page** — `/dashboard/visits` no longer crashes on load. The filters toolbar was receiving a function from the server render ([#666](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/666))
 
 ---
 
