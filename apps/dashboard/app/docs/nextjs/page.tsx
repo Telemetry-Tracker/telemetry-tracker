@@ -73,8 +73,10 @@ export default function RootLayout({ children }) {
         <code>@telemetry-tracker/next/server</code> exports <code>createOnRequestError</code> for{" "}
         <code>instrumentation.ts</code>. Next.js calls it for uncaught App Router errors in Server
         Components, Route Handlers, and Server Actions. The helper uses <code>fetch</code> only, so
-        it runs on Node.js and Edge. It does not report errors you catch, browser errors, or
-        build failures. Use a server API key, not <code>NEXT_PUBLIC_</code>.
+        it runs on Node.js and Edge. It never throws into Next.js, does not forward request headers,
+        strips query strings from the path, and skips an error already marked with the shared
+        reported symbol (or a recent Next.js digest). It does not report errors you catch, browser
+        errors, or build failures. Use a server API key, not <code>NEXT_PUBLIC_</code>.
       </p>
       <CodeBlock
         code={`// instrumentation.ts

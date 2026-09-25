@@ -5,7 +5,8 @@
  * so the same function runs on the Node.js and Edge runtimes.
  *
  * Captured: uncaught errors Next.js reports through `onRequestError` — Server
- * Component render, Route Handlers, and Server Actions that escape the function.
+ * Component render (`routeType: "render"`), Route Handlers (`"route"`), and
+ * Server Actions (`"action"`) that escape the function.
  *
  * Not captured:
  * - errors you catch and do not rethrow
@@ -14,6 +15,11 @@
  * - `after()` or background work that never surfaces as a request error
  * - Pages Router (the hook still receives `routerKind`, but this package only
  *   documents App Router behavior)
+ *
+ * Safety: the hook never throws, never copies request headers, strips query
+ * strings from the path, skips an Error already marked with the shared
+ * `telemetry.reported` symbol (and recent Next.js digests), and aborts a hung
+ * ingest after a few seconds so Next.js error handling is not blocked.
  */
 export type ServerTelemetryConfig = {
     ingestUrl: string;
@@ -23,6 +29,10 @@ export type ServerTelemetryConfig = {
     release?: string;
     platform?: string;
 };
+/**
+ * Next.js passes `headers` on the request object. This SDK intentionally does
+ * not read or forward them (cookies, authorization, etc.).
+ */
 export type RequestErrorRequest = {
     path: string;
     method: string;
@@ -47,14 +57,21 @@ export type ServerErrorPayload = {
     sdk_version: string;
     context: {
         source: "next.onRequestError";
-        runtime: string;
+        runtime: "edge" | "nodejs";
         routerKind: string;
         routePath: string;
         routeType: string;
         renderSource?: string;
         method: string;
         path: string;
+        digest?: string;
     };
 };
+/** Path only — drop query/hash so tokens in the URL are not ingested. */
+export declare function safeRequestPath(path: string): string;
+export declare function wasAlreadyReported(error: unknown): boolean;
+export declare function markReported(error: unknown): void;
+/** @internal test helper */
+export declare function clearReportedDigestsForTests(): void;
 export declare function serverErrorPayload(error: unknown, request: RequestErrorRequest, context: RequestErrorContext, config: ServerTelemetryConfig): ServerErrorPayload;
 export declare function createOnRequestError(config: ServerTelemetryConfig): (error: unknown, request: RequestErrorRequest, context: RequestErrorContext) => Promise<void>;
