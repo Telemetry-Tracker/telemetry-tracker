@@ -21,6 +21,17 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ---
 
+## [1.17.23] - 2026-09-25
+
+### Fixed
+
+- **Scheduled alert emails** — the alert-rules-evaluator cron needs its own `RESEND_API_KEY` and `TELEMETRY_EMAIL_FROM` (same values as the API). Missing config no longer fails silently: sweep logs include `email: "unavailable"`, and notification email failures are logged without secret values ([#693](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/693))
+- **Next.js server errors** — `@telemetry-tracker/next/server` `createOnRequestError` (npm `1.3.2`) reports uncaught App Router server errors (Node and Edge). It never throws into Next.js, does not forward request headers, strips query strings from the path, and skips duplicate Error/digest reports ([#690](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/690))
+- **Source map Action** — external repositories must use `Telemetry-Tracker/telemetry-tracker/.github/actions/upload-source-maps`. Docs cover Next.js webpack and Turbopack bundle URLs ([#690](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/690))
+- **Docs and pricing** — `/docs/source-maps`, `/docs/self-hosting`, and `/docs/alerts`; pricing H1, ingest-unit and cap copy; sitemap `lastmod`; `/llms.txt`; metadata stays in `<head>` for crawlers. Self-hosting docs no longer imply a production Compose stack ([#690](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/690))
+
+---
+
 ## [1.17.22] - 2026-09-25
 
 ### Fixed

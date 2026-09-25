@@ -274,14 +274,16 @@ describe("sendNotificationEmailIfAllowed", () => {
     expect(sendMock).not.toHaveBeenCalled();
   });
 
-  it("releases dedupe claim when send fails", async () => {
+  it("releases dedupe claim when send fails and logs the failure", async () => {
     const { sendTransactionalEmail } = await import("./email.js");
     vi.mocked(sendTransactionalEmail).mockResolvedValueOnce({
       sent: false,
       devLogged: false,
+      error: "email_not_configured",
     });
 
     const deleteMock = vi.fn(async () => ({}));
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const prisma = {
       notificationEmailLog: {
         createMany: vi.fn(async () => ({ count: 1 })),
@@ -306,6 +308,10 @@ describe("sendNotificationEmailIfAllowed", () => {
         },
       },
     });
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("email_not_configured")
+    );
+    errorSpy.mockRestore();
   });
 });
 

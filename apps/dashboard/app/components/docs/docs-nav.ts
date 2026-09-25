@@ -43,6 +43,8 @@ export const docsNavSections: DocsNavSection[] = [
       { id: "events", label: "Event tracking", href: "/docs#events" },
       { id: "sessions", label: "Sessions", href: "/docs#sessions" },
       { id: "dashboard", label: "Using the dashboard", href: "/docs/dashboard" },
+      { id: "alerts", label: "Alerts", href: "/docs/alerts" },
+      { id: "source-maps", label: "Source maps", href: "/docs/source-maps" },
     ],
   },
   {
@@ -51,7 +53,7 @@ export const docsNavSections: DocsNavSection[] = [
     items: [
       { id: "ingest", label: "Ingest API", href: "/docs#ingest" },
       { id: "releases", label: "Release notes", href: "/docs/releases" },
-      { id: "self-hosting", label: "Self-hosting", href: "/docs#self-hosting" },
+      { id: "self-hosting", label: "Self-hosting", href: "/docs/self-hosting" },
     ],
   },
 ];
