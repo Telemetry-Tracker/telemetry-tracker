@@ -1,6 +1,7 @@
 /**
  * Optional transactional email. When `RESEND_API_KEY` and `TELEMETRY_EMAIL_FROM` are set,
- * sends via Resend API. Otherwise logs in non-production and no-ops in production.
+ * sends via Resend API. Otherwise logs in non-production and returns
+ * `{ sent: false, error: "email_not_configured" }` in production (with a one-time warn).
  */
 import {
   emailBrandLogoAttachment,
@@ -23,10 +24,55 @@ function sanitizeForLog(value: string): string {
   return value.replace(/\n|\r/g, "").slice(0, 500);
 }
 
-export function isTransactionalEmailConfigured(): boolean {
-  return Boolean(
-    process.env.RESEND_API_KEY?.trim() && process.env.TELEMETRY_EMAIL_FROM?.trim()
-  );
+export const EMAIL_NOT_CONFIGURED = "email_not_configured";
+
+/** Env var *names* required for Resend. Values are never logged. */
+export function missingTransactionalEmailEnvNames(
+  env: NodeJS.ProcessEnv = process.env
+): string[] {
+  const missing: string[] = [];
+  if (!env.RESEND_API_KEY?.trim()) missing.push("RESEND_API_KEY");
+  if (!env.TELEMETRY_EMAIL_FROM?.trim()) missing.push("TELEMETRY_EMAIL_FROM");
+  return missing;
+}
+
+export function isTransactionalEmailConfigured(
+  env: NodeJS.ProcessEnv = process.env
+): boolean {
+  return missingTransactionalEmailEnvNames(env).length === 0;
+}
+
+let loggedMissingConfig = false;
+
+/** @internal test helper */
+export function resetTransactionalEmailConfigWarningForTests(): void {
+  loggedMissingConfig = false;
+}
+
+/**
+ * Log once per process when Resend env is missing. Never logs secret values.
+ * Safe to call from cron sweeps and the API boot path.
+ */
+export function warnIfTransactionalEmailNotConfigured(
+  env: NodeJS.ProcessEnv = process.env,
+  context: { job?: string } = {}
+): boolean {
+  const missing = missingTransactionalEmailEnvNames(env);
+  if (missing.length === 0) return true;
+  if (!loggedMissingConfig) {
+    loggedMissingConfig = true;
+    console.warn(
+      JSON.stringify({
+        ok: false,
+        job: context.job ?? "transactional-email",
+        reason: EMAIL_NOT_CONFIGURED,
+        missing,
+        message:
+          "Transactional email is not configured. Set RESEND_API_KEY and TELEMETRY_EMAIL_FROM on this process (the API service and the alert-rules-evaluator cron each need their own copy).",
+      })
+    );
+  }
+  return false;
 }
 
 export async function sendTransactionalEmail(opts: {
@@ -38,6 +84,7 @@ export async function sendTransactionalEmail(opts: {
   attachments?: TransactionalEmailAttachment[];
 }): Promise<{ sent: boolean; devLogged?: boolean; status?: number; error?: string }> {
   if (!isTransactionalEmailConfigured()) {
+    warnIfTransactionalEmailNotConfigured();
     if (process.env.NODE_ENV !== "production") {
       const to = Array.isArray(opts.to)
         ? opts.to.map(sanitizeForLog).join(", ")
@@ -48,9 +95,9 @@ export async function sendTransactionalEmail(opts: {
         sanitizeForLog(opts.subject),
         sanitizeForLog(opts.html.slice(0, 200))
       );
-      return { sent: false, devLogged: true };
+      return { sent: false, devLogged: true, error: EMAIL_NOT_CONFIGURED };
     }
-    return { sent: false };
+    return { sent: false, error: EMAIL_NOT_CONFIGURED };
   }
 
   const apiKey = process.env.RESEND_API_KEY!.trim();

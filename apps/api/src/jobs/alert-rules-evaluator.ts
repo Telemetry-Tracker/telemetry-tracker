@@ -4,9 +4,18 @@ import {
   runScheduledAlertRuleEvaluation,
   type ScheduledAlertRuleEvaluationResult,
 } from "../lib/alert-rules.js";
+import {
+  isTransactionalEmailConfigured,
+  warnIfTransactionalEmailNotConfigured,
+} from "../lib/email.js";
 
 export type AlertRulesEvaluatorSweepResult = ScheduledAlertRuleEvaluationResult & {
   intervalMinutes: number;
+  /**
+   * Whether *this process* can send Resend mail. Independent of rule evaluation
+   * success — a sweep can fire alerts and still report `email: "unavailable"`.
+   */
+  email: "configured" | "unavailable";
 };
 
 /**
@@ -31,7 +40,15 @@ export async function runAlertRulesEvaluatorSweep(
   env: NodeJS.ProcessEnv = process.env
 ): Promise<AlertRulesEvaluatorSweepResult> {
   const intervalMinutes = resolveAlertRulesScheduleIntervalMinutes(env);
+  const emailConfigured = isTransactionalEmailConfigured(env);
+  if (!emailConfigured) {
+    warnIfTransactionalEmailNotConfigured(env, { job: ALERT_RULES_EVALUATOR_JOB });
+  }
   const result = await runScheduledAlertRuleEvaluation(prisma);
   await recordAlertRulesEvaluatorHeartbeat(prisma);
-  return { ...result, intervalMinutes };
+  return {
+    ...result,
+    intervalMinutes,
+    email: emailConfigured ? "configured" : "unavailable",
+  };
 }
