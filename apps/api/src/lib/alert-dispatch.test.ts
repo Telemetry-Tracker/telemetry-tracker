@@ -62,6 +62,44 @@ describe("fireProjectAlert", () => {
     expect(notifyProjectMembersByEmail).toHaveBeenCalled();
   });
 
+  it("does not return until notification email work finishes", async () => {
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let emailStarted = false;
+    vi.mocked(notifyProjectMembersByEmail).mockImplementation(async () => {
+      emailStarted = true;
+      await gate;
+    });
+    const prisma = {
+      $transaction: vi.fn(async (fn: (client: unknown) => Promise<unknown>) =>
+        fn({ alertEvent: { create: async () => ({ id: "ae1" }) } })
+      ),
+    };
+
+    let settled = false;
+    const pending = fireProjectAlert(prisma as never, {
+      projectId: "p1",
+      rule: "ALERT_RULE",
+      dedupeKey: "alert:rule:r1:1",
+      title: "Silence",
+      body: "No events.",
+      href: "/dashboard/overview?range=24h",
+    }).then(() => {
+      settled = true;
+    });
+
+    await vi.waitFor(() => {
+      expect(emailStarted).toBe(true);
+    });
+    expect(settled).toBe(false);
+    release();
+    await pending;
+    expect(settled).toBe(true);
+    vi.mocked(notifyProjectMembersByEmail).mockResolvedValue(undefined);
+  });
+
   it("honors destination filters for email and webhooks", async () => {
     const create = vi.fn(async () => ({ id: "ae1" }));
     const enqueue = vi.mocked(enqueueAlertWebhookDeliveries);
