@@ -41,9 +41,11 @@ export default function DocsAlertsPage() {
       <p>
         These do nothing until <code>node dist/jobs/run-alert-rules-evaluator.js</code> runs. The
         intended cadence is every 5 minutes. Hosted cloud runs that as a Railway cron. A self-hosted
-        install must schedule it separately. That process needs the same{" "}
-        <code>RESEND_API_KEY</code> and <code>TELEMETRY_EMAIL_FROM</code> as the API if alert emails
-        should send; otherwise evaluation still fires in-app alerts while email stays silent.
+        install must schedule it separately. That process needs both{" "}
+        <code>RESEND_API_KEY</code> and <code>TELEMETRY_EMAIL_FROM</code> (either alone is not
+        enough). Alert email links use <code>TELEMETRY_DASHBOARD_ORIGIN</code>, not{" "}
+        <code>DASHBOARD_ORIGIN</code>. Without those, evaluation still fires in-app alerts while
+        email stays silent.
       </p>
       <ul>
         <li>

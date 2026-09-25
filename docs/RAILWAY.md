@@ -127,9 +127,10 @@ This service is **not** auto-provisioned — add it manually in Railway when you
 4. **Settings → Cron Schedule** = `*/5 * * * *` (every 5 minutes UTC), or match your `ALERT_RULES_SCHEDULE_INTERVAL_MINUTES`.
 5. **Variables** (this service does **not** inherit the API service’s env automatically):
    - **`DATABASE_URL`** — same as API (required).
-   - **`NODE_ENV=production`** — recommended (same as API).
-   - **`RESEND_API_KEY`** and **`TELEMETRY_EMAIL_FROM`** — **required for alert emails**. Scheduled rules run in this process; ingest-path alerts send email from the API process. If Resend is only on the API service, `HEARTBEAT` / `NO_EVENTS` / etc. create in-app alerts but send **zero** emails. Copy the same values from the API service (or a shared Railway variable group). Never commit the key.
-   - **`TELEMETRY_DASHBOARD_ORIGIN`** — absolute links in alert emails (e.g. `https://telemetry-tracker.com`). Same value as the API service.
+   - **`RESEND_API_KEY`** — required for alert emails (same value as API).
+   - **`TELEMETRY_EMAIL_FROM`** — **required**. Both this and `RESEND_API_KEY` must be set on **this** process or `sendTransactionalEmail` does not call Resend. Having only `RESEND_API_KEY` still yields zero emails. Copy the exact `TELEMETRY_EMAIL_FROM` string from the API service.
+   - **`TELEMETRY_DASHBOARD_ORIGIN`** — absolute links in alert emails (e.g. `https://telemetry-tracker.com`). Email HTML uses **only** this name via `dashboardOriginOrNull()` / `resolveDashboardOrigin()`. **`DASHBOARD_ORIGIN` is not read for email links** (that name is CORS-related on the API HTTP service). If the evaluator only has `DASHBOARD_ORIGIN`, add `TELEMETRY_DASHBOARD_ORIGIN` with the same URL value.
+   - **`NODE_ENV=production`** — recommended. When unset (and Resend is incomplete), the code takes the non-production branch: it may `devLog` and keep a `NotificationEmailLog` claim **without** sending mail. Set `production` so missing config fails clearly instead of looking like a successful quiet skip.
    - Optional: `ALERT_RULES_SCHEDULE_INTERVAL_MINUTES`.
 6. Confirm logs show JSON like:
 
@@ -137,7 +138,7 @@ This service is **not** auto-provisioned — add it manually in Railway when you
    {"ok":true,"job":"alert-rules-evaluator","projectsScanned":1,"rulesEvaluated":2,"rulesFired":0,"intervalMinutes":5,"email":"configured","at":"2026-07-18T12:00:01.234Z"}
    ```
 
-   `email` is `"configured"` or `"unavailable"` for **this cron process**. Evaluation can succeed (`rulesFired` > 0) while `email` is `"unavailable"` — that means alert events were written but Resend was not set on the evaluator. A one-time JSON warn with `reason":"email_not_configured"` and the missing env **names** (never values) is also logged.
+   `email` is `"configured"` or `"unavailable"` for **this cron process**. Evaluation can succeed (`rulesFired` > 0) while `email` is `"unavailable"` — that means alert events were written but Resend + `TELEMETRY_EMAIL_FROM` were not both set on the evaluator. A one-time JSON warn with `reason":"email_not_configured"` and the missing env **names** (never values) is also logged.
 
    A successful sweep writes a heartbeat. `GET /health` (with `HEALTH_CHECK_DATABASE=true`) then includes `alert_rules_evaluator`: `ok` within two intervals, `stale` after that, or `never` if this service has not run. That field does not change `ok` or the HTTP status. API `/health` `"email":"configured"` only reflects the **API** service’s env, not this cron.
 
@@ -147,8 +148,9 @@ This service is **not** auto-provisioned — add it manually in Railway when you
 | Start command | `node dist/jobs/run-alert-rules-evaluator.js` |
 | Cron schedule | `*/5 * * * *` (default) |
 | `DATABASE_URL` | Same as API |
-| `RESEND_API_KEY` / `TELEMETRY_EMAIL_FROM` | Same as API (required for scheduled alert emails) |
-| `TELEMETRY_DASHBOARD_ORIGIN` | Same as API |
+| `RESEND_API_KEY` | Same as API |
+| `TELEMETRY_EMAIL_FROM` | Same as API (**required**; not optional if you want emails) |
+| `TELEMETRY_DASHBOARD_ORIGIN` | Same as API (not `DASHBOARD_ORIGIN`) |
 | `NODE_ENV` | `production` |
 
 Local: `pnpm --filter api alert-rules-evaluator`

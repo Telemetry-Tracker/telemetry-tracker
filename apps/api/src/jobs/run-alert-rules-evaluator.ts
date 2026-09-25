@@ -21,8 +21,8 @@ Options:
 Environment:
   DATABASE_URL
   ALERT_RULES_SCHEDULE_INTERVAL_MINUTES  (default 5; used by --loop and logged on each sweep)
-  RESEND_API_KEY + TELEMETRY_EMAIL_FROM  (required for alert emails from this process)
-  TELEMETRY_DASHBOARD_ORIGIN             (absolute links in alert emails)
+  RESEND_API_KEY + TELEMETRY_EMAIL_FROM  (both required for alert emails from this process)
+  TELEMETRY_DASHBOARD_ORIGIN             (email links; DASHBOARD_ORIGIN is not read here)
   NODE_ENV=production                    (recommended on Railway)
 
 Production cron (after build): node dist/jobs/run-alert-rules-evaluator.js
