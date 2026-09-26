@@ -52,9 +52,15 @@ export default function DocsSourceMapsPage() {
       </ul>
 
       <h2>GitHub Action</h2>
-      <p>From another repository, reference the action by repo path. Do not use a local path unless you copied the action into that repo.</p>
+      <p>
+        From another repository, pin the composite action to a <strong>full commit SHA</strong>{" "}
+        (with a version comment). Tags before <code>v1.17.18</code> ship an older Action without{" "}
+        <code>sourceMappingURL</code> support; tags ≤ <code>v1.16.5</code> also interpolated inputs
+        into the script — do not use those. Keep the pin updated with Dependabot{" "}
+        <code>github-actions</code> (or Renovate) when you intentionally take a newer release.
+      </p>
       <CodeBlock
-        code={`- uses: Telemetry-Tracker/telemetry-tracker/.github/actions/upload-source-maps@main
+        code={`- uses: Telemetry-Tracker/telemetry-tracker/.github/actions/upload-source-maps@8d00f9d1527783f6365e7c6e2e1f19630920bc6e # v1.17.24
   with:
     api_key: \${{ secrets.TT_API_KEY }}
     project_id: "your-project-uuid"
