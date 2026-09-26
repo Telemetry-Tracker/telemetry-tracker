@@ -13,7 +13,8 @@
     "db:studio": "pnpm --filter api exec prisma studio",
     "db:seed-api-key": "pnpm --filter api seed:dev-api-key",
     "publish:packages": "pnpm run build && node scripts/publish-packages.mjs",
-    "publish:dry": "pnpm run build && node scripts/publish-packages.mjs --dry-run"
+    "publish:dry": "pnpm run build && node scripts/publish-packages.mjs --dry-run",
+    "test:publish-guards": "node --test scripts/lib/publish-guards.test.mjs"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.5",

@@ -97,7 +97,17 @@ SDKs are published as `@telemetry-tracker/*` on npm:
 | `packages/telemetry-react-native` | `@telemetry-tracker/react-native` |
 | `packages/telemetry-vite-plugin` | `@telemetry-tracker/vite-plugin` |
 
-Publish (maintainers): create the `@telemetry-tracker` npm org, `npm login`, then `pnpm publish:packages`. After the first publish under the new scope, deprecate the legacy `@tacko/telemetry-*` packages with a message pointing to `@telemetry-tracker/*`.
+Publish (maintainers): from a **clean checkout of a release tag** (so `gitHead` on npm matches the commit):
+
+```bash
+git fetch --tags
+git checkout sdk-core-v1.5.0   # or a combined SDK release tag that points at the publish commit
+pnpm publish:packages -- --only=core,node,vite-plugin --otp=123456
+# dry run:
+pnpm publish:dry -- --only=core,node,vite-plugin --allow-dirty
+```
+
+The publish script refuses a dirty tree or an untagged `HEAD`, stamps `gitHead` on each package, and rewrites `workspace:*` → `^<core version>` for the published tarball only. After the first publish under the new scope, deprecate the legacy `@tacko/telemetry-*` packages with a message pointing to `@telemetry-tracker/*`.
 
 Design and entitlement rules are summarized in [docs/ENTITLEMENTS.md](docs/ENTITLEMENTS.md); architecture in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md); deployment in [DEPLOYMENT.md](DEPLOYMENT.md) and [docs/RAILWAY.md](docs/RAILWAY.md); RBAC in [docs/RBAC.md](docs/RBAC.md).
 

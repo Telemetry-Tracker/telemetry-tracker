@@ -1,6 +1,6 @@
 {
   "name": "@telemetry-tracker/core",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Lightweight telemetry client: events, errors, sessions. Framework-agnostic core.",
   "license": "MIT",
   "repository": {

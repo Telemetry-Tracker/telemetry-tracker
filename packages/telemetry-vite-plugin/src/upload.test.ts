@@ -120,6 +120,23 @@ describe("bundleFileForSourceMap", () => {
       "https://example.com/foo.abc123.js"
     );
   });
+
+  it("resolves maps moved to a sibling folder via relative sourceMappingURL (TT-018)", () => {
+    const outDir = "/app/dist";
+    const bundlePath = `${outDir}/assets/index-azjItrWU.js`;
+    const mapPath = `${outDir}/maps/index-azjItrWU.js.map`;
+    expect(
+      bundleFileForSourceMap(mapPath, [
+        {
+          filePath: bundlePath,
+          source: "//# sourceMappingURL=../maps/index-azjItrWU.js.map\n",
+        },
+      ])
+    ).toBe(bundlePath);
+    expect(bundleUrlForMapFile(bundlePath, outDir, "https://cdn.example.test")).toBe(
+      "https://cdn.example.test/assets/index-azjItrWU.js"
+    );
+  });
 });
 
 describe("findMapFiles", () => {

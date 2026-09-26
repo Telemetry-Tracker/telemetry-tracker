@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import {
   buildIngestHeaders,
   init,
+  ingestError,
   shutdown,
   trackEvent,
   trackError,
@@ -62,5 +63,20 @@ describe("ingest fetch", () => {
     trackEvent("after_shutdown");
     trackError(new Error("after_shutdown"));
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("ingestError returns a Promise that settles after POST /ingest/error (core 1.5)", async () => {
+    const pending = ingestError(new Error("fatal"), { source: "uncaughtException" });
+    expect(pending).toBeInstanceOf(Promise);
+    await pending;
+    const errorCall = fetchMock.mock.calls.find((c) =>
+      String(c[0]).includes("/ingest/error")
+    );
+    expect(errorCall).toBeTruthy();
+    const [, opts] = errorCall as [string, RequestInit];
+    expect(JSON.parse(String(opts.body))).toMatchObject({
+      message: "fatal",
+      context: { source: "uncaughtException" },
+    });
   });
 });
