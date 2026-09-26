@@ -8,14 +8,15 @@ export const nextInstall = `pnpm add @telemetry-tracker/next
 # or
 npm install @telemetry-tracker/next`;
 
-/** Client + server env for a fresh create-next-app on the hosted cloud. */
+/** Browser-only env for hosted Next.js (required for TelemetryProvider). */
 export const nextEnvLocal = `# .env.local
 # Create a project key under Settings → API keys (shown once).
 NEXT_PUBLIC_TELEMETRY_INGEST_URL=${HOSTED_API_URL}
 NEXT_PUBLIC_TELEMETRY_API_KEY=tt_live_<publicId>_<secret>
-NEXT_PUBLIC_TELEMETRY_APP=my-next-app
+NEXT_PUBLIC_TELEMETRY_APP=my-next-app`;
 
-# Optional: server instrumentation (instrumentation.ts) — use a key without NEXT_PUBLIC_
+/** Optional server-only env for instrumentation.ts (do not prefix with NEXT_PUBLIC_). */
+export const nextEnvLocalServer = `# Optional — only if you add instrumentation.ts for App Router server errors
 TELEMETRY_INGEST_URL=${HOSTED_API_URL}
 TELEMETRY_API_KEY=tt_live_<publicId>_<secret>
 TELEMETRY_APP=my-next-app`;
@@ -67,8 +68,8 @@ export const nextErrorBoundary = `import { TelemetryErrorBoundary } from "@telem
   <YourComponent />
 </TelemetryErrorBoundary>`;
 
-/** Client button used by /docs/nextjs clean-room verification (message: docs-check). */
-export const nextDocsCheckButton = `// app/docs-check-button.tsx
+/** Optional verification helper — not part of production setup. */
+export const nextDocsCheckButton = `// app/docs-check-button.tsx  (optional — delete after verifying ingest)
 "use client";
 
 import { trackError } from "@telemetry-tracker/next";
@@ -86,10 +87,11 @@ export function DocsCheckButton() {
   );
 }`;
 
-export const nextDocsCheckPage = `// app/page.tsx
-import { DocsCheckButton } from "./docs-check-button";
+/** Optional throwaway page for verification — not a production homepage. */
+export const nextDocsCheckPage = `// Optional temporary page — e.g. app/docs-check/page.tsx (not your real homepage)
+import { DocsCheckButton } from "../docs-check-button";
 
-export default function Home() {
+export default function DocsCheckPage() {
   return (
     <main>
       <h1>Telemetry Tracker docs check</h1>

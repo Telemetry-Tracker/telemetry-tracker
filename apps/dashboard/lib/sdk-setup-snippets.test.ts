@@ -6,6 +6,7 @@ import {
   nextDocsCheckButton,
   nextDocsCheckPage,
   nextEnvLocal,
+  nextEnvLocalServer,
   nextInstall,
   nextInstrumentation,
   nextProviderSetup,
@@ -36,11 +37,19 @@ describe("sdk setup snippets", () => {
     expect(nextEnvLocal).toContain(HOSTED_API_URL);
     expect(nextEnvLocal).toContain("NEXT_PUBLIC_TELEMETRY_API_KEY");
     expect(nextEnvLocal).toContain("NEXT_PUBLIC_TELEMETRY_INGEST_URL");
-    expect(nextEnvLocal).toContain("TELEMETRY_API_KEY");
+    expect(nextEnvLocal.split("\n").some((l) => /^TELEMETRY_API_KEY=/.test(l))).toBe(
+      false
+    );
+    expect(nextEnvLocalServer).toContain("TELEMETRY_API_KEY");
+    expect(nextEnvLocalServer).toContain("TELEMETRY_INGEST_URL");
+    expect(nextEnvLocalServer).not.toContain("NEXT_PUBLIC_");
 
     expect(nextDocsCheckButton).toContain('"use client"');
     expect(nextDocsCheckButton).toContain('new Error("docs-check")');
+    expect(nextDocsCheckButton).toMatch(/optional/i);
     expect(nextDocsCheckPage).toContain("DocsCheckButton");
+    expect(nextDocsCheckPage).toMatch(/optional|temporary/i);
+    expect(nextDocsCheckPage).not.toMatch(/^\/\/ app\/page\.tsx/m);
     expect(nextTestError).toContain("docs-check");
 
     expect(nextInstrumentation).toContain('@telemetry-tracker/next/server');
@@ -65,8 +74,11 @@ describe("sdk setup snippets", () => {
     expect(src).toContain("nextProviderSetup");
     expect(src).toContain("nextTrackPageView");
     expect(src).toContain("nextEnvLocal");
+    expect(src).toContain("nextEnvLocalServer");
     expect(src).toContain("nextDocsCheckButton");
     expect(src).toContain("nextInstrumentation");
+    expect(src).toMatch(/Verify ingest \(optional\)/);
+    expect(src).toMatch(/Server errors \(optional\)/);
     expect(src).not.toMatch(/1\.3\.1 is still browser-only|not on npm until/i);
     expect(src).not.toMatch(/\/\* get pathname from usePathname/);
   });

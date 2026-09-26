@@ -8,6 +8,7 @@ import {
   nextDocsCheckButton,
   nextDocsCheckPage,
   nextEnvLocal,
+  nextEnvLocalServer,
   nextErrorBoundary,
   nextInstall,
   nextInstrumentation,
@@ -28,7 +29,7 @@ export default function DocsNextJsPage() {
       lede={
         <p>
           Use <code>@telemetry-tracker/next</code> for App Router apps. The package provides a
-          provider, error boundary, page-view hook, and (from 1.3.2) a server entry for{" "}
+          provider, error boundary, page-view hook, and (from 1.3.2) an optional server entry for{" "}
           <code>instrumentation.ts</code>. After <code>init()</code>, uncaught browser errors and
           unhandled promise rejections are reported automatically.
         </p>
@@ -40,42 +41,49 @@ export default function DocsNextJsPage() {
       <h2>API key and ingest URL</h2>
       <p>
         Hosted ingest is <code>{HOSTED_API_URL}</code>. Create a project key under{" "}
-        <strong>Settings → API keys</strong> (the secret is shown once). Put it in{" "}
-        <code>.env.local</code> — client code needs the <code>NEXT_PUBLIC_</code> vars; optional
-        server instrumentation uses the non-public pair:
+        <strong>Settings → API keys</strong> (the secret is shown once). For browser setup, put
+        these in <code>.env.local</code>:
       </p>
-      <CodeBlock code={nextEnvLocal} lang="bash" />
+      <CodeBlock code={nextEnvLocal} lang="bash" caption=".env.local (browser)" />
       <p>
-        Without <code>apiKey</code>, hosted ingest returns <code>401</code>. Without{" "}
-        <code>ingestUrl</code> pointing at the API host, the SDK posts to your app origin and you
-        get <code>404</code>. See{" "}
+        <code>NEXT_PUBLIC_TELEMETRY_API_KEY</code> is intentional for client-side ingest (it is
+        bundled into the browser). Without <code>apiKey</code>, hosted ingest returns{" "}
+        <code>401</code>. Without <code>ingestUrl</code> pointing at the API host, the SDK posts to
+        your app origin and you get <code>404</code>. See{" "}
         <Link href="/docs/hosted-cloud" className="text-brand hover:underline">
           Hosted cloud
         </Link>{" "}
         for account and project setup.
       </p>
+      <p>
+        Server-only variables (no <code>NEXT_PUBLIC_</code> prefix) are needed only if you add{" "}
+        <code>instrumentation.ts</code> below — skip them for browser-only setup:
+      </p>
+      <CodeBlock code={nextEnvLocalServer} lang="bash" caption=".env.local (optional server)" />
 
       <h2>Setup</h2>
       <p>
         Use a <strong>server</strong> root layout with <code>TelemetryProvider</code>, and a small{" "}
         <code>&quot;use client&quot;</code> helper for <code>usePathname()</code> /{" "}
-        <code>useTrackPage</code>. Copy both files as written — do not call{" "}
+        <code>useTrackPage</code>. Keep these two files in your app. Do not call{" "}
         <code>usePathname</code> inside the server layout.
       </p>
       <CodeBlock code={nextProviderSetup} lang="tsx" caption="app/layout.tsx" />
       <CodeBlock code={nextTrackPageView} lang="tsx" caption="app/track-page-view.tsx" />
 
-      <h2>Send a test error</h2>
+      <h2>Verify ingest (optional)</h2>
       <p>
-        Add the client button and a page that renders it. Click the button, confirm{" "}
+        Not part of production setup. Temporarily add a client button that calls{" "}
+        <code>trackError(new Error(&quot;docs-check&quot;))</code>, click it, confirm{" "}
         <code>/ingest/session</code> and <code>/ingest/error</code> return <code>204</code>, then
-        open <strong>Issues</strong> — you should see <code>docs-check</code>.
+        open <strong>Issues</strong>. Delete these files afterward.
       </p>
-      <CodeBlock code={nextDocsCheckButton} lang="tsx" caption="app/docs-check-button.tsx" />
-      <CodeBlock code={nextDocsCheckPage} lang="tsx" caption="app/page.tsx" />
+      <CodeBlock code={nextDocsCheckButton} lang="tsx" caption="optional verification button" />
+      <CodeBlock code={nextDocsCheckPage} lang="tsx" caption="optional temporary route" />
 
-      <h2>Server errors</h2>
+      <h2>Server errors (optional)</h2>
       <p>
+        Skip this section for browser-only setup.{" "}
         <code>@telemetry-tracker/next/server</code> (published with{" "}
         <code>@telemetry-tracker/next@1.3.2</code>) exports <code>createOnRequestError</code> for{" "}
         <code>instrumentation.ts</code>. Next.js calls it for uncaught App Router errors in Server
@@ -83,10 +91,10 @@ export default function DocsNextJsPage() {
         and Edge). It never throws into Next.js, does not forward request headers, strips query
         strings from the path, and skips an error already marked with the shared reported symbol (or
         a recent Next.js digest). It does not report errors you catch, browser errors, or build
-        failures. Prefer a server API key (<code>TELEMETRY_API_KEY</code>), not{" "}
-        <code>NEXT_PUBLIC_</code>.
+        failures. Use <code>TELEMETRY_API_KEY</code> (server-only) — do not expose a server-only
+        secret via <code>NEXT_PUBLIC_*</code>.
       </p>
-      <CodeBlock code={nextInstrumentation} lang="ts" caption="instrumentation.ts" />
+      <CodeBlock code={nextInstrumentation} lang="ts" caption="instrumentation.ts (optional)" />
 
       <h2>React render errors</h2>
       <p>

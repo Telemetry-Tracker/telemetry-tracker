@@ -125,19 +125,21 @@ export default function NextJsErrorTrackingPage() {
           : a server root layout with <code>TelemetryProvider</code>, plus a small client{" "}
           <code>TrackPageView</code> that calls <code>usePathname()</code> /{" "}
           <code>useTrackPage</code>. Set the hosted ingest URL (
-          <code>https://api.telemetry-tracker.com</code>), app name, and API key from{" "}
-          <strong>Settings → API keys</strong>.
+          <code>https://api.telemetry-tracker.com</code>), app name, and{" "}
+          <code>NEXT_PUBLIC_TELEMETRY_API_KEY</code> from <strong>Settings → API keys</strong>.
         </p>
-        <CodeBlock code={nextEnvLocal} lang="bash" caption=".env.local" />
+        <CodeBlock code={nextEnvLocal} lang="bash" caption=".env.local (browser)" />
         <CodeBlock code={nextProviderSetup} lang="tsx" caption="app/layout.tsx" />
         <CodeBlock code={nextTrackPageView} lang="tsx" caption="app/track-page-view.tsx" />
 
-        <h2>Send a test error</h2>
+        <h2>Verify ingest (optional)</h2>
         <p>
-          After init, call <code>trackError</code> from a client button (or throw inside an error
-          boundary). The docs guide uses the message <code>docs-check</code>:
+          Not required for production. Temporarily call{" "}
+          <code>trackError(new Error(&quot;docs-check&quot;))</code> from a client button (or throw
+          inside an error boundary), then open <strong>Issues</strong>. Delete the verification
+          helper afterward.
         </p>
-        <CodeBlock code={nextDocsCheckButton} lang="tsx" caption="app/docs-check-button.tsx" />
+        <CodeBlock code={nextDocsCheckButton} lang="tsx" caption="optional verification button" />
         <CodeBlock code={nextTestError} lang="typescript" caption="trackError call" />
         <CodeBlock code={nextErrorBoundary} lang="tsx" caption="Error boundary" />
 
