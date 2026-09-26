@@ -20,6 +20,7 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 ### Fixed
 
 - **Next.js docs (TT-002 / TT-003)** — `/docs/nextjs` now uses the same App Router setup as `/error-tracking/nextjs` (server `layout.tsx` + client `track-page-view.tsx`), documents `apiKey` / `https://api.telemetry-tracker.com` / Settings → API keys, and no longer claims `@telemetry-tracker/next/server` is unpublished. Hosted-cloud Next.js notes aligned.
+- **Source-map GitHub Action docs (TT-021)** — `/docs/source-maps` and `docs/source-maps.md` pin `upload-source-maps` to commit `8d00f9d…` (`v1.17.24`) instead of `@main`, and warn that tags before `v1.17.18` must not be used (Refs [#721](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/721))
 
 ### Changed
 
