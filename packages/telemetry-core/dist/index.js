@@ -2,10 +2,14 @@ import { readDeviceContext } from "./device-context.js";
 import { installWebVitals, setWebVitalsCaptureEnabled, WEB_VITAL_EVENT_NAME, } from "./web-vitals.js";
 import { scrubPiiRecord, scrubPiiText } from "./pii-scrub.js";
 import { SDK_VERSION } from "./version.js";
+import { toReportableError } from "./to-reportable-error.js";
 export { SDK_VERSION };
+export { toReportableError } from "./to-reportable-error.js";
 export { scrubPiiText, scrubPiiRecord } from "./pii-scrub.js";
 export { WEB_VITAL_EVENT_NAME, installWebVitals, rateWebVital, buildWebVitalProperties, setWebVitalsCaptureEnabled, isWebVitalsCaptureEnabled, } from "./web-vitals.js";
 const REPORTED = Symbol.for("telemetry.reported");
+/** In-flight ingest promises so a later fatal flush can await trackError(e); throw e. */
+const inFlightIngest = new WeakMap();
 const ANON_STORAGE_KEY = "tacko_telemetry_anon_id";
 let anonymousId = null;
 let fallbackIdSeq = 0;
@@ -414,12 +418,15 @@ export function ingestError(error, context) {
     const cfg = getConfigOrNull();
     if (!cfg)
         return Promise.resolve();
-    const err = error instanceof Error ? error : { message: error.message, stack: error.stack };
-    if (err && typeof err === "object" && err[REPORTED]) {
+    const err = toReportableError(error);
+    const existing = inFlightIngest.get(err);
+    if (existing)
+        return existing;
+    if (err[REPORTED]) {
         return Promise.resolve();
     }
-    let message = err instanceof Error ? err.message : err.message;
-    let stack = err instanceof Error ? err.stack : err.stack;
+    let message = err.message;
+    let stack = err.stack;
     let scrubbedContext = context ?? undefined;
     const scrubOpts = resolveClientPiiScrub(cfg);
     if (scrubOpts) {
@@ -430,15 +437,20 @@ export function ingestError(error, context) {
             scrubbedContext = scrubPiiRecord(scrubbedContext, scrubOpts);
         }
     }
-    if (err instanceof Error)
-        err[REPORTED] = true;
-    return send("/ingest/error", {
+    err[REPORTED] = true;
+    const pending = send("/ingest/error", {
         message,
         stack: stack ?? undefined,
         context: scrubbedContext,
         user_id: userId ?? undefined,
         session_id: sessionId ?? undefined,
-    }).catch(() => { });
+    })
+        .catch(() => { })
+        .finally(() => {
+        inFlightIngest.delete(err);
+    });
+    inFlightIngest.set(err, pending);
+    return pending;
 }
 export function screen(name) {
     trackEvent("$screen", { name });

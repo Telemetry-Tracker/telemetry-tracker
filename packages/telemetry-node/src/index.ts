@@ -5,9 +5,10 @@ import {
   trackError as coreTrackError,
   ingestError,
   getConfigOrNull,
+  toReportableError,
   type TelemetryConfig,
 } from "@telemetry-tracker/core";
-import { flushFatalError } from "./fatal.js";
+import { FATAL_FLUSH_TIMEOUT_MS, flushFatalError } from "./fatal.js";
 
 export type TelemetryNodeConfig = TelemetryConfig & {
   app: string;
@@ -16,21 +17,31 @@ export type TelemetryNodeConfig = TelemetryConfig & {
    * When true (default), report an unhandled rejection, flush ingest, then
    * `process.exit(1)` — matching Node’s default crash since v15. Set `false`
    * to only report and keep the process running (legacy 1.3.x behaviour).
+   *
+   * With `node --unhandled-rejections=strict`, rejections are also raised as
+   * uncaught exceptions; the SDK de-dupes a single fatal flush per error.
    */
   exitOnUnhandledRejection?: boolean;
+  /**
+   * Max ms to wait for fatal error ingest before exiting. Default 2000.
+   * The timeout is cleared when ingest settles and does not keep the process alive.
+   */
+  fatalFlushTimeoutMs?: number;
 };
 
 export { FATAL_FLUSH_TIMEOUT_MS, flushFatalError } from "./fatal.js";
 
 let installed = false;
 let exitOnUnhandledRejection = true;
+let fatalFlushTimeoutMs = FATAL_FLUSH_TIMEOUT_MS;
 
 /** @internal Exported for unit tests. */
 export function createUncaughtExceptionHandler(deps: {
   ingest: (error: Error, context: Record<string, unknown>) => Promise<void>;
   exit: (code: number) => void;
-}): (err: Error) => void {
-  return (err: Error) => {
+  timeoutMs?: number;
+}): (err: unknown) => void {
+  return (err: unknown) => {
     flushFatalError(err, "uncaughtException", deps);
   };
 }
@@ -41,13 +52,15 @@ export function createUnhandledRejectionHandler(deps: {
   ingest: (error: Error, context: Record<string, unknown>) => Promise<void>;
   trackError: (error: Error, context: Record<string, unknown>) => void;
   exit: (code: number) => void;
+  timeoutMs?: number;
 }): (reason: unknown) => void {
   return (reason: unknown) => {
-    const err = reason instanceof Error ? reason : new Error(String(reason));
+    const err = toReportableError(reason);
     if (deps.exitOnUnhandledRejection) {
       flushFatalError(err, "unhandledRejection", {
         ingest: deps.ingest,
         exit: deps.exit,
+        timeoutMs: deps.timeoutMs,
       });
       return;
     }
@@ -64,6 +77,9 @@ function installGlobalHandlers(): void {
     createUncaughtExceptionHandler({
       ingest: ingestError,
       exit: (code) => process.exit(code),
+      get timeoutMs() {
+        return fatalFlushTimeoutMs;
+      },
     })
   );
 
@@ -76,12 +92,21 @@ function installGlobalHandlers(): void {
       ingest: ingestError,
       trackError: coreTrackError,
       exit: (code) => process.exit(code),
+      get timeoutMs() {
+        return fatalFlushTimeoutMs;
+      },
     })
   );
 }
 
 export function init(config: TelemetryNodeConfig): void {
   exitOnUnhandledRejection = config.exitOnUnhandledRejection !== false;
+  fatalFlushTimeoutMs =
+    typeof config.fatalFlushTimeoutMs === "number" &&
+    Number.isFinite(config.fatalFlushTimeoutMs) &&
+    config.fatalFlushTimeoutMs >= 0
+      ? config.fatalFlushTimeoutMs
+      : FATAL_FLUSH_TIMEOUT_MS;
   coreInit({ ...config, platform: config.platform ?? "node" });
   installGlobalHandlers();
 }

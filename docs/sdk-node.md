@@ -47,13 +47,16 @@ Config extends [telemetry-core](sdk-core.md#initconfig) and requires `app`; `pla
 | Option | Default | Description |
 |--------|---------|-------------|
 | `exitOnUnhandledRejection` | `true` | After reporting an unhandled rejection, flush and `process.exit(1)` (Node’s default since v15). Set `false` to only report and keep running. |
+| `fatalFlushTimeoutMs` | `2000` | Max wait for fatal ingest before exit. Cleared when ingest settles (does not keep the process alive). |
 
 ## Global error handlers
 
 After `init()`:
 
-- **uncaughtException**: Error is reported with `{ source: "uncaughtException" }`, ingest is flushed (≤ 2s), then the process exits with code 1.
+- **uncaughtException**: Error is reported with `{ source: "uncaughtException" }`, ingest is flushed (≤ `fatalFlushTimeoutMs`, default 2s), then the process exits with code 1. Non-Error throws (`null`, strings, objects, …) are normalized first.
 - **unhandledRejection**: Reason is reported with `{ source: "unhandledRejection" }`. By default the process then flushes and exits with code 1 (same as Node without the SDK). Set `exitOnUnhandledRejection: false` to keep the legacy “report only” behaviour.
+
+With `node --unhandled-rejections=strict`, rejections are also raised as uncaught exceptions; the SDK still reports once and exits 1 (in-flight ingest is awaited if you already called `trackError(err)` before rethrowing).
 
 You can still use `trackError` in try/catch for extra context.
 

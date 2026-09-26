@@ -36,6 +36,22 @@ describe("createUncaughtExceptionHandler", () => {
     await new Promise((r) => setTimeout(r, 10));
     expect(order).toEqual(["ingest", "exit:1"]);
   });
+
+  it.each([null, undefined, "x", 7, { e: true }])(
+    "ingests non-Error throw %j then exits 1",
+    async (thrown) => {
+      const ingest = vi.fn(async () => {});
+      const exit = vi.fn();
+      createUncaughtExceptionHandler({ ingest, exit, timeoutMs: 50 })(thrown);
+      await new Promise((r) => setTimeout(r, 20));
+      expect(ingest).toHaveBeenCalledWith(
+        expect.any(Error),
+        expect.objectContaining({ source: "uncaughtException" })
+      );
+      await new Promise((r) => setTimeout(r, 40));
+      expect(exit).toHaveBeenCalledWith(1);
+    }
+  );
 });
 
 describe("createUnhandledRejectionHandler", () => {

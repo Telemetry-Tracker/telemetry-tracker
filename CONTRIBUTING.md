@@ -97,17 +97,26 @@ SDKs are published as `@telemetry-tracker/*` on npm:
 | `packages/telemetry-react-native` | `@telemetry-tracker/react-native` |
 | `packages/telemetry-vite-plugin` | `@telemetry-tracker/vite-plugin` |
 
-Publish (maintainers): from a **clean checkout of a release tag** (so `gitHead` on npm matches the commit):
+Publish (maintainers): from a **clean checkout of `origin/main`** with per-package release tags pushed (so `gitHead` on npm matches the commit):
 
 ```bash
-git fetch --tags
-git checkout sdk-core-v1.5.0   # or a combined SDK release tag that points at the publish commit
+git fetch origin main --tags
+git checkout main && git pull origin main
+# tags on this commit, e.g. sdk-core-v1.5.0 sdk-node-v1.4.0 sdk-vite-plugin-v1.1.0
 pnpm publish:packages -- --only=core,node,vite-plugin --otp=123456
-# dry run:
+# local dry run (only this combo may skip clean/tag checks):
 pnpm publish:dry -- --only=core,node,vite-plugin --allow-dirty
 ```
 
-The publish script refuses a dirty tree or an untagged `HEAD`, stamps `gitHead` on each package, and rewrites `workspace:*` → `^<core version>` for the published tarball only. After the first publish under the new scope, deprecate the legacy `@tacko/telemetry-*` packages with a message pointing to `@telemetry-tracker/*`.
+The publish script:
+
+- refuses a dirty tree, an untagged HEAD, HEAD ≠ `origin/main`, or tags not pushed to origin
+- requires a tag matching each package version (`sdk-<alias>-v<version>` or `<name>@<version>`)
+- stamps `gitHead`, rewrites `workspace:*` → `^<core version>` for the tarball only
+- sets `TELEMETRY_SDK_RELEASE_PUBLISH=1` (package `prepublishOnly` blocks direct folder publishes)
+- **aborts** if core publish fails so node is not published against a missing core
+
+`--allow-dirty` alone is rejected for real publishes. After the first publish under the new scope, deprecate the legacy `@tacko/telemetry-*` packages with a message pointing to `@telemetry-tracker/*`.
 
 Design and entitlement rules are summarized in [docs/ENTITLEMENTS.md](docs/ENTITLEMENTS.md); architecture in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md); deployment in [DEPLOYMENT.md](DEPLOYMENT.md) and [docs/RAILWAY.md](docs/RAILWAY.md); RBAC in [docs/RBAC.md](docs/RBAC.md).
 

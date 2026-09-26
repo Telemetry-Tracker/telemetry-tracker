@@ -8,8 +8,10 @@ import {
 import { scrubPiiRecord, scrubPiiText } from "./pii-scrub.js";
 
 import { SDK_VERSION } from "./version.js";
+import { toReportableError } from "./to-reportable-error.js";
 
 export { SDK_VERSION };
+export { toReportableError } from "./to-reportable-error.js";
 export { scrubPiiText, scrubPiiRecord } from "./pii-scrub.js";
 export {
   WEB_VITAL_EVENT_NAME,
@@ -24,6 +26,8 @@ export {
 } from "./web-vitals.js";
 
 const REPORTED = Symbol.for("telemetry.reported");
+/** In-flight ingest promises so a later fatal flush can await trackError(e); throw e. */
+const inFlightIngest = new WeakMap<object, Promise<void>>();
 
 const ANON_STORAGE_KEY = "tacko_telemetry_anon_id";
 
@@ -498,7 +502,7 @@ export function trackEvent(
 }
 
 export function trackError(
-  error: Error | { message: string; stack?: string },
+  error: unknown,
   context?: Record<string, unknown>
 ): void {
   void ingestError(error, context);
@@ -506,17 +510,23 @@ export function trackError(
 
 /** Send an error and resolve after the ingest request settles. Fatal handlers await this. */
 export function ingestError(
-  error: Error | { message: string; stack?: string },
+  error: unknown,
   context?: Record<string, unknown>
 ): Promise<void> {
   const cfg = getConfigOrNull();
   if (!cfg) return Promise.resolve();
-  const err = error instanceof Error ? error : { message: error.message, stack: error.stack };
-  if (err && typeof err === "object" && (err as unknown as Record<symbol, boolean>)[REPORTED]) {
+
+  const err = toReportableError(error);
+
+  const existing = inFlightIngest.get(err);
+  if (existing) return existing;
+
+  if ((err as unknown as Record<symbol, boolean>)[REPORTED]) {
     return Promise.resolve();
   }
-  let message = err instanceof Error ? err.message : err.message;
-  let stack = err instanceof Error ? err.stack : err.stack;
+
+  let message = err.message;
+  let stack = err.stack;
   let scrubbedContext = context ?? undefined;
   const scrubOpts = resolveClientPiiScrub(cfg);
   if (scrubOpts) {
@@ -526,14 +536,23 @@ export function ingestError(
       scrubbedContext = scrubPiiRecord(scrubbedContext, scrubOpts);
     }
   }
-  if (err instanceof Error) (err as unknown as Record<symbol, boolean>)[REPORTED] = true;
-  return send("/ingest/error", {
+
+  (err as unknown as Record<symbol, boolean>)[REPORTED] = true;
+
+  const pending = send("/ingest/error", {
     message,
     stack: stack ?? undefined,
     context: scrubbedContext,
     user_id: userId ?? undefined,
     session_id: sessionId ?? undefined,
-  }).catch(() => {});
+  })
+    .catch(() => {})
+    .finally(() => {
+      inFlightIngest.delete(err);
+    });
+
+  inFlightIngest.set(err, pending);
+  return pending;
 }
 
 export function screen(name: string): void {

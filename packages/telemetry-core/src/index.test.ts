@@ -79,4 +79,46 @@ describe("ingest fetch", () => {
       context: { source: "uncaughtException" },
     });
   });
+
+  it.each([
+    [null, "null"],
+    [undefined, "undefined"],
+    ["str", "str"],
+    [9, "9"],
+    [{ x: 1 }, '{"x":1}'],
+  ])("ingestError normalizes %j", async (value, message) => {
+    await ingestError(value, { source: "uncaughtException" });
+    const errorCall = fetchMock.mock.calls.find((c) =>
+      String(c[0]).includes("/ingest/error")
+    );
+    expect(errorCall).toBeTruthy();
+    const body = JSON.parse(String((errorCall![1] as RequestInit).body));
+    expect(body.message).toBe(message);
+  });
+
+  it("awaits an in-flight trackError send on a second ingestError (trackError; throw)", async () => {
+    fetchMock.mockClear();
+    let release!: () => void;
+    fetchMock.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          release = () => resolve({ ok: true, text: async () => "" });
+        })
+    );
+    const err = new Error("shared");
+    trackError(err, { source: "manual" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const second = ingestError(err, { source: "uncaughtException" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    let secondDone = false;
+    void second.then(() => {
+      secondDone = true;
+    });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(secondDone).toBe(false);
+    release();
+    await second;
+    expect(secondDone).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });

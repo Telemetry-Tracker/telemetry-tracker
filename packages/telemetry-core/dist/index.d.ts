@@ -1,5 +1,6 @@
 import { SDK_VERSION } from "./version.js";
 export { SDK_VERSION };
+export { toReportableError } from "./to-reportable-error.js";
 export { scrubPiiText, scrubPiiRecord } from "./pii-scrub.js";
 export { WEB_VITAL_EVENT_NAME, installWebVitals, rateWebVital, buildWebVitalProperties, setWebVitalsCaptureEnabled, isWebVitalsCaptureEnabled, type WebVitalEventProperties, type WebVitalMetricName, type WebVitalRating, } from "./web-vitals.js";
 export declare function getAnonymousId(): string;
@@ -49,15 +50,9 @@ declare function resolveClientPiiScrub(cfg: TelemetryConfig | null): {
 /** @internal exported for tests */
 export { resolveClientPiiScrub };
 export declare function trackEvent(name: string, properties?: Record<string, unknown>): void;
-export declare function trackError(error: Error | {
-    message: string;
-    stack?: string;
-}, context?: Record<string, unknown>): void;
+export declare function trackError(error: unknown, context?: Record<string, unknown>): void;
 /** Send an error and resolve after the ingest request settles. Fatal handlers await this. */
-export declare function ingestError(error: Error | {
-    message: string;
-    stack?: string;
-}, context?: Record<string, unknown>): Promise<void>;
+export declare function ingestError(error: unknown, context?: Record<string, unknown>): Promise<void>;
 export declare function screen(name: string): void;
 export declare function getUserId(): string | null;
 export declare function getConfigOrNull(): TelemetryConfig | null;

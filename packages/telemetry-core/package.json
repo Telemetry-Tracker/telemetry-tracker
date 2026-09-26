@@ -24,7 +24,7 @@
     "build": "node scripts/inject-version.cjs && rm -rf dist && tsc",
     "dev": "tsc --watch",
     "test": "vitest run",
-    "prepublishOnly": "pnpm run build"
+    "prepublishOnly": "node ../../scripts/assert-sdk-publish-context.mjs && pnpm run build"
   },
   "keywords": [
     "telemetry",

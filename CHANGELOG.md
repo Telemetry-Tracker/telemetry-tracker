@@ -27,7 +27,7 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ### Changed
 
-- **SDK publish** — `pnpm publish:packages` requires a clean, tagged checkout, stamps `gitHead` on each tarball, and supports `--only=core,node,vite-plugin`
+- **SDK publish** — `pnpm publish:packages` requires a clean tagged `origin/main` checkout with per-package version tags pushed, stamps `gitHead`, blocks direct folder publishes / `workspace:*`, aborts if core fails before dependents, and runs publish-guard tests in CI
 
 ### Database
 

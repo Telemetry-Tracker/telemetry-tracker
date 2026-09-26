@@ -1,8 +1,9 @@
-import { init as coreInit, identify, trackEvent, trackError as coreTrackError, ingestError, getConfigOrNull, } from "@telemetry-tracker/core";
-import { flushFatalError } from "./fatal.js";
+import { init as coreInit, identify, trackEvent, trackError as coreTrackError, ingestError, getConfigOrNull, toReportableError, } from "@telemetry-tracker/core";
+import { FATAL_FLUSH_TIMEOUT_MS, flushFatalError } from "./fatal.js";
 export { FATAL_FLUSH_TIMEOUT_MS, flushFatalError } from "./fatal.js";
 let installed = false;
 let exitOnUnhandledRejection = true;
+let fatalFlushTimeoutMs = FATAL_FLUSH_TIMEOUT_MS;
 /** @internal Exported for unit tests. */
 export function createUncaughtExceptionHandler(deps) {
     return (err) => {
@@ -12,11 +13,12 @@ export function createUncaughtExceptionHandler(deps) {
 /** @internal Exported for unit tests. */
 export function createUnhandledRejectionHandler(deps) {
     return (reason) => {
-        const err = reason instanceof Error ? reason : new Error(String(reason));
+        const err = toReportableError(reason);
         if (deps.exitOnUnhandledRejection) {
             flushFatalError(err, "unhandledRejection", {
                 ingest: deps.ingest,
                 exit: deps.exit,
+                timeoutMs: deps.timeoutMs,
             });
             return;
         }
@@ -30,6 +32,9 @@ function installGlobalHandlers() {
     process.on("uncaughtException", createUncaughtExceptionHandler({
         ingest: ingestError,
         exit: (code) => process.exit(code),
+        get timeoutMs() {
+            return fatalFlushTimeoutMs;
+        },
     }));
     process.on("unhandledRejection", createUnhandledRejectionHandler({
         get exitOnUnhandledRejection() {
@@ -38,10 +43,19 @@ function installGlobalHandlers() {
         ingest: ingestError,
         trackError: coreTrackError,
         exit: (code) => process.exit(code),
+        get timeoutMs() {
+            return fatalFlushTimeoutMs;
+        },
     }));
 }
 export function init(config) {
     exitOnUnhandledRejection = config.exitOnUnhandledRejection !== false;
+    fatalFlushTimeoutMs =
+        typeof config.fatalFlushTimeoutMs === "number" &&
+            Number.isFinite(config.fatalFlushTimeoutMs) &&
+            config.fatalFlushTimeoutMs >= 0
+            ? config.fatalFlushTimeoutMs
+            : FATAL_FLUSH_TIMEOUT_MS;
     coreInit({ ...config, platform: config.platform ?? "node" });
     installGlobalHandlers();
 }
