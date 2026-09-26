@@ -23,6 +23,14 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ---
 
+## [1.17.24] - 2026-09-26
+
+### Fixed
+
+- **Next.js docs (TT-002 / TT-003)** — `/docs/nextjs` now uses the same App Router setup as `/error-tracking/nextjs` (server `layout.tsx` + client `track-page-view.tsx`), documents `apiKey` / `https://api.telemetry-tracker.com` / Settings → API keys, and no longer claims `@telemetry-tracker/next/server` is unpublished. Hosted-cloud Next.js notes aligned ([#696](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/696))
+
+---
+
 ## [1.17.23] - 2026-09-25
 
 ### Fixed
