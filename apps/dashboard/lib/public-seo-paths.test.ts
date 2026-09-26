@@ -9,6 +9,10 @@ describe("public SEO paths", () => {
     expect(PUBLIC_SEO_PATHS).not.toContain("/dashboard");
     expect(PUBLIC_SEO_PATHS).not.toContain("/login");
     expect(PUBLIC_SEO_PATHS).not.toContain("/register");
+    expect(PUBLIC_SEO_PATHS).toContain("/pricing");
+    expect(PUBLIC_SEO_PATHS).toContain("/docs/source-maps");
+    expect(PUBLIC_SEO_PATHS).toContain("/docs/self-hosting");
+    expect(PUBLIC_SEO_PATHS).toContain("/docs/alerts");
   });
 
   it("ranks home, docs, and guides above generic public pages", () => {

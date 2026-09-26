@@ -30,7 +30,7 @@ export type NotificationPreferences = {
 };
 
 export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
-  channels: { inapp: true, email: false },
+  channels: { inapp: true, email: true },
   routing: {
     issues: { inapp: true, email: false },
     billing: { inapp: true, email: true },

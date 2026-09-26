@@ -1,0 +1,48 @@
+name: Production migrate
+
+on:
+  workflow_dispatch:
+    inputs:
+      phase:
+        description: "migrate or smoke"
+        required: true
+        default: migrate
+        type: choice
+        options:
+          - migrate
+          - smoke
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Migrate production database
+        if: inputs.phase == 'migrate'
+        working-directory: apps/api
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: pnpm exec prisma migrate deploy
+      - name: Verify source_map_upload column
+        if: inputs.phase == 'migrate'
+        working-directory: apps/api
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: node scripts/production-source-map-smoke.mjs verify
+      - name: Build SDKs for crash smoke
+        if: inputs.phase == 'smoke'
+        run: pnpm --filter @telemetry-tracker/core build && pnpm --filter @telemetry-tracker/node build
+      - name: Production smoke
+        if: inputs.phase == 'smoke'
+        working-directory: apps/api
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          API_BASE_URL: https://api.telemetry-tracker.com
+        run: node scripts/production-source-map-smoke.mjs smoke

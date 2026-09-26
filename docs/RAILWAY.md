@@ -47,7 +47,7 @@ DATABASE_URL="postgresql://..." pnpm --filter api exec prisma migrate deploy
 
 Optional: Resend, Stripe, registration flags — [BILLING.md](./BILLING.md) and [PRODUCTION-READINESS.md](./PRODUCTION-READINESS.md).
 
-**Resend (API service only):** set `RESEND_API_KEY`, `TELEMETRY_EMAIL_FROM`, and optionally `CONTACT_INBOX_EMAIL`. After deploy, `GET /health` should include `"email":"configured"`. Full DNS and verification steps: [BILLING.md → Production setup](./BILLING.md#production-setup-hosted-cloud).
+**Resend (API and alert-rules-evaluator):** set `RESEND_API_KEY`, `TELEMETRY_EMAIL_FROM`, and optionally `CONTACT_INBOX_EMAIL` on the **API** service. Copy `RESEND_API_KEY` and `TELEMETRY_EMAIL_FROM` onto the **alert-rules-evaluator** cron as well — scheduled alert emails do not use the API process. After deploy, `GET /health` should include `"email":"configured"` for the API; evaluator logs should include `"email":"configured"`. Full DNS and verification steps: [BILLING.md → Production setup](./BILLING.md#production-setup-hosted-cloud).
 
 **Monitoring:** optional `SENTRY_DSN` on the API; optional `SENTRY_DSN` + `NEXT_PUBLIC_SENTRY_DSN` on the dashboard; external uptime via [MONITORING.md](./MONITORING.md) and [`.github/workflows/production-uptime.yml`](../.github/workflows/production-uptime.yml).
 
@@ -125,12 +125,22 @@ This service is **not** auto-provisioned — add it manually in Railway when you
 3. **Settings → Deploy** → **Start Command** = `node dist/jobs/run-alert-rules-evaluator.js`
    - Use `node …` directly (same reason as retention cron).
 4. **Settings → Cron Schedule** = `*/5 * * * *` (every 5 minutes UTC), or match your `ALERT_RULES_SCHEDULE_INTERVAL_MINUTES`.
-5. **Variables** → **`DATABASE_URL`** (same as API). Optional: `ALERT_RULES_SCHEDULE_INTERVAL_MINUTES`.
+5. **Variables** (this service does **not** inherit the API service’s env automatically):
+   - **`DATABASE_URL`** — same as API (required).
+   - **`RESEND_API_KEY`** — required for alert emails (same value as API).
+   - **`TELEMETRY_EMAIL_FROM`** — **required**. Both this and `RESEND_API_KEY` must be set on **this** process or `sendTransactionalEmail` does not call Resend. Having only `RESEND_API_KEY` still yields zero emails. Copy the exact `TELEMETRY_EMAIL_FROM` string from the API service.
+   - **`TELEMETRY_DASHBOARD_ORIGIN`** — absolute links in alert emails (e.g. `https://telemetry-tracker.com`). Email HTML uses **only** this name via `dashboardOriginOrNull()` / `resolveDashboardOrigin()`. **`DASHBOARD_ORIGIN` is not read for email links** (that name is CORS-related on the API HTTP service). If the evaluator only has `DASHBOARD_ORIGIN`, add `TELEMETRY_DASHBOARD_ORIGIN` with the same URL value.
+   - **`NODE_ENV=production`** — recommended. When unset (and Resend is incomplete), the code takes the non-production branch: it may `devLog` and keep a `NotificationEmailLog` claim **without** sending mail. Set `production` so missing config fails clearly instead of looking like a successful quiet skip.
+   - Optional: `ALERT_RULES_SCHEDULE_INTERVAL_MINUTES`.
 6. Confirm logs show JSON like:
 
    ```json
-   {"ok":true,"projectsScanned":1,"rulesEvaluated":2,"rulesFired":0,"intervalMinutes":5,"at":"2026-07-18T12:00:01.234Z"}
+   {"ok":true,"job":"alert-rules-evaluator","projectsScanned":1,"rulesEvaluated":2,"rulesFired":0,"intervalMinutes":5,"email":"configured","at":"2026-07-18T12:00:01.234Z"}
    ```
+
+   `email` is `"configured"` or `"unavailable"` for **this cron process**. Evaluation can succeed (`rulesFired` > 0) while `email` is `"unavailable"` — that means alert events were written but Resend + `TELEMETRY_EMAIL_FROM` were not both set on the evaluator. A one-time JSON warn with `reason":"email_not_configured"` and the missing env **names** (never values) is also logged.
+
+   A successful sweep writes a heartbeat. `GET /health` (with `HEALTH_CHECK_DATABASE=true`) then includes `alert_rules_evaluator`: `ok` within two intervals, `stale` after that, or `never` if this service has not run. That field does not change `ok` or the HTTP status. API `/health` `"email":"configured"` only reflects the **API** service’s env, not this cron.
 
 | Setting | Value |
 |---------|--------|
@@ -138,6 +148,10 @@ This service is **not** auto-provisioned — add it manually in Railway when you
 | Start command | `node dist/jobs/run-alert-rules-evaluator.js` |
 | Cron schedule | `*/5 * * * *` (default) |
 | `DATABASE_URL` | Same as API |
+| `RESEND_API_KEY` | Same as API |
+| `TELEMETRY_EMAIL_FROM` | Same as API (**required**; not optional if you want emails) |
+| `TELEMETRY_DASHBOARD_ORIGIN` | Same as API (not `DASHBOARD_ORIGIN`) |
+| `NODE_ENV` | `production` |
 
 Local: `pnpm --filter api alert-rules-evaluator`
 

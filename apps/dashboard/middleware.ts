@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { isPostLoginRedirectPath, resolvePostLoginPath } from "@/lib/auth-href";
+import {
+  normalizePostLoginRedirectPath,
+  postLoginRedirectParts,
+} from "@/lib/auth-href";
+import { dashboardRangeCanonicalHref } from "@/lib/dashboard-range-redirect";
 
 /** Keep in sync with `TELEMETRY_SESSION_COOKIE` in `lib/dashboard-project.ts`. */
 const SESSION_COOKIE = "telemetry_session";
@@ -14,8 +18,9 @@ function redirectToLogin(request: NextRequest, next?: string) {
   const url = request.nextUrl.clone();
   url.pathname = "/login";
   url.search = "";
-  if (isPostLoginRedirectPath(next)) {
-    url.searchParams.set("next", next);
+  const safeNext = normalizePostLoginRedirectPath(next);
+  if (safeNext) {
+    url.searchParams.set("next", safeNext);
   }
   return NextResponse.redirect(url);
 }
@@ -24,7 +29,8 @@ function legacySignInNextParam(
   request: NextRequest,
   explicitNext: string | null
 ): string | undefined {
-  if (isPostLoginRedirectPath(explicitNext)) return explicitNext;
+  const fromExplicit = normalizePostLoginRedirectPath(explicitNext);
+  if (fromExplicit) return fromExplicit;
   const { pathname } = request.nextUrl;
   if (pathname === "/login" || pathname === "/register" || pathname === "/") {
     return undefined;
@@ -34,7 +40,7 @@ function legacySignInNextParam(
   params.delete("signUp");
   const qs = params.toString();
   const destination = qs ? `${pathname}?${qs}` : pathname;
-  return isPostLoginRedirectPath(destination) ? destination : undefined;
+  return normalizePostLoginRedirectPath(destination) ?? undefined;
 }
 
 function redirectLegacyAuthQueryParams(request: NextRequest) {
@@ -82,11 +88,15 @@ export function middleware(request: NextRequest) {
       }
       const url = request.nextUrl.clone();
       if (pathname === "/login") {
-        url.pathname = resolvePostLoginPath(request.nextUrl.searchParams.get("next"));
+        const { pathname: destPath, search: destSearch } = postLoginRedirectParts(
+          request.nextUrl.searchParams.get("next")
+        );
+        url.pathname = destPath;
+        url.search = destSearch;
       } else {
         url.pathname = "/dashboard/overview";
+        url.search = "";
       }
-      url.search = "";
       return NextResponse.redirect(url);
     }
     return NextResponse.next();
@@ -101,6 +111,14 @@ export function middleware(request: NextRequest) {
   }
 
   if (hasValidSession(request)) {
+    const canonical = dashboardRangeCanonicalHref(pathname, request.nextUrl.search);
+    if (canonical) {
+      const url = request.nextUrl.clone();
+      const qIndex = canonical.indexOf("?");
+      url.pathname = qIndex === -1 ? canonical : canonical.slice(0, qIndex);
+      url.search = qIndex === -1 ? "" : canonical.slice(qIndex);
+      return NextResponse.redirect(url);
+    }
     return NextResponse.next();
   }
 

@@ -162,7 +162,7 @@ export function Sdks() {
               </button>
             ))}
             <div className="tabular ml-auto hidden items-center gap-2 pr-2 text-xs text-muted-foreground sm:flex">
-              <span className="inline-block h-1.5 w-1.5 rounded-full bg-success" />v1.3.0
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-success" />on npm
             </div>
           </div>
 

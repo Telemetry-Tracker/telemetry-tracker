@@ -3,14 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { API_BASE_URL } from "@/lib/api-url";
-import { preferenceCookiesAllowedFromCookies, preferenceCookiesDeniedMessage } from "@/lib/cookie-consent-server";
 import { dashboardApiFetch, type DashboardApiFetchOptions } from "@/lib/dashboard-api";
 import { parseDashboardApiResourceId } from "@/lib/dashboard-api-url";
 import { getDashboardWorkspaceForRequest } from "@/lib/dashboard-workspace-request";
-import {
-  fetchDashboardOrganizationsPayload,
-  TELEMETRY_ORG_COOKIE,
-} from "@/lib/dashboard-org";
+import { TELEMETRY_ORG_COOKIE } from "@/lib/dashboard-org";
 import {
   parseNotificationPreferences,
   type NotificationPreferences,
@@ -67,9 +63,6 @@ export async function setDashboardProjectId(projectId: string): Promise<
   if (!/^[0-9a-f-]{36}$/i.test(trimmed)) {
     return { ok: false, error: "Invalid project id" };
   }
-  if (!(await preferenceCookiesAllowedFromCookies())) {
-    return { ok: false, error: await preferenceCookiesDeniedMessage() };
-  }
   const c = await cookies();
   c.set(TELEMETRY_PROJECT_COOKIE, trimmed.toLowerCase(), {
     path: "/",
@@ -84,9 +77,6 @@ export async function setDashboardProjectId(projectId: string): Promise<
 
 /** Clear cookie → API falls back to default project. */
 export async function resetDashboardProjectId(): Promise<void> {
-  if (!(await preferenceCookiesAllowedFromCookies())) {
-    return;
-  }
   const c = await cookies();
   c.set(TELEMETRY_PROJECT_COOKIE, DEFAULT_PROJECT_ID, {
     path: "/",
@@ -272,9 +262,6 @@ export async function setDashboardOrganizationId(
     projectId,
     verifyData
   );
-  if (!(await preferenceCookiesAllowedFromCookies())) {
-    return { ok: false, error: await preferenceCookiesDeniedMessage() };
-  }
   const c = await cookies();
   c.set(TELEMETRY_ORG_COOKIE, trimmed, cookieOpts);
   applyProjectCookieForOrganizationSwitch(c, projectId, nextProject);
@@ -326,18 +313,6 @@ export async function createOrganizationAction(
   if (!name) {
     return { ok: false, error: "Name is required" };
   }
-  const orgPayload = await fetchDashboardOrganizationsPayload();
-  if (!orgPayload.ok) {
-    return {
-      ok: false,
-      error: "Could not load your organizations. Try again.",
-    };
-  }
-  const isFirstOrganization = orgPayload.organizations.length === 0;
-  const cookiesAllowed = await preferenceCookiesAllowedFromCookies();
-  if (!cookiesAllowed && !isFirstOrganization) {
-    return { ok: false, error: await preferenceCookiesDeniedMessage() };
-  }
   const res = await dashboardApiFetch("/api/meta/organizations", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -348,7 +323,7 @@ export async function createOrganizationAction(
     return { ok: false, error: t.slice(0, 200) || "Could not create organization" };
   }
   const data = (await res.json()) as { id?: string };
-  if (data.id && cookiesAllowed) {
+  if (data.id) {
     const orgId = data.id.toLowerCase();
     const c = await cookies();
     c.set(TELEMETRY_ORG_COOKIE, orgId, cookieOpts);
@@ -387,7 +362,7 @@ export async function createProjectAction(formData: FormData): Promise<void> {
     return;
   }
   const data = (await res.json()) as { id?: string };
-  if (data.id && (await preferenceCookiesAllowedFromCookies())) {
+  if (data.id) {
     const c = await cookies();
     c.set(TELEMETRY_PROJECT_COOKIE, data.id.toLowerCase(), cookieOpts);
   }
@@ -476,9 +451,10 @@ export async function createDashboardApiKey(
     typeof allowedRaw === "string" && allowedRaw.trim() !== ""
       ? allowedRaw.trim().slice(0, 64)
       : undefined;
-  const payload: { name?: string; allowedApp?: string } = {};
+  const payload: { name?: string; allowedApp?: string; sourceMapUpload?: boolean } = {};
   if (name) payload.name = name;
   if (allowedApp) payload.allowedApp = allowedApp;
+  if (formData.get("sourceMapUpload") === "on") payload.sourceMapUpload = true;
   const res = await dashboardApiFetch("/api/project/api-keys", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

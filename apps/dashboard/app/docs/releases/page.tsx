@@ -64,7 +64,7 @@ export default function DocsReleasesPage() {
           </>
         ) : null}
         Self-hosted upgrades: see{" "}
-        <Link href="/docs#self-hosting" className="text-brand hover:underline">
+        <Link href="/docs/self-hosting" className="text-brand hover:underline">
           Self-hosting
         </Link>{" "}
         and{" "}

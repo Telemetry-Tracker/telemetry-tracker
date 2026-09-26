@@ -1,4 +1,4 @@
-# Source maps (v1.3.0)
+# Source maps
 
 Design for **[issue #98](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/98)**: upload source maps per release and show symbolicated stack traces in the error detail view.
 
@@ -146,7 +146,7 @@ export default defineConfig({
 });
 ```
 
-Create a project API key in **Settings → API keys** (same key as ingest). `baseUrl` must match the public URL where your minified JS is served — the plugin derives `bundle_url` from each `.map` path under `build.outDir`.
+Create a project API key in **Settings → API keys** and enable **Allow source map uploads**. Do not use that key in client apps. Browser ingest keys are rejected for upload. `baseUrl` must match the public URL where your minified JS is served. The plugin and GitHub Action set `bundle_url` from the built file’s `sourceMappingURL` comment (Next.js 16 Turbopack hashes maps separately from chunks). When no comment points at the map, the URL falls back to the `.map` path with `.map` removed.
 
 See [sdk-vite.md](./sdk-vite.md) for full options and a Vue + Vite example. Full option reference: [sdk-vite.md](./sdk-vite.md).
 
@@ -174,9 +174,10 @@ Symbolication is display-only; grouping fingerprints stay on raw minified stacks
 
 ## Security
 
-- Upload: dashboard session (EDITOR+) or project API key scoped to `X-Project-Id`; rate limit per project.
+- Upload: dashboard session (EDITOR+) or a project API key with source map upload enabled, scoped to `X-Project-Id`. Ingest-only keys (the kind embedded in browsers) cannot upload or replace maps.
+- Existing keys created before this flag keep upload access so current CI keeps working. Rotate any key that is shipped to clients and create a separate CI key.
 - Maps may contain source — treat as sensitive; same retention as telemetry.
-- Reuses existing project API keys (same as ingest); per-key `allowed_app` applies to the upload `app` field.
+- Per-key `allowed_app` applies to the upload `app` field.
 
 ## References
 
@@ -200,7 +201,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Upload Source Maps
-        uses: ./.github/actions/upload-source-maps
+        uses: Telemetry-Tracker/telemetry-tracker/.github/actions/upload-source-maps@main
         with:
           api_key: ${{ secrets.TT_API_KEY }}
           project_id: "your-project-uuid-here"
@@ -210,7 +211,7 @@ jobs:
           base_url: "https://example.com"
 ```
 
-Create a project API key in **Settings → API keys** and store it as `TT_API_KEY` in your repository secrets.
+Create a project API key in **Settings → API keys** with source map upload enabled and store it as `TT_API_KEY` in your repository secrets. Do not reuse a key that is embedded in a client app.
 
 ### Self-hosted API
 
@@ -230,5 +231,9 @@ The action defaults to the hosted cloud API (`https://api.telemetry-tracker.com`
 ```
 
 Use `http://localhost:3001` (or your dev API port) when testing uploads against a local API from CI or a runner on your network.
+
+`uses: ./.github/actions/upload-source-maps` only works inside this repository. Other projects must use the `Telemetry-Tracker/telemetry-tracker/.github/actions/...@main` form above (pin a release tag when you want a frozen copy).
+
+For Next.js, set `artifact_path` to `.next` and `base_url` to `https://<host>/_next`. The uploader follows the last non-inline `sourceMappingURL`, so a Turbopack map whose filename hash differs from the chunk still attaches to the chunk URL. Webpack maps that sit beside the chunk behave the same way. Vercel does not leave `.next` in a GitHub checkout; run the action in the job that produced the build, or download that output first. A live Next.js 15 webpack, Next.js 16 Turbopack, and Vercel upload has not been executed in CI — coverage is the URL resolver test against those file layouts.
 
 See [DEPLOYMENT.md](../DEPLOYMENT.md) for self-host setup and [docs/hosted-cloud](https://telemetry-tracker.com/docs/hosted-cloud) for the managed service.

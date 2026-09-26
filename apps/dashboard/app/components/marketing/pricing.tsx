@@ -65,15 +65,33 @@ const tiers = [
   },
 ];
 
-export function Pricing() {
+export function Pricing({
+  isAuthenticated = false,
+  headingLevel = "h2",
+}: {
+  isAuthenticated?: boolean;
+  headingLevel?: "h1" | "h2";
+}) {
   return (
     <section id="pricing" className="relative scroll-mt-28 py-28">
       <div className="mx-auto max-w-6xl px-6">
         <SectionHeading
           eyebrow="Pricing"
+          headingLevel={headingLevel}
           title={<>Honest pricing that scales with your traffic.</>}
           subtitle="All prices in EUR. Ingest stops at your plan cap — never a surprise bill."
         />
+        <div className="mx-auto mt-8 max-w-2xl space-y-3 text-left text-sm leading-relaxed text-muted-foreground">
+          <p>
+            An ingest unit is one accepted telemetry item: one event, one item inside a batch, one
+            error, or one session. A calendar month is the quota window.
+          </p>
+          <p>
+            At the cap, new ingest is rejected with HTTP 429 (<code>monthly_ingest_quota</code>)
+            until the next month or a higher plan. Stored data stays for the plan retention window.
+            There is no overage charge.
+          </p>
+        </div>
 
         <div className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {tiers.map((t) => {
@@ -108,8 +126,11 @@ export function Pricing() {
                 <p className="mt-2 text-sm text-muted-foreground">{t.desc}</p>
 
                 {t.signup ? (
-                  <Link href="/register" className={ctaClassName}>
-                    {t.cta}
+                  <Link
+                    href={isAuthenticated ? "/dashboard/overview" : "/register"}
+                    className={ctaClassName}
+                  >
+                    {isAuthenticated ? "Open dashboard" : t.cta}
                   </Link>
                 ) : (
                   <Link href={t.href!} className={ctaClassName}>

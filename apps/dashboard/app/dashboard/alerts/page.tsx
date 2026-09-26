@@ -10,6 +10,7 @@ import {
 } from "@/lib/project-webhooks";
 import { fetchProjectPiiScrubSettings, piiScrubSettingsLoadFallback } from "@/lib/pii-scrub-settings-server";
 import { dashboardApiFetch } from "@/lib/dashboard-api";
+import { fetchNotificationPreferences } from "@/lib/notification-preferences";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +30,7 @@ async function loadCanEdit(): Promise<boolean> {
 }
 
 export default async function AlertsPage() {
-  const [settings, events, rules, webhooks, deliveries, piiResult, canEdit] =
+  const [settings, events, rules, webhooks, deliveries, piiResult, canEdit, notificationPrefs] =
     await Promise.all([
       fetchProjectAlertSettings(),
       fetchProjectAlertEvents(),
@@ -38,6 +39,7 @@ export default async function AlertsPage() {
       fetchProjectWebhookDeliveries(25),
       fetchProjectPiiScrubSettings(),
       loadCanEdit(),
+      fetchNotificationPreferences(),
     ]);
 
   return (
@@ -52,6 +54,7 @@ export default async function AlertsPage() {
       }
       piiSettingsLoadError={piiResult.ok ? null : piiResult.error}
       canEdit={canEdit}
+      emailChannelEnabled={notificationPrefs.channels.email}
     />
   );
 }

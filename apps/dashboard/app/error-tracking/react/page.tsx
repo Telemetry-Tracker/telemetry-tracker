@@ -137,7 +137,7 @@ export default function ReactErrorTrackingPage() {
         <p>
           Free hosted plan: €0, no credit card, 250K ingest units per month, 14-day retention, one
           project.{" "}
-          <Link href="/#pricing" className="text-brand hover:underline">
+          <Link href="/pricing" className="text-brand hover:underline">
             Pricing
           </Link>
           .

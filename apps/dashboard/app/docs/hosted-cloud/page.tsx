@@ -111,12 +111,21 @@ init({
 
 trackEvent("app.started");`}</DocsCodeBlock>
         <p className="mt-4">
-          For Next.js, use{" "}
+          For Next.js, follow{" "}
           <Link href="/docs/nextjs" className="text-brand hover:underline">
-            @telemetry-tracker/next
+            /docs/nextjs
           </Link>{" "}
-          with <code className="text-foreground">NEXT_PUBLIC_TELEMETRY_INGEST_URL</code> set to{" "}
-          <code className="text-foreground">{HOSTED_API_URL}</code>. For Vue, Nuxt, or NestJS see{" "}
+          (same App Router layout + client <code className="text-foreground">TrackPageView</code>{" "}
+          pattern as the{" "}
+          <Link href="/error-tracking/nextjs" className="text-brand hover:underline">
+            Next.js error tracking
+          </Link>{" "}
+          guide). Set both{" "}
+          <code className="text-foreground">NEXT_PUBLIC_TELEMETRY_INGEST_URL={HOSTED_API_URL}</code>{" "}
+          and <code className="text-foreground">NEXT_PUBLIC_TELEMETRY_API_KEY</code> (from Settings →
+          API keys). Missing the key yields <code className="text-foreground">401</code>; pointing
+          ingest at your app origin instead of the API yields{" "}
+          <code className="text-foreground">404</code>. For Vue, Nuxt, or NestJS see{" "}
           <Link href="/docs/vue" className="text-brand hover:underline">
             Vue
           </Link>
@@ -166,7 +175,7 @@ trackEvent("app.started");`}</DocsCodeBlock>
         <p>
           The hosted cloud offers Free, Pro, and Business tiers (EUR via Stripe). Usage limits,
           retention windows, and source map quotas follow your organization plan — see{" "}
-          <Link href="/#pricing" className="text-brand hover:underline">
+          <Link href="/pricing" className="text-brand hover:underline">
             pricing
           </Link>{" "}
           and <strong className="text-foreground">Settings → Billing & usage</strong> in the
@@ -178,7 +187,7 @@ trackEvent("app.started");`}</DocsCodeBlock>
         <h2 id="hosted-self-host-heading">Self-hosting instead?</h2>
         <p>
           The same SDKs and dashboard run on your infrastructure. See{" "}
-          <Link href="/docs#self-hosting" className="text-brand hover:underline">
+          <Link href="/docs/self-hosting" className="text-brand hover:underline">
             Self-hosting
           </Link>{" "}
           and the repository{" "}

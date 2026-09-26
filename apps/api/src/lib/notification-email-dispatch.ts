@@ -37,6 +37,32 @@ function isValidEmailAddress(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && email.length <= 254;
 }
 
+function logNotificationEmailFailure(
+  error: unknown,
+  context: { userId?: string; email?: string; notificationKey: string }
+): void {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(
+    JSON.stringify({
+      ok: false,
+      job: "notification-email",
+      message,
+      ...context,
+    })
+  );
+}
+
+async function settleNotificationEmail(
+  work: Promise<unknown>,
+  context: { userId?: string; email?: string; notificationKey: string }
+): Promise<void> {
+  try {
+    await work;
+  } catch (error) {
+    logNotificationEmailFailure(error, context);
+  }
+}
+
 export async function sendNotificationEmailIfAllowed(
   prisma: PrismaClient,
   userId: string,
@@ -88,6 +114,14 @@ export async function sendNotificationEmailIfAllowed(
         },
       })
       .catch(() => undefined);
+    logNotificationEmailFailure(
+      new Error(result.error ?? "email_send_failed"),
+      {
+        userId,
+        email,
+        notificationKey: item.id,
+      }
+    );
     return false;
   }
 
@@ -153,13 +187,20 @@ export async function notifyOrganizationMembersByEmail(
     members
       .filter((member) => !excludeEmails.has(normalizeEmail(member.user.email)))
       .map((member) =>
-        sendNotificationEmailIfAllowed(
-          prisma,
-          member.user.id,
-          member.user.email,
-          item,
-          parseNotificationPreferences(member.user.notification_preferences),
-          { rule: options?.rule, projectName: options?.projectName }
+        settleNotificationEmail(
+          sendNotificationEmailIfAllowed(
+            prisma,
+            member.user.id,
+            member.user.email,
+            item,
+            parseNotificationPreferences(member.user.notification_preferences),
+            { rule: options?.rule, projectName: options?.projectName }
+          ),
+          {
+            userId: member.user.id,
+            email: member.user.email,
+            notificationKey: item.id,
+          }
         )
       )
   );
@@ -243,21 +284,29 @@ export async function notifyProjectMembersByEmail(
   await Promise.all(
     extra.map(async (address) => {
       const user = knownByEmail.get(address);
-      if (user) {
-        await sendNotificationEmailIfAllowed(
-          prisma,
-          user.id,
-          user.email,
-          item,
-          parseNotificationPreferences(user.notification_preferences),
-          { rule: options?.rule, projectName: project.name }
-        );
-        return;
+      try {
+        if (user) {
+          await sendNotificationEmailIfAllowed(
+            prisma,
+            user.id,
+            user.email,
+            item,
+            parseNotificationPreferences(user.notification_preferences),
+            { rule: options?.rule, projectName: project.name }
+          );
+          return;
+        }
+        await sendAdditionalRecipientEmail(address, item, {
+          rule: options?.rule,
+          projectName: project.name,
+        });
+      } catch (error) {
+        logNotificationEmailFailure(error, {
+          userId: user?.id,
+          email: address,
+          notificationKey: item.id,
+        });
       }
-      await sendAdditionalRecipientEmail(address, item, {
-        rule: options?.rule,
-        projectName: project.name,
-      });
     })
   );
 }

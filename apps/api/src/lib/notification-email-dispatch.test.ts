@@ -66,6 +66,45 @@ describe("notifyOrganizationMembersByEmail", () => {
 
     expect(createMany).toHaveBeenCalledTimes(1);
   });
+
+  it("still emails the other members when one createMany fails", async () => {
+    const createMany = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("Response from the Engine was empty"))
+      .mockResolvedValueOnce({ count: 1 });
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const prisma = {
+      organizationMembership: {
+        findMany: vi.fn(async () => [
+          {
+            user: {
+              id: "owner-1",
+              email: "owner@example.com",
+              notification_preferences: emailEnabledPrefs,
+            },
+          },
+          {
+            user: {
+              id: "editor-1",
+              email: "editor@example.com",
+              notification_preferences: emailEnabledPrefs,
+            },
+          },
+        ]),
+      },
+      notificationEmailLog: {
+        createMany,
+        delete: vi.fn(),
+      },
+    } as unknown as Parameters<typeof notifyOrganizationMembersByEmail>[0];
+
+    await expect(
+      notifyOrganizationMembersByEmail(prisma, "org-1", teamItem)
+    ).resolves.toBeUndefined();
+    expect(createMany).toHaveBeenCalledTimes(2);
+    expect(errorSpy).toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
 });
 
 describe("notifyProjectMembersByEmail", () => {
@@ -201,7 +240,10 @@ describe("sendNotificationEmailIfAllowed", () => {
       "user-1",
       "user@example.com",
       teamItem,
-      DEFAULT_NOTIFICATION_PREFERENCES
+      {
+        ...DEFAULT_NOTIFICATION_PREFERENCES,
+        channels: { inapp: true, email: false },
+      }
     );
 
     expect(sent).toBe(false);
@@ -232,14 +274,16 @@ describe("sendNotificationEmailIfAllowed", () => {
     expect(sendMock).not.toHaveBeenCalled();
   });
 
-  it("releases dedupe claim when send fails", async () => {
+  it("releases dedupe claim when send fails and logs the failure", async () => {
     const { sendTransactionalEmail } = await import("./email.js");
     vi.mocked(sendTransactionalEmail).mockResolvedValueOnce({
       sent: false,
       devLogged: false,
+      error: "email_not_configured",
     });
 
     const deleteMock = vi.fn(async () => ({}));
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const prisma = {
       notificationEmailLog: {
         createMany: vi.fn(async () => ({ count: 1 })),
@@ -264,6 +308,10 @@ describe("sendNotificationEmailIfAllowed", () => {
         },
       },
     });
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("email_not_configured")
+    );
+    errorSpy.mockRestore();
   });
 });
 

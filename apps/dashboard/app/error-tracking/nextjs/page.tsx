@@ -12,6 +12,8 @@ import {
 } from "@/lib/marketing-guide-metadata";
 import { marketingSiteOrigin } from "@/lib/marketing-json-ld";
 import {
+  nextDocsCheckButton,
+  nextEnvLocal,
   nextErrorBoundary,
   nextInstall,
   nextProviderSetup,
@@ -60,11 +62,11 @@ export default function NextJsErrorTrackingPage() {
               },
               {
                 name: "Wrap the app with TelemetryProvider",
-                text: "Pass the hosted ingest URL, app name, and API key. Call useTrackPage with the pathname from next/navigation.",
+                text: "Set NEXT_PUBLIC_TELEMETRY_INGEST_URL to https://api.telemetry-tracker.com, NEXT_PUBLIC_TELEMETRY_API_KEY from Settings → API keys, and use the server layout plus client TrackPageView from the docs.",
               },
               {
                 name: "Send a test error",
-                text: "Call trackError or throw inside TelemetryErrorBoundary, then open Issues in the dashboard.",
+                text: "Call trackError(new Error(\"docs-check\")) from a client button, then open Issues in the dashboard.",
               },
             ],
           }),
@@ -116,22 +118,29 @@ export default function NextJsErrorTrackingPage() {
 
         <h2>Minimal setup</h2>
         <p>
-          Wrap the root layout with <code>TelemetryProvider</code>. Put{" "}
-          <code>usePathname()</code> in a client component — layouts are often server components.
+          Same canonical App Router pattern as{" "}
+          <Link href="/docs/nextjs" className="text-brand hover:underline">
+            /docs/nextjs
+          </Link>
+          : a server root layout with <code>TelemetryProvider</code>, plus a small client{" "}
+          <code>TrackPageView</code> that calls <code>usePathname()</code> /{" "}
+          <code>useTrackPage</code>. Set the hosted ingest URL (
+          <code>https://api.telemetry-tracker.com</code>), app name, and{" "}
+          <code>NEXT_PUBLIC_TELEMETRY_API_KEY</code> from <strong>Settings → API keys</strong>.
         </p>
+        <CodeBlock code={nextEnvLocal} lang="bash" caption=".env.local (browser)" />
         <CodeBlock code={nextProviderSetup} lang="tsx" caption="app/layout.tsx" />
         <CodeBlock code={nextTrackPageView} lang="tsx" caption="app/track-page-view.tsx" />
-        <p>
-          Create a project API key under Settings → API keys and set{" "}
-          <code>NEXT_PUBLIC_TELEMETRY_API_KEY</code>. Keys are shown once at creation.
-        </p>
 
-        <h2>Send a test error</h2>
+        <h2>Verify ingest (optional)</h2>
         <p>
-          After init, call <code>trackError</code> from a client component (for example a button
-          handler) or throw inside an error boundary:
+          Not required for production. Temporarily call{" "}
+          <code>trackError(new Error(&quot;docs-check&quot;))</code> from a client button (or throw
+          inside an error boundary), then open <strong>Issues</strong>. Delete the verification
+          helper afterward.
         </p>
-        <CodeBlock code={nextTestError} lang="typescript" caption="Test error" />
+        <CodeBlock code={nextDocsCheckButton} lang="tsx" caption="optional verification button" />
+        <CodeBlock code={nextTestError} lang="typescript" caption="trackError call" />
         <CodeBlock code={nextErrorBoundary} lang="tsx" caption="Error boundary" />
 
         <h2>What you will see</h2>
@@ -144,7 +153,7 @@ export default function NextJsErrorTrackingPage() {
         <p>
           The free hosted plan is €0 with no credit card: 250K ingest units per month, 14-day
           retention, one project. See{" "}
-          <Link href="/#pricing" className="text-brand hover:underline">
+          <Link href="/pricing" className="text-brand hover:underline">
             pricing
           </Link>
           .

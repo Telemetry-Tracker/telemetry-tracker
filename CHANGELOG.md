@@ -13,11 +13,128 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ### Added
 
+### Security
+
+- **Post-login redirects (TT-017)** — `next` on `/login` (and legacy `signIn=1` flows) is validated against the app origin so protocol-relative, backslash, control-character, and absolute external values fall back to `/dashboard/overview`. Legitimate paths with query strings (e.g. `/dashboard/errors?range=7d`) are preserved.
+
 ### Fixed
+
+- **Next.js docs (TT-002 / TT-003)** — `/docs/nextjs` now uses the same App Router setup as `/error-tracking/nextjs` (server `layout.tsx` + client `track-page-view.tsx`), documents `apiKey` / `https://api.telemetry-tracker.com` / Settings → API keys, and no longer claims `@telemetry-tracker/next/server` is unpublished. Hosted-cloud Next.js notes aligned.
 
 ### Changed
 
 ### Database
+
+---
+
+## [1.17.24] - 2026-09-26
+
+### Fixed
+
+- **Next.js docs (TT-002 / TT-003)** — `/docs/nextjs` now uses the same App Router setup as `/error-tracking/nextjs` (server `layout.tsx` + client `track-page-view.tsx`), documents `apiKey` / `https://api.telemetry-tracker.com` / Settings → API keys, and no longer claims `@telemetry-tracker/next/server` is unpublished. Hosted-cloud Next.js notes aligned ([#696](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/696))
+
+---
+
+## [1.17.23] - 2026-09-25
+
+### Fixed
+
+- **Scheduled alert emails** — the alert-rules-evaluator cron needs its own `RESEND_API_KEY` and `TELEMETRY_EMAIL_FROM` (same values as the API). Missing config no longer fails silently: sweep logs include `email: "unavailable"`, and notification email failures are logged without secret values ([#693](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/693))
+- **Next.js server errors** — `@telemetry-tracker/next/server` `createOnRequestError` (npm `1.3.2`) reports uncaught App Router server errors (Node and Edge). It never throws into Next.js, does not forward request headers, strips query strings from the path, and skips duplicate Error/digest reports ([#690](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/690))
+- **Source map Action** — external repositories must use `Telemetry-Tracker/telemetry-tracker/.github/actions/upload-source-maps`. Docs cover Next.js webpack and Turbopack bundle URLs ([#690](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/690))
+- **Docs and pricing** — `/docs/source-maps`, `/docs/self-hosting`, and `/docs/alerts`; pricing H1, ingest-unit and cap copy; sitemap `lastmod`; `/llms.txt`; metadata stays in `<head>` for crawlers. Self-hosting docs no longer imply a production Compose stack ([#690](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/690))
+
+---
+
+## [1.17.22] - 2026-09-25
+
+### Fixed
+
+- **Alert rules evaluator** — the cron waits for notification email logging to finish before disconnecting Prisma, so `notificationEmailLog.createMany` no longer hits an empty engine response. One email or rule failure is logged and does not stop the rest of the sweep ([#687](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/687))
+
+---
+
+## [1.17.21] - 2026-09-25
+
+### Fixed
+
+- **Scheduled alert rules** — `HEARTBEAT`, `NO_EVENTS`, `SESSION_DROP`, `QUOTA_PERCENT`, and scheduled `ERROR_RATE` only run from the `alert-rules-evaluator` cron. Each successful sweep records a heartbeat, and `/health` reports `alert_rules_evaluator` as `ok`, `stale`, or `never` without failing the API when the cron is missing ([#683](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/683))
+
+### Database
+
+- `20260925170000_scheduled_job_heartbeat` — `ScheduledJobHeartbeat`. The production API runs `prisma migrate deploy` before it listens.
+
+---
+
+## [1.17.20] - 2026-09-25
+
+### Fixed
+
+- **Dashboard root** — `/dashboard` and `/dashboard/` go to `/dashboard/overview` in middleware, including when `range` is already set, so the page-level redirect no longer flashes React #310. Overview alert links use that same URL ([#680](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/680))
+- **API keys empty state** — a project with no keys no longer claims it has historical telemetry ([#680](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/680))
+
+---
+
+## [1.17.19] - 2026-09-25
+
+### Fixed
+
+- **Dashboard project context** — rejecting optional cookies no longer clears or hides the selected organization and project. Those cookies are essential; the API was falling back to another organization's default project and returning 403 ([#677](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/677))
+- **Overview Web Vitals and Sessions summaries** — the dashboard telemetry proxy now forwards `performance/summary` and `sessions/summary` ([#677](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/677))
+- **Dashboard URLs without `range`** — middleware adds `?range=24h` before list pages render, so the shell no longer flashes an application error (React #310) while a server `redirect()` runs ([#677](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/677))
+- **Alert email for new accounts** — the master Email channel defaults to on, matching alert routing. The Alerts page warns when that channel is off so listed recipients are not skipped silently ([#677](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/677))
+- **`@telemetry-tracker/next` 1.3.1** — publishes the July `useLayoutEffect` session fix. npm `1.3.0` (2026-07-02) still initializes in `useEffect`, so the first page view can miss the session ([#677](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/677))
+
+---
+
+## [1.17.18] - 2026-09-25
+
+### Security
+
+- **Source map upload keys** — `POST /api/project/source-maps` no longer accepts an ingest-only project API key. New keys are ingest-only unless source map upload is enabled. Keys that already existed keep upload access so CI does not break; rotate any key embedded in a client app ([#672](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/672))
+
+### Fixed
+
+- **Source map bundle URLs** — the Vite plugin and GitHub Action derive `bundle_url` from `sourceMappingURL`, so Next.js 16 Turbopack maps with a different content hash than the chunk still symbolicate ([#672](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/672))
+- **Node fatal errors** — `uncaughtException` waits for the error ingest request (up to 2s) before exiting, instead of rethrowing immediately and dropping the report ([#672](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/672))
+
+### Database
+
+- `20260925130000_api_key_source_map_upload` — `ApiKey.source_map_upload`. The production API runs `prisma migrate deploy` before it listens.
+
+---
+
+## [1.17.17] - 2026-09-25
+
+### Added
+
+- **Pricing page** — `/pricing` shows the plan comparison instead of a 404. Nav and footer link to it ([#669](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/669))
+
+---
+
+## [1.17.16] - 2026-09-25
+
+### Fixed
+
+- **Visits page** — `/dashboard/visits` no longer crashes on load. The filters toolbar was receiving a function from the server render ([#666](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/666))
+
+---
+
+## [1.17.15] - 2026-09-25
+
+### Added
+
+- **Visits** — dashboard page for how many people visited, how long they stayed, which screens and actions they used, and country, platform, browser, and operating system breakdowns ([#663](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/663))
+
+---
+
+## [1.17.14] - 2026-09-24
+
+### Fixed
+
+- **Dashboard loading placeholders** — sidebar scope skeletons stay inside the rail (org and project) instead of spilling over the header, and page skeletons line up with the title and metric grids ([#660](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/660))
+- **Stripe billing toast** — the informational “Stripe billing” popup no longer appears on every first dashboard load. Past-due, unpaid, and canceled subscriptions still show the in-page billing banner ([#660](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/660))
+- **Landing page CTAs** — signed-in visitors see Open dashboard instead of Sign in and Start tracking on the nav, hero, pricing, and closing section ([#660](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/660))
 
 ---
 

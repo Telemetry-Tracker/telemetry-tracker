@@ -1,28 +1,12 @@
 import { dashboardApiFetch } from "@/lib/dashboard-api";
-
-const ALLOWED_ROOTS = new Set(["sessions", "events", "errors"]);
-const SAFE_SEGMENT_RE = /^[a-z]+$/;
-
-function isAllowedTelemetryPath(path: string[]): boolean {
-  if (path.length === 1) {
-    return SAFE_SEGMENT_RE.test(path[0]!) && ALLOWED_ROOTS.has(path[0]!);
-  }
-  if (path.length === 2) {
-    return (
-      SAFE_SEGMENT_RE.test(path[0]!) &&
-      ALLOWED_ROOTS.has(path[0]!) &&
-      path[1] === "analytics"
-    );
-  }
-  return false;
-}
+import { isAllowedTelemetryProxyPath } from "@/lib/telemetry-proxy-path";
 
 export async function GET(
   request: Request,
   context: { params: Promise<{ path: string[] }> }
 ): Promise<Response> {
   const { path } = await context.params;
-  if (!isAllowedTelemetryPath(path)) {
+  if (!isAllowedTelemetryProxyPath(path)) {
     return new Response("Not found", { status: 404 });
   }
 

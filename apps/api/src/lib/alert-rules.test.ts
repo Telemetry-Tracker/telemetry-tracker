@@ -864,7 +864,7 @@ describe("runScheduledAlertRuleEvaluation", () => {
       expect.objectContaining({
         rule: "ALERT_RULE",
         title: "Silence",
-        href: "/dashboard",
+        href: "/dashboard/overview?range=24h",
       })
     );
     expect(fireProjectAlert).toHaveBeenCalledWith(
@@ -875,6 +875,120 @@ describe("runScheduledAlertRuleEvaluation", () => {
         href: "/dashboard/settings/billing",
       })
     );
+  });
+
+  it("continues the sweep when one scheduled rule fails to fire", async () => {
+    const failing = {
+      id: "rule-fail",
+      name: "Failing",
+      enabled: true,
+      conditions: [
+        { type: "NO_EVENTS" as const, windowMinutes: 5, environment: null },
+      ],
+      destination_ids: [PROJECT_EMAIL_DESTINATION_ID],
+      cooldown_minutes: 15,
+      created_at: new Date(),
+      updated_at: new Date(),
+    };
+    const ok = {
+      id: "rule-ok",
+      name: "Still runs",
+      enabled: true,
+      conditions: [
+        { type: "NO_EVENTS" as const, windowMinutes: 5, environment: null },
+      ],
+      destination_ids: [PROJECT_EMAIL_DESTINATION_ID],
+      cooldown_minutes: 15,
+      created_at: new Date(),
+      updated_at: new Date(),
+    };
+    fireProjectAlert.mockRejectedValueOnce(new Error("Response from the Engine was empty"));
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const prisma = {
+      alertRule: {
+        findMany: vi
+          .fn()
+          .mockResolvedValueOnce([{ project_id: "p1" }])
+          .mockResolvedValueOnce([failing, ok]),
+        updateMany: claimAlways(),
+      },
+      project: { findFirst: async () => ({ id: "p1" }) },
+      event: { count: async () => 0 },
+    } as never;
+
+    const result = await runScheduledAlertRuleEvaluation(prisma);
+    expect(result.rulesEvaluated).toBe(2);
+    expect(result.rulesFired).toBe(1);
+    expect(fireProjectAlert).toHaveBeenCalledTimes(2);
+    errorSpy.mockRestore();
+    fireProjectAlert.mockResolvedValue(true);
+  });
+
+  it("fires NO_EVENTS on the scheduled path when the window is empty", async () => {
+    const ruleRow = {
+      id: "rule-ne",
+      name: "No events",
+      enabled: true,
+      conditions: [
+        { type: "NO_EVENTS" as const, windowMinutes: 5, environment: null },
+      ],
+      destination_ids: [PROJECT_EMAIL_DESTINATION_ID],
+      cooldown_minutes: 15,
+      created_at: new Date(),
+      updated_at: new Date(),
+    };
+    const prisma = {
+      alertRule: {
+        findMany: vi
+          .fn()
+          .mockResolvedValueOnce([{ project_id: "p1" }])
+          .mockResolvedValueOnce([ruleRow]),
+        updateMany: claimAlways(),
+      },
+      project: { findFirst: async () => ({ id: "p1" }) },
+      event: { count: async () => 0 },
+    } as never;
+
+    const result = await runScheduledAlertRuleEvaluation(prisma);
+    expect(result.rulesEvaluated).toBe(1);
+    expect(result.rulesFired).toBe(1);
+    expect(fireProjectAlert).toHaveBeenCalledWith(
+      prisma,
+      expect.objectContaining({
+        rule: "ALERT_RULE",
+        title: "No events",
+        href: "/dashboard/overview?range=24h",
+      })
+    );
+  });
+
+  it("does not evaluate schedule-only rules on error ingest", async () => {
+    const ruleRow = {
+      id: "rule-ne",
+      name: "No events",
+      enabled: true,
+      conditions: [
+        { type: "NO_EVENTS" as const, windowMinutes: 5, environment: null },
+      ],
+      destination_ids: [PROJECT_EMAIL_DESTINATION_ID],
+      cooldown_minutes: 15,
+      created_at: new Date(),
+      updated_at: new Date(),
+    };
+    const count = vi.fn(async () => 0);
+    const prisma = {
+      alertRule: {
+        findMany: async () => [ruleRow],
+        updateMany: claimAlways(),
+      },
+      event: { count },
+    } as never;
+
+    const result = await evaluateAlertRulesForProject(prisma, "p1", "ingest");
+    expect(result.evaluated).toBe(0);
+    expect(result.fired).toBe(0);
+    expect(count).not.toHaveBeenCalled();
+    expect(fireProjectAlert).not.toHaveBeenCalled();
   });
 
   it("does not fire NO_EVENTS when events exist", async () => {

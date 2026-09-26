@@ -3,6 +3,8 @@ import type { NextConfig } from "next";
 import path from "path";
 
 const nextConfig: NextConfig = {
+  // Put <title> and other metadata in <head> for crawlers instead of streaming them into <body>.
+  htmlLimitedBots: /.*/,
   // Avoid duplicate server/API work in dev (Strict Mode renders Server Components twice).
   reactStrictMode: false,
   // Monorepo: trace from repo root so Next finds workspace deps (@telemetry-tracker/core, @telemetry-tracker/next)

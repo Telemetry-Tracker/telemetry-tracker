@@ -962,7 +962,7 @@ function hrefForHints(
     return "/dashboard/sessions";
   }
   if (hints.includes("overview") && !hints.includes("errors") && !hints.includes("sessions")) {
-    return "/dashboard";
+    return "/dashboard/overview?range=24h";
   }
   return "/dashboard/errors";
 }
@@ -1035,8 +1035,22 @@ export async function evaluateAlertRulesForProject(
     if (path === "ingest" && !ruleNeedsIngestEvaluation(rule)) continue;
     if (path === "scheduled" && !ruleNeedsScheduledEvaluation(rule)) continue;
     evaluated += 1;
-    const didFire = await evaluateAlertRule(prisma, projectId, rule);
-    if (didFire) fired += 1;
+    try {
+      const didFire = await evaluateAlertRule(prisma, projectId, rule);
+      if (didFire) fired += 1;
+    } catch (error) {
+      if (path !== "scheduled") throw error;
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(
+        JSON.stringify({
+          ok: false,
+          job: "alert-rules-evaluator",
+          projectId,
+          ruleId: rule.id,
+          message,
+        })
+      );
+    }
   }
   return { evaluated, fired };
 }
@@ -1083,13 +1097,25 @@ export async function runScheduledAlertRuleEvaluation(
       select: { id: true },
     });
     if (!project) continue;
-    const result = await evaluateAlertRulesForProject(
-      prisma,
-      projectId,
-      "scheduled"
-    );
-    rulesEvaluated += result.evaluated;
-    rulesFired += result.fired;
+    try {
+      const result = await evaluateAlertRulesForProject(
+        prisma,
+        projectId,
+        "scheduled"
+      );
+      rulesEvaluated += result.evaluated;
+      rulesFired += result.fired;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(
+        JSON.stringify({
+          ok: false,
+          job: "alert-rules-evaluator",
+          projectId,
+          message,
+        })
+      );
+    }
   }
 
   return {

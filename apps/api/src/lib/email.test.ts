@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { isTransactionalEmailConfigured, sendTransactionalEmail } from "./email.js";
+import {
+  isTransactionalEmailConfigured,
+  resetTransactionalEmailConfigWarningForTests,
+  sendTransactionalEmail,
+} from "./email.js";
 
 describe("isTransactionalEmailConfigured", () => {
   const prevKey = process.env.RESEND_API_KEY;
@@ -41,6 +45,7 @@ describe("sendTransactionalEmail", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", fetchMock);
     fetchMock.mockReset();
+    resetTransactionalEmailConfigWarningForTests();
   });
 
   afterEach(() => {
@@ -58,6 +63,7 @@ describe("sendTransactionalEmail", () => {
     delete process.env.TELEMETRY_EMAIL_FROM;
     process.env.NODE_ENV = "development";
     const logSpy = vi.spyOn(console, "info").mockImplementation(() => undefined);
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
 
     const result = await sendTransactionalEmail({
       to: "user@example.com",
@@ -65,7 +71,11 @@ describe("sendTransactionalEmail", () => {
       html: "<p>Hello</p>",
     });
 
-    expect(result).toEqual({ sent: false, devLogged: true });
+    expect(result).toEqual({
+      sent: false,
+      devLogged: true,
+      error: "email_not_configured",
+    });
     expect(fetchMock).not.toHaveBeenCalled();
     expect(logSpy).toHaveBeenCalledWith(
       "[email:dev]",
@@ -73,7 +83,11 @@ describe("sendTransactionalEmail", () => {
       "Test",
       "<p>Hello</p>"
     );
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("email_not_configured")
+    );
     logSpy.mockRestore();
+    warnSpy.mockRestore();
   });
 
   it("strips CR/LF from dev-logged email fields", async () => {
@@ -81,6 +95,7 @@ describe("sendTransactionalEmail", () => {
     delete process.env.TELEMETRY_EMAIL_FROM;
     process.env.NODE_ENV = "development";
     const logSpy = vi.spyOn(console, "info").mockImplementation(() => undefined);
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
 
     await sendTransactionalEmail({
       to: "user@example.com\r\n[INFO] forged",
@@ -97,10 +112,11 @@ describe("sendTransactionalEmail", () => {
     logSpy.mockRestore();
   });
 
-  it("no-ops silently in production when not configured", async () => {
+  it("returns email_not_configured and warns once in production when Resend is missing", async () => {
     delete process.env.RESEND_API_KEY;
     delete process.env.TELEMETRY_EMAIL_FROM;
     process.env.NODE_ENV = "production";
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
 
     const result = await sendTransactionalEmail({
       to: "user@example.com",
@@ -108,8 +124,21 @@ describe("sendTransactionalEmail", () => {
       html: "<p>Hello</p>",
     });
 
-    expect(result).toEqual({ sent: false });
+    expect(result).toEqual({ sent: false, error: "email_not_configured" });
     expect(fetchMock).not.toHaveBeenCalled();
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    const payload = JSON.parse(String(warnSpy.mock.calls[0]?.[0]));
+    expect(payload.reason).toBe("email_not_configured");
+    expect(payload.missing).toEqual(["RESEND_API_KEY", "TELEMETRY_EMAIL_FROM"]);
+    expect(JSON.stringify(payload)).not.toMatch(/re_/);
+
+    await sendTransactionalEmail({
+      to: "other@example.com",
+      subject: "Again",
+      html: "<p>Hi</p>",
+    });
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    warnSpy.mockRestore();
   });
 
   it("posts to Resend when configured", async () => {

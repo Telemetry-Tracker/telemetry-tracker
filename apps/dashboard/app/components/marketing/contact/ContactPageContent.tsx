@@ -426,7 +426,7 @@ export function ContactPageContent() {
                   optional Stripe billing.
                 </p>
                 <Link
-                  href="/docs#self-hosting"
+                  href="/docs/self-hosting"
                   className="mt-3 inline-flex text-sm text-brand hover:underline"
                 >
                   Self-hosting guide →

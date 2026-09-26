@@ -1,7 +1,7 @@
 {
   "name": "@telemetry-tracker/next",
-  "version": "1.3.0",
-  "description": "Telemetry Tracker SDK for Next.js: provider, error boundary, page tracking.",
+  "version": "1.3.2",
+  "description": "Telemetry Tracker SDK for Next.js: provider, error boundary, page tracking, and App Router onRequestError.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -15,6 +15,10 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./server": {
+      "import": "./dist/server.js",
+      "types": "./dist/server.d.ts"
     }
   },
   "files": [
@@ -23,6 +27,7 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
+    "test": "vitest run",
     "prepublishOnly": "pnpm run build"
   },
   "keywords": [
@@ -41,6 +46,7 @@
   },
   "devDependencies": {
     "@types/react": "^19.0.1",
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "vitest": "^3.2.6"
   }
 }

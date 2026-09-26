@@ -71,7 +71,7 @@ export function CookieConsent({ serverChoice = null }: CookieConsentProps) {
       >
         <div className="flex w-full max-w-3xl flex-col gap-3 rounded-2xl border border-border bg-surface/90 px-4 py-3 backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between sm:px-5">
           <p className="text-sm text-muted-foreground">
-            Optional cookies are off. Workspace selections are not saved between visits.
+            Optional analytics cookies are off. Sign-in and your selected project stay saved.
           </p>
           <div className="flex shrink-0 items-center gap-2">
             <Link

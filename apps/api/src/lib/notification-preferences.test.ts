@@ -7,6 +7,7 @@ import {
   isInQuietHours,
   isMuted,
   parseNotificationPreferences,
+  shouldSendEmailForCategory,
   shouldSendEmailForItem,
   shouldShowInAppNotification,
   validateNotificationPreferencesPatch,
@@ -40,6 +41,16 @@ const alert: DashboardNotificationItem = {
 };
 
 describe("notification-preferences", () => {
+  it("sends alert email for a new account that has not saved preferences", () => {
+    expect(DEFAULT_NOTIFICATION_PREFERENCES.channels.email).toBe(true);
+    expect(shouldSendEmailForCategory(DEFAULT_NOTIFICATION_PREFERENCES, "alerts")).toBe(
+      true
+    );
+    expect(shouldSendEmailForCategory(DEFAULT_NOTIFICATION_PREFERENCES, "issues")).toBe(
+      false
+    );
+  });
+
   it("returns defaults for invalid stored JSON", () => {
     expect(parseNotificationPreferences(null)).toEqual(DEFAULT_NOTIFICATION_PREFERENCES);
     expect(parseNotificationPreferences({ channels: {} })).toEqual(
