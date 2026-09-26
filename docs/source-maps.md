@@ -201,7 +201,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Upload Source Maps
-        uses: Telemetry-Tracker/telemetry-tracker/.github/actions/upload-source-maps@main
+        # Pin to a full commit SHA (≥ v1.17.18). Tags before v1.17.18 ship an older Action
+        # without sourceMappingURL support; ≤ v1.16.5 also interpolated inputs into the script.
+        uses: Telemetry-Tracker/telemetry-tracker/.github/actions/upload-source-maps@8d00f9d1527783f6365e7c6e2e1f19630920bc6e # v1.17.24
         with:
           api_key: ${{ secrets.TT_API_KEY }}
           project_id: "your-project-uuid-here"
@@ -232,7 +234,9 @@ The action defaults to the hosted cloud API (`https://api.telemetry-tracker.com`
 
 Use `http://localhost:3001` (or your dev API port) when testing uploads against a local API from CI or a runner on your network.
 
-`uses: ./.github/actions/upload-source-maps` only works inside this repository. Other projects must use the `Telemetry-Tracker/telemetry-tracker/.github/actions/...@main` form above (pin a release tag when you want a frozen copy).
+`uses: ./.github/actions/upload-source-maps` only works inside this repository. Other projects must pin the composite action to a **full commit SHA** (with a version comment), for example `@8d00f9d1527783f6365e7c6e2e1f19630920bc6e # v1.17.24` as shown above.
+
+**Do not use tags older than v1.17.18** for this Action: those builds lack `sourceMappingURL` resolution, and tags ≤ v1.16.5 interpolated workflow inputs directly into the inline script. Prefer Dependabot’s `github-actions` ecosystem (or Renovate) to bump the SHA when you intentionally take a newer release.
 
 For Next.js, set `artifact_path` to `.next` and `base_url` to `https://<host>/_next`. The uploader follows the last non-inline `sourceMappingURL`, so a Turbopack map whose filename hash differs from the chunk still attaches to the chunk URL. Webpack maps that sit beside the chunk behave the same way. Vercel does not leave `.next` in a GitHub checkout; run the action in the job that produced the build, or download that output first. A live Next.js 15 webpack, Next.js 16 Turbopack, and Vercel upload has not been executed in CI — coverage is the URL resolver test against those file layouts.
 
