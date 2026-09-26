@@ -25,11 +25,12 @@ export {
   type WebVitalRating,
 } from "./web-vitals.js";
 
-const REPORTED = Symbol.for("telemetry.reported");
+const ANON_STORAGE_KEY = "tacko_telemetry_anon_id";
+
 /** In-flight ingest promises so a later fatal flush can await trackError(e); throw e. */
 const inFlightIngest = new WeakMap<object, Promise<void>>();
-
-const ANON_STORAGE_KEY = "tacko_telemetry_anon_id";
+/** Completed error reports — WeakSet so we never mutate frozen/sealed Error objects. */
+const reportedErrors = new WeakSet<object>();
 
 let anonymousId: string | null = null;
 
@@ -513,46 +514,52 @@ export function ingestError(
   error: unknown,
   context?: Record<string, unknown>
 ): Promise<void> {
-  const cfg = getConfigOrNull();
-  if (!cfg) return Promise.resolve();
+  try {
+    const cfg = getConfigOrNull();
+    if (!cfg) return Promise.resolve();
 
-  const err = toReportableError(error);
+    const err = toReportableError(error);
 
-  const existing = inFlightIngest.get(err);
-  if (existing) return existing;
+    const existing = inFlightIngest.get(err);
+    if (existing) return existing;
 
-  if ((err as unknown as Record<symbol, boolean>)[REPORTED]) {
+    if (reportedErrors.has(err)) {
+      return Promise.resolve();
+    }
+
+    let message = err.message;
+    let stack = err.stack;
+    let scrubbedContext = context ?? undefined;
+    const scrubOpts = resolveClientPiiScrub(cfg);
+    if (scrubOpts) {
+      message = scrubPiiText(message);
+      if (stack != null) stack = scrubPiiText(stack);
+      if (scrubbedContext != null) {
+        scrubbedContext = scrubPiiRecord(scrubbedContext, scrubOpts);
+      }
+    }
+
+    // Non-mutating dedupe — safe for Object.freeze / seal / preventExtensions.
+    reportedErrors.add(err);
+
+    const pending = send("/ingest/error", {
+      message,
+      stack: stack ?? undefined,
+      context: scrubbedContext,
+      user_id: userId ?? undefined,
+      session_id: sessionId ?? undefined,
+    })
+      .catch(() => {})
+      .finally(() => {
+        inFlightIngest.delete(err);
+      });
+
+    inFlightIngest.set(err, pending);
+    return pending;
+  } catch {
+    // Never let telemetry-internal failures escape into the caller's crash path.
     return Promise.resolve();
   }
-
-  let message = err.message;
-  let stack = err.stack;
-  let scrubbedContext = context ?? undefined;
-  const scrubOpts = resolveClientPiiScrub(cfg);
-  if (scrubOpts) {
-    message = scrubPiiText(message);
-    if (stack != null) stack = scrubPiiText(stack);
-    if (scrubbedContext != null) {
-      scrubbedContext = scrubPiiRecord(scrubbedContext, scrubOpts);
-    }
-  }
-
-  (err as unknown as Record<symbol, boolean>)[REPORTED] = true;
-
-  const pending = send("/ingest/error", {
-    message,
-    stack: stack ?? undefined,
-    context: scrubbedContext,
-    user_id: userId ?? undefined,
-    session_id: sessionId ?? undefined,
-  })
-    .catch(() => {})
-    .finally(() => {
-      inFlightIngest.delete(err);
-    });
-
-  inFlightIngest.set(err, pending);
-  return pending;
 }
 
 export function screen(name: string): void {

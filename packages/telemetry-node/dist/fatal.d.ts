@@ -10,6 +10,7 @@ export type FatalFlushDeps = {
  * Report a fatal error, wait up to `timeoutMs` for ingest, then exit(1).
  * Accepts any thrown value (null/undefined/primitives/objects).
  * Clears the timeout when ingest settles so the timer does not keep the process alive.
+ * Telemetry-internal failures must not escape (would become Node exit code 7).
  */
 export declare function flushFatalError(thrown: unknown, source: string, deps: FatalFlushDeps): void;
 /** @internal test helper */

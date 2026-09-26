@@ -101,4 +101,38 @@ describe("flushFatalError", () => {
     expect(ingest).toHaveBeenCalledTimes(1);
     expect(exit).toHaveBeenCalledTimes(1);
   });
+
+  it.each([
+    ["frozen", (e: Error) => Object.freeze(e)],
+    ["sealed", (e: Error) => Object.seal(e)],
+    ["non-extensible", (e: Error) => Object.preventExtensions(e)],
+  ] as const)("ingests %s Error then exits 1", async (_label, lock) => {
+    const ingest = vi.fn(async () => {});
+    const exit = vi.fn();
+    flushFatalError(lock(new Error("locked")), "uncaughtException", {
+      ingest,
+      exit,
+      timeoutMs: 50,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(ingest).toHaveBeenCalledWith(
+      expect.objectContaining({ message: "locked" }),
+      expect.objectContaining({ source: "uncaughtException" })
+    );
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    expect(exit).toHaveBeenCalledWith(1);
+  });
+
+  it("still exits 1 when ingest throws synchronously", async () => {
+    const exit = vi.fn();
+    flushFatalError(new Error("boom"), "uncaughtException", {
+      ingest: () => {
+        throw new TypeError("cannot add property");
+      },
+      exit,
+      timeoutMs: 50,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(exit).toHaveBeenCalledWith(1);
+  });
 });

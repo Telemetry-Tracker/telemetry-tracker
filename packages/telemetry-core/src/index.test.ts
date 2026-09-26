@@ -28,7 +28,8 @@ describe("ingest fetch", () => {
 
   beforeEach(() => {
     vi.stubGlobal("fetch", fetchMock);
-    fetchMock.mockClear();
+    fetchMock.mockReset();
+    fetchMock.mockResolvedValue({ ok: true, text: async () => "" });
     init({
       ingestUrl: "http://localhost:3001",
       app: "test-app",
@@ -119,6 +120,46 @@ describe("ingest fetch", () => {
     release();
     await second;
     expect(secondDone).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["frozen", (e: Error) => Object.freeze(e)],
+    ["sealed", (e: Error) => Object.seal(e)],
+    ["non-extensible", (e: Error) => Object.preventExtensions(e)],
+  ] as const)("ingestError reports %s Error objects without mutating them", async (_label, lock) => {
+    fetchMock.mockClear();
+    const err = lock(new Error("locked"));
+    await expect(ingestError(err, { source: "uncaughtException" })).resolves.toBeUndefined();
+    const errorCall = fetchMock.mock.calls.find((c) =>
+      String(c[0]).includes("/ingest/error")
+    );
+    expect(errorCall).toBeTruthy();
+    expect(JSON.parse(String((errorCall![1] as RequestInit).body)).message).toBe("locked");
+    // Second call is deduped without a new fetch.
+    await ingestError(err, { source: "uncaughtException" });
+    const errorCalls = fetchMock.mock.calls.filter((c) =>
+      String(c[0]).includes("/ingest/error")
+    );
+    expect(errorCalls).toHaveLength(1);
+  });
+
+  it("awaits in-flight trackError for a frozen Error (trackError; throw)", async () => {
+    fetchMock.mockClear();
+    let release!: () => void;
+    fetchMock.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          release = () => resolve({ ok: true, text: async () => "" });
+        })
+    );
+    const err = Object.freeze(new Error("frozen-shared"));
+    trackError(err, { source: "manual" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const second = ingestError(err, { source: "uncaughtException" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    release();
+    await second;
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

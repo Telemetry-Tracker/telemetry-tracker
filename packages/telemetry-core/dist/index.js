@@ -7,10 +7,11 @@ export { SDK_VERSION };
 export { toReportableError } from "./to-reportable-error.js";
 export { scrubPiiText, scrubPiiRecord } from "./pii-scrub.js";
 export { WEB_VITAL_EVENT_NAME, installWebVitals, rateWebVital, buildWebVitalProperties, setWebVitalsCaptureEnabled, isWebVitalsCaptureEnabled, } from "./web-vitals.js";
-const REPORTED = Symbol.for("telemetry.reported");
+const ANON_STORAGE_KEY = "tacko_telemetry_anon_id";
 /** In-flight ingest promises so a later fatal flush can await trackError(e); throw e. */
 const inFlightIngest = new WeakMap();
-const ANON_STORAGE_KEY = "tacko_telemetry_anon_id";
+/** Completed error reports — WeakSet so we never mutate frozen/sealed Error objects. */
+const reportedErrors = new WeakSet();
 let anonymousId = null;
 let fallbackIdSeq = 0;
 function bytesToUuid(bytes) {
@@ -415,42 +416,49 @@ export function trackError(error, context) {
 }
 /** Send an error and resolve after the ingest request settles. Fatal handlers await this. */
 export function ingestError(error, context) {
-    const cfg = getConfigOrNull();
-    if (!cfg)
-        return Promise.resolve();
-    const err = toReportableError(error);
-    const existing = inFlightIngest.get(err);
-    if (existing)
-        return existing;
-    if (err[REPORTED]) {
-        return Promise.resolve();
-    }
-    let message = err.message;
-    let stack = err.stack;
-    let scrubbedContext = context ?? undefined;
-    const scrubOpts = resolveClientPiiScrub(cfg);
-    if (scrubOpts) {
-        message = scrubPiiText(message);
-        if (stack != null)
-            stack = scrubPiiText(stack);
-        if (scrubbedContext != null) {
-            scrubbedContext = scrubPiiRecord(scrubbedContext, scrubOpts);
+    try {
+        const cfg = getConfigOrNull();
+        if (!cfg)
+            return Promise.resolve();
+        const err = toReportableError(error);
+        const existing = inFlightIngest.get(err);
+        if (existing)
+            return existing;
+        if (reportedErrors.has(err)) {
+            return Promise.resolve();
         }
+        let message = err.message;
+        let stack = err.stack;
+        let scrubbedContext = context ?? undefined;
+        const scrubOpts = resolveClientPiiScrub(cfg);
+        if (scrubOpts) {
+            message = scrubPiiText(message);
+            if (stack != null)
+                stack = scrubPiiText(stack);
+            if (scrubbedContext != null) {
+                scrubbedContext = scrubPiiRecord(scrubbedContext, scrubOpts);
+            }
+        }
+        // Non-mutating dedupe — safe for Object.freeze / seal / preventExtensions.
+        reportedErrors.add(err);
+        const pending = send("/ingest/error", {
+            message,
+            stack: stack ?? undefined,
+            context: scrubbedContext,
+            user_id: userId ?? undefined,
+            session_id: sessionId ?? undefined,
+        })
+            .catch(() => { })
+            .finally(() => {
+            inFlightIngest.delete(err);
+        });
+        inFlightIngest.set(err, pending);
+        return pending;
     }
-    err[REPORTED] = true;
-    const pending = send("/ingest/error", {
-        message,
-        stack: stack ?? undefined,
-        context: scrubbedContext,
-        user_id: userId ?? undefined,
-        session_id: sessionId ?? undefined,
-    })
-        .catch(() => { })
-        .finally(() => {
-        inFlightIngest.delete(err);
-    });
-    inFlightIngest.set(err, pending);
-    return pending;
+    catch {
+        // Never let telemetry-internal failures escape into the caller's crash path.
+        return Promise.resolve();
+    }
 }
 export function screen(name) {
     trackEvent("$screen", { name });

@@ -7,6 +7,11 @@ import {
   init,
   middleware,
 } from "./index.js";
+import { resetFatalFlushStateForTests } from "./fatal.js";
+
+afterEach(() => {
+  resetFatalFlushStateForTests();
+});
 
 describe("createUncaughtExceptionHandler", () => {
   it("flushes with source uncaughtException then exits", async () => {
@@ -52,6 +57,25 @@ describe("createUncaughtExceptionHandler", () => {
       expect(exit).toHaveBeenCalledWith(1);
     }
   );
+
+  it.each([
+    ["frozen", (e: Error) => Object.freeze(e)],
+    ["sealed", (e: Error) => Object.seal(e)],
+    ["non-extensible", (e: Error) => Object.preventExtensions(e)],
+  ] as const)("ingests %s Error throw then exits 1", async (_label, lock) => {
+    const ingest = vi.fn(async () => {});
+    const exit = vi.fn();
+    createUncaughtExceptionHandler({ ingest, exit, timeoutMs: 50 })(
+      lock(new Error("locked"))
+    );
+    await new Promise((r) => setTimeout(r, 20));
+    expect(ingest).toHaveBeenCalledWith(
+      expect.objectContaining({ message: "locked" }),
+      expect.objectContaining({ source: "uncaughtException" })
+    );
+    await new Promise((r) => setTimeout(r, 40));
+    expect(exit).toHaveBeenCalledWith(1);
+  });
 });
 
 describe("createUnhandledRejectionHandler", () => {
