@@ -1,24 +1,42 @@
 import { HOSTED_API_URL } from "@/lib/hosted-cloud";
 
 /**
- * Install and setup snippets reused on acquisition landing pages.
- * Kept in sync with the platform docs (hosted ingest URL for the free-cloud path).
+ * Install and setup snippets reused by /docs/nextjs and acquisition landing pages.
+ * Canonical App Router path: server layout + client TrackPageView (hosted ingest).
  */
 export const nextInstall = `pnpm add @telemetry-tracker/next
 # or
 npm install @telemetry-tracker/next`;
 
+/** Client + server env for a fresh create-next-app on the hosted cloud. */
+export const nextEnvLocal = `# .env.local
+# Create a project key under Settings → API keys (shown once).
+NEXT_PUBLIC_TELEMETRY_INGEST_URL=${HOSTED_API_URL}
+NEXT_PUBLIC_TELEMETRY_API_KEY=tt_live_<publicId>_<secret>
+NEXT_PUBLIC_TELEMETRY_APP=my-next-app
+
+# Optional: server instrumentation (instrumentation.ts) — use a key without NEXT_PUBLIC_
+TELEMETRY_INGEST_URL=${HOSTED_API_URL}
+TELEMETRY_API_KEY=tt_live_<publicId>_<secret>
+TELEMETRY_APP=my-next-app`;
+
 export const nextProviderSetup = `// app/layout.tsx
 import { TelemetryProvider } from "@telemetry-tracker/next";
 import { TrackPageView } from "./track-page-view";
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="en">
       <body>
         <TelemetryProvider
           config={{
-            ingestUrl: process.env.NEXT_PUBLIC_TELEMETRY_INGEST_URL ?? "${HOSTED_API_URL}",
+            ingestUrl:
+              process.env.NEXT_PUBLIC_TELEMETRY_INGEST_URL ??
+              "${HOSTED_API_URL}",
             app: process.env.NEXT_PUBLIC_TELEMETRY_APP ?? "my-next-app",
             apiKey: process.env.NEXT_PUBLIC_TELEMETRY_API_KEY,
           }}
@@ -49,9 +67,49 @@ export const nextErrorBoundary = `import { TelemetryErrorBoundary } from "@telem
   <YourComponent />
 </TelemetryErrorBoundary>`;
 
+/** Client button used by /docs/nextjs clean-room verification (message: docs-check). */
+export const nextDocsCheckButton = `// app/docs-check-button.tsx
+"use client";
+
+import { trackError } from "@telemetry-tracker/next";
+
+export function DocsCheckButton() {
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        trackError(new Error("docs-check"), { page: "/" });
+      }}
+    >
+      Send docs-check error
+    </button>
+  );
+}`;
+
+export const nextDocsCheckPage = `// app/page.tsx
+import { DocsCheckButton } from "./docs-check-button";
+
+export default function Home() {
+  return (
+    <main>
+      <h1>Telemetry Tracker docs check</h1>
+      <DocsCheckButton />
+    </main>
+  );
+}`;
+
 export const nextTestError = `import { trackError } from "@telemetry-tracker/next";
 
-trackError(new Error("Test error from Next.js"), { page: "/" });`;
+trackError(new Error("docs-check"), { page: "/" });`;
+export const nextInstrumentation = `// instrumentation.ts
+import { createOnRequestError } from "@telemetry-tracker/next/server";
+
+export const onRequestError = createOnRequestError({
+  ingestUrl: process.env.TELEMETRY_INGEST_URL ?? "${HOSTED_API_URL}",
+  apiKey: process.env.TELEMETRY_API_KEY,
+  app: process.env.TELEMETRY_APP ?? "my-next-app",
+  environment: process.env.NODE_ENV,
+});`;
 
 export const reactInstall = `pnpm add @telemetry-tracker/core
 # or
