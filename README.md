@@ -272,7 +272,7 @@ Please follow the [Code of Conduct](CODE_OF_CONDUCT.md). Report security issues 
 | SDK guides | [docs/sdk-core.md](docs/sdk-core.md), [docs/sdk-next.md](docs/sdk-next.md), [docs/sdk-node.md](docs/sdk-node.md), [docs/sdk-nestjs.md](docs/sdk-nestjs.md), [docs/sdk-vue.md](docs/sdk-vue.md), [docs/sdk-nuxt.md](docs/sdk-nuxt.md), [docs/sdk-react-native.md](docs/sdk-react-native.md) |
 | Source maps | [docs/source-maps.md](docs/source-maps.md) |
 
-**Publish SDK packages:** `npm login` → `pnpm publish:packages` (see [CONTRIBUTING.md](CONTRIBUTING.md) and root `package.json` scripts).
+**Publish SDK packages:** from a clean tagged checkout, `npm login` → `pnpm publish:packages` (optional `--only=core,node,vite-plugin`). See [CONTRIBUTING.md](CONTRIBUTING.md) and root `package.json` scripts.
 
 **GitHub social preview:** In repo **Settings → General → Social preview**, use `https://telemetry-tracker.com/og-banner.png` (1024×409 marketing banner) once the dashboard is deployed. Install path for docs and marketing: `@telemetry-tracker/core` (see npm badges above).
 

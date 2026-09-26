@@ -1,6 +1,6 @@
 {
   "name": "@telemetry-tracker/node",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Telemetry Tracker SDK for Node.js: global error handlers, request middleware.",
   "license": "MIT",
   "repository": {
@@ -24,7 +24,7 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "test": "vitest run",
-    "prepublishOnly": "pnpm run build"
+    "prepublishOnly": "node ../../scripts/assert-sdk-publish-context.mjs && pnpm run build"
   },
   "keywords": [
     "telemetry",

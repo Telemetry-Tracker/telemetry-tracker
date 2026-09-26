@@ -52,15 +52,18 @@ trackError(new Error("DB connection failed"), { db: "primary" });`}
       <h2>Global error handlers</h2>
       <p>
         After <code>init()</code>, <code>uncaughtException</code> and{" "}
-        <code>unhandledRejection</code> are patched to send errors to the ingest API (and then
-        rethrow / continue so your process can still exit or log as usual).
+        <code>unhandledRejection</code> are patched to send errors to the ingest API, flush (up to
+        2s), then <code>process.exit(1)</code> — matching Node’s default crash behaviour. Set{" "}
+        <code>exitOnUnhandledRejection: false</code> if you only want rejections reported without
+        exiting.
       </p>
 
       <h2>Request middleware</h2>
       <p>
         Optional: use <code>middleware()</code> to send a <code>$request</code> event per HTTP
-        request (method, url, duration). Attach it to your server framework (Express, Fastify,
-        NestJS, etc.) so it runs for each request.
+        request (method, url, <code>duration_ms</code> until the response finishes). Attach it to
+        your server framework (Express, Fastify, NestJS, etc.) so it runs for each request.{" "}
+        <code>next()</code> is called exactly once.
       </p>
       <CodeBlock
         code={`import { middleware } from "@telemetry-tracker/node";

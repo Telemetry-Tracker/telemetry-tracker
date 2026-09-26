@@ -71,9 +71,11 @@ export default function NodeJsErrorTrackingPage() {
           <p>
             <code>@telemetry-tracker/node</code> wraps core for servers. After <code>init()</code>,
             it installs handlers for <code>uncaughtException</code> and{" "}
-            <code>unhandledRejection</code>, then rethrows / continues so your process can still exit
-            or log as usual. Optional request middleware sends a <code>$request</code> event per HTTP
-            call.
+            <code>unhandledRejection</code>, flushes the error to ingest, then exits with code 1
+            (Node’s default). Set <code>exitOnUnhandledRejection: false</code> to only report
+            rejections and keep the process running. Optional request middleware sends a{" "}
+            <code>$request</code> event per HTTP call with <code>duration_ms</code> until the
+            response finishes.
           </p>
         }
       >
