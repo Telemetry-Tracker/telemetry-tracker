@@ -140,7 +140,7 @@ let sessionLifecycleInstalled = false;
 let sessionId: string | null = null;
 let sessionStartedAt: Date | null = null;
 /** Rate-limits identical sanitized "Script error." reports within a time window. */
-let sanitizedGlobalErrorDedupe: SanitizedGlobalErrorDedupeStore =
+const sanitizedGlobalErrorDedupe: SanitizedGlobalErrorDedupeStore =
   createSanitizedGlobalErrorDedupeStore();
 /** Prevents window.onerror from re-entering while we report an error. */
 let reportingGlobalError = false;

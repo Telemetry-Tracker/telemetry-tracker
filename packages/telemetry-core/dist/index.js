@@ -72,7 +72,7 @@ let sessionLifecycleInstalled = false;
 let sessionId = null;
 let sessionStartedAt = null;
 /** Rate-limits identical sanitized "Script error." reports within a time window. */
-let sanitizedGlobalErrorDedupe = createSanitizedGlobalErrorDedupeStore();
+const sanitizedGlobalErrorDedupe = createSanitizedGlobalErrorDedupeStore();
 /** Prevents window.onerror from re-entering while we report an error. */
 let reportingGlobalError = false;
 const DEFAULT_BATCH_INTERVAL = 5000;
