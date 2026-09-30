@@ -3,6 +3,7 @@ export { SDK_VERSION };
 export { toReportableError } from "./to-reportable-error.js";
 export { scrubPiiText, scrubPiiRecord } from "./pii-scrub.js";
 export { WEB_VITAL_EVENT_NAME, installWebVitals, rateWebVital, buildWebVitalProperties, setWebVitalsCaptureEnabled, isWebVitalsCaptureEnabled, type WebVitalEventProperties, type WebVitalMetricName, type WebVitalRating, } from "./web-vitals.js";
+export { SANITIZED_GLOBAL_ERROR_DEDUPE_WINDOW_MS, SANITIZED_GLOBAL_ERROR_MAX_PER_WINDOW, isSanitizedBrowserScriptError, sanitizedGlobalErrorDedupeKey, shouldReportSanitizedGlobalError, clearSanitizedGlobalErrorDedupe, createSanitizedGlobalErrorDedupeStore, buildSanitizedScriptErrorContext, } from "./sanitized-script-error.js";
 export declare function getAnonymousId(): string;
 export type TelemetryPiiScrubConfig = boolean | {
     /** Extra property/context keys to redact (case-insensitive). */

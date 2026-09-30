@@ -1,12 +1,14 @@
 import { readDeviceContext } from "./device-context.js";
 import { installWebVitals, setWebVitalsCaptureEnabled, WEB_VITAL_EVENT_NAME, } from "./web-vitals.js";
 import { scrubPiiRecord, scrubPiiText } from "./pii-scrub.js";
+import { buildSanitizedScriptErrorContext, clearSanitizedGlobalErrorDedupe, createSanitizedGlobalErrorDedupeStore, isSanitizedBrowserScriptError, sanitizedGlobalErrorDedupeKey, shouldReportSanitizedGlobalError, } from "./sanitized-script-error.js";
 import { SDK_VERSION } from "./version.js";
 import { toReportableError } from "./to-reportable-error.js";
 export { SDK_VERSION };
 export { toReportableError } from "./to-reportable-error.js";
 export { scrubPiiText, scrubPiiRecord } from "./pii-scrub.js";
 export { WEB_VITAL_EVENT_NAME, installWebVitals, rateWebVital, buildWebVitalProperties, setWebVitalsCaptureEnabled, isWebVitalsCaptureEnabled, } from "./web-vitals.js";
+export { SANITIZED_GLOBAL_ERROR_DEDUPE_WINDOW_MS, SANITIZED_GLOBAL_ERROR_MAX_PER_WINDOW, isSanitizedBrowserScriptError, sanitizedGlobalErrorDedupeKey, shouldReportSanitizedGlobalError, clearSanitizedGlobalErrorDedupe, createSanitizedGlobalErrorDedupeStore, buildSanitizedScriptErrorContext, } from "./sanitized-script-error.js";
 const ANON_STORAGE_KEY = "tacko_telemetry_anon_id";
 /** In-flight ingest promises so a later fatal flush can await trackError(e); throw e. */
 const inFlightIngest = new WeakMap();
@@ -69,6 +71,10 @@ let browserHandlersInstalled = false;
 let sessionLifecycleInstalled = false;
 let sessionId = null;
 let sessionStartedAt = null;
+/** Rate-limits identical sanitized "Script error." reports within a time window. */
+const sanitizedGlobalErrorDedupe = createSanitizedGlobalErrorDedupeStore();
+/** Prevents window.onerror from re-entering while we report an error. */
+let reportingGlobalError = false;
 const DEFAULT_BATCH_INTERVAL = 5000;
 const DEFAULT_BATCH_SIZE = 10;
 const eventQueue = [];
@@ -134,11 +140,13 @@ function closeSessionKeepalive(endedAt) {
     postSessionKeepalive(endedAt);
     sessionId = null;
     sessionStartedAt = null;
+    clearSanitizedGlobalErrorDedupe(sanitizedGlobalErrorDedupe);
 }
 function startSession() {
     const cfg = getConfigOrNull();
     if (!cfg)
         return;
+    clearSanitizedGlobalErrorDedupe(sanitizedGlobalErrorDedupe);
     sessionId = generateUUID();
     sessionStartedAt = new Date();
     void postSession(cfg);
@@ -182,6 +190,27 @@ export function endSession() {
     void postSession(cfg, ended);
     sessionId = null;
     sessionStartedAt = null;
+    clearSanitizedGlobalErrorDedupe(sanitizedGlobalErrorDedupe);
+}
+/**
+ * Report a browser-sanitized Script error without shipping a fabricated SDK stack.
+ * Rate-limited so one quirk cannot flood ingest.
+ */
+function reportSanitizedScriptError(message, filename, lineno, colno, nowMs = Date.now()) {
+    const key = sanitizedGlobalErrorDedupeKey(message, filename, lineno, colno);
+    if (!shouldReportSanitizedGlobalError(sanitizedGlobalErrorDedupe, key, nowMs)) {
+        return;
+    }
+    // Keep message via Error for ingestError/PII scrub, but clear stack so the
+    // handler's own frame is never persisted as the throw site.
+    const err = new Error(message);
+    try {
+        err.stack = undefined;
+    }
+    catch {
+        /* some engines freeze stack — still better than inventing frames in context */
+    }
+    trackError(err, buildSanitizedScriptErrorContext(filename, lineno, colno));
 }
 /** Only install in real browser environments; skip in React Native / Node even if `window` is polyfilled. */
 function installBrowserErrorHandlers() {
@@ -195,24 +224,51 @@ function installBrowserErrorHandlers() {
         const cfg = getConfigOrNull();
         if (!cfg)
             return false;
-        const err = error && error instanceof Error
-            ? error
-            : new Error(typeof message === "string" ? message : String(message));
-        trackError(err, {
-            source: "window.onerror",
-            filename: source,
-            lineno,
-            colno,
-        });
+        if (reportingGlobalError)
+            return false;
+        reportingGlobalError = true;
+        try {
+            if (isSanitizedBrowserScriptError(message, source, lineno, colno, error)) {
+                const msg = typeof message === "string" ? message.trim() : "Script error.";
+                reportSanitizedScriptError(msg, source ?? "", lineno ?? 0, colno ?? 0);
+                return false;
+            }
+            const err = error && error instanceof Error
+                ? error
+                : new Error(typeof message === "string" ? message : String(message));
+            trackError(err, {
+                source: "window.onerror",
+                filename: source,
+                lineno,
+                colno,
+            });
+        }
+        catch (_) {
+            // Never let reporting throw back into the page or re-enter onerror.
+        }
+        finally {
+            reportingGlobalError = false;
+        }
         return false; // let other handlers run
     };
     window.addEventListener("unhandledrejection", (event) => {
         const cfg = getConfigOrNull();
         if (!cfg)
             return;
-        const reason = event.reason;
-        const err = reason instanceof Error ? reason : new Error(reason != null ? String(reason) : "Unhandled rejection");
-        trackError(err, { source: "unhandledrejection" });
+        if (reportingGlobalError)
+            return;
+        reportingGlobalError = true;
+        try {
+            const reason = event.reason;
+            const err = reason instanceof Error ? reason : new Error(reason != null ? String(reason) : "Unhandled rejection");
+            trackError(err, { source: "unhandledrejection" });
+        }
+        catch (_) {
+            // Swallow — do not rethrow into another global handler.
+        }
+        finally {
+            reportingGlobalError = false;
+        }
     });
 }
 export function init(c) {
@@ -253,6 +309,7 @@ export function shutdown() {
     }
     endSession();
     config = null;
+    clearSanitizedGlobalErrorDedupe(sanitizedGlobalErrorDedupe);
     setWebVitalsCaptureEnabled(false);
 }
 function installBrowserWebVitals() {
@@ -430,6 +487,10 @@ export function ingestError(error, context) {
         let message = err.message;
         let stack = err.stack;
         let scrubbedContext = context ?? undefined;
+        // Sanitized browser Script errors must never persist a synthetic handler stack.
+        if (scrubbedContext && scrubbedContext.sanitized === true) {
+            stack = undefined;
+        }
         const scrubOpts = resolveClientPiiScrub(cfg);
         if (scrubOpts) {
             message = scrubPiiText(message);

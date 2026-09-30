@@ -13,6 +13,9 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ### Added
 
+- **`@telemetry-tracker/core` 1.5.1** — sanitized browser `Script error.` handling: no fabricated SDK stacks, bounded per-window dedupe, and `context.sanitized` / `browser_error` metadata so one quirky session cannot flood App Health
+- **Dashboard** — error detail distinguishes sanitized browser Script errors from normal exceptions (badge + stack panel copy)
+
 ### Fixed
 
 ### Changed

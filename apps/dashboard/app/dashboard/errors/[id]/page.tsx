@@ -53,6 +53,36 @@ type ErrorGroup = {
   occurrences_list?: Occurrence[];
 };
 
+
+function isScriptErrorMessage(message: string | null | undefined): boolean {
+  const msg = message?.trim() ?? "";
+  return msg === "Script error." || msg === "Script error";
+}
+
+/**
+ * Sanitized cross-origin browser errors (or legacy groups that look like them).
+ * Prefer explicit SDK context; fall back to message + missing/useless stack.
+ */
+function isSanitizedBrowserScriptErrorGroup(group: ErrorGroup): boolean {
+  if (!isScriptErrorMessage(group.message)) return false;
+
+  for (const occ of group.occurrences_list ?? []) {
+    const ctx = occ.context;
+    if (ctx && typeof ctx === "object" && !Array.isArray(ctx)) {
+      const record = ctx as Record<string, unknown>;
+      if (record.sanitized === true || record.browser_error === "sanitized_script_error") {
+        return true;
+      }
+    }
+  }
+
+  const top = group.top_stack?.trim() ?? "";
+  if (!top || top === "Error: Script error." || top === "Script error.") {
+    return true;
+  }
+  return false;
+}
+
 async function getErrorGroup(
   rawId: string,
   scope: {
@@ -158,22 +188,29 @@ export default async function ErrorDetailPage({
   }
 
   const resolved = Boolean(group.resolved_at);
-  const hasStackTrace = Boolean(group.symbolicated_top_stack || group.top_stack);
+  const sanitizedScriptError = isSanitizedBrowserScriptErrorGroup(group);
+  const hasStackTrace =
+    !sanitizedScriptError &&
+    Boolean(group.symbolicated_top_stack || group.top_stack);
 
-  const stackTrace =
-    group.symbolicated_top_stack ? (
-      <StackTraceView
-        source={group.symbolicated_top_stack}
-        title="Top frame (symbolicated, newest occurrence)"
-      />
-    ) : group.top_stack ? (
-      <StackTraceView source={group.top_stack} title="Top stack (group)" />
-    ) : (
-      <EmptyState
-        title="No stack trace"
-        message="This error group has no stack trace on record."
-      />
-    );
+  const stackTrace = sanitizedScriptError ? (
+    <EmptyState
+      title="Sanitized browser Script error"
+      message="The browser hid the real throw site (cross-origin or extension). This is not an application stack frame — filename/line/column are empty, and any older stack pointing at the Telemetry SDK is from synthetic Error construction, not the underlying bug."
+    />
+  ) : group.symbolicated_top_stack ? (
+    <StackTraceView
+      source={group.symbolicated_top_stack}
+      title="Top frame (symbolicated, newest occurrence)"
+    />
+  ) : group.top_stack ? (
+    <StackTraceView source={group.top_stack} title="Top stack (group)" />
+  ) : (
+    <EmptyState
+      title="No stack trace"
+      message="This error group has no stack trace on record."
+    />
+  );
 
   const occurrences = group.occurrences_list?.length ? (
     <ul className="space-y-3">
@@ -292,6 +329,7 @@ export default async function ErrorDetailPage({
             {group.environment ? <Badge>{group.environment}</Badge> : null}
             {group.platform ? <Badge>{group.platform}</Badge> : null}
             {group.release ? <Badge>{group.release}</Badge> : null}
+            {sanitizedScriptError ? <Badge>Sanitized browser error</Badge> : null}
             {resolved ? <ResolvedBadge /> : null}
           </>
         }
