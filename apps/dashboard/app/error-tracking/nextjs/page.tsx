@@ -14,8 +14,10 @@ import { marketingSiteOrigin } from "@/lib/marketing-json-ld";
 import {
   nextDocsCheckButton,
   nextEnvLocal,
+  nextEnvLocalServer,
   nextErrorBoundary,
   nextInstall,
+  nextInstrumentation,
   nextProviderSetup,
   nextTestError,
   nextTrackPageView,
@@ -24,7 +26,7 @@ import {
 const PATH = "/error-tracking/nextjs";
 const TITLE = "Next.js Error Tracking";
 const DESCRIPTION =
-  "Install @telemetry-tracker/next, wrap your app with TelemetryProvider, and see grouped Next.js errors in the dashboard. Free plan, no credit card.";
+  "Install @telemetry-tracker/next, wrap your app with TelemetryProvider, and optionally capture server errors with instrumentation.ts. Free plan, no credit card.";
 
 export function generateMetadata() {
   return marketingGuideMetadata({
@@ -62,7 +64,7 @@ export default function NextJsErrorTrackingPage() {
               },
               {
                 name: "Wrap the app with TelemetryProvider",
-                text: "Set NEXT_PUBLIC_TELEMETRY_INGEST_URL to https://api.telemetry-tracker.com, NEXT_PUBLIC_TELEMETRY_API_KEY from Settings → API keys, and use the server layout plus client TrackPageView from the docs.",
+                text: "Set NEXT_PUBLIC_TELEMETRY_INGEST_URL to https://api.telemetry-tracker.com, NEXT_PUBLIC_TELEMETRY_API_KEY from Settings → API keys, and use the server layout plus client TrackPageView from the docs. Optionally add instrumentation.ts for server-side error capture.",
               },
               {
                 name: "Send a test error",
@@ -80,7 +82,8 @@ export default function NextJsErrorTrackingPage() {
             <code>@telemetry-tracker/next</code> wraps the core SDK for App Router apps: a provider
             that calls <code>init()</code>, an error boundary for React render errors, and{" "}
             <code>useTrackPage</code> for route changes. Uncaught browser errors and unhandled promise
-            rejections are reported after init.
+            rejections are reported after init. Optionally, <code>createOnRequestError</code> captures
+            server-side App Router errors.
           </p>
         }
       >
@@ -142,6 +145,22 @@ export default function NextJsErrorTrackingPage() {
         <CodeBlock code={nextDocsCheckButton} lang="tsx" caption="optional verification button" />
         <CodeBlock code={nextTestError} lang="typescript" caption="trackError call" />
         <CodeBlock code={nextErrorBoundary} lang="tsx" caption="Error boundary" />
+
+        <h2>Server errors (optional)</h2>
+        <p>
+          Skip this section for browser-only setup.{" "}
+          <code>@telemetry-tracker/next/server</code> (published with{" "}
+          <code>@telemetry-tracker/next@1.3.2</code>) exports <code>createOnRequestError</code> for{" "}
+          <code>instrumentation.ts</code>. Next.js calls it for uncaught App Router errors in Server
+          Components, Route Handlers, and Server Actions. Use <code>TELEMETRY_API_KEY</code> (server-only) —
+          do not expose a server-only secret via <code>NEXT_PUBLIC_*</code>. See the{" "}
+          <Link href="/docs/nextjs" className="text-brand hover:underline">
+            full Next.js docs
+          </Link>{" "}
+          for more details.
+        </p>
+        <CodeBlock code={nextEnvLocalServer} lang="bash" caption=".env.local (optional server)" />
+        <CodeBlock code={nextInstrumentation} lang="ts" caption="instrumentation.ts (optional)" />
 
         <h2>What you will see</h2>
         <p>

@@ -94,9 +94,9 @@ export default function SentryAlternativePage() {
 
         <h2>Supported SDKs</h2>
         <p>
-          First-class packages today: Next.js, React (core), Node.js, NestJS (via the Node
-          package), Vue and Nuxt (core), and React Native. There is no Python, Go, PHP, Ruby, or
-          native iOS/Android SDK.
+          First-class packages today: Next.js (client-side and App Router server errors when
+          configured), React (core), Node.js, NestJS (via the Node package), Vue and Nuxt (core),
+          and React Native. There is no Python, Go, PHP, Ruby, or native iOS/Android SDK.
         </p>
         <ul>
           <li>
