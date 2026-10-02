@@ -13,6 +13,7 @@ describe("public SEO paths", () => {
     expect(PUBLIC_SEO_PATHS).toContain("/docs/source-maps");
     expect(PUBLIC_SEO_PATHS).toContain("/docs/self-hosting");
     expect(PUBLIC_SEO_PATHS).toContain("/docs/alerts");
+    expect(PUBLIC_SEO_PATHS).toContain("/docs/migrate-from-sentry");
   });
 
   it("ranks home, docs, and guides above generic public pages", () => {

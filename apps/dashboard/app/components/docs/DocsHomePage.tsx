@@ -42,6 +42,10 @@ export function DocsHomePage() {
         <Link href="/sentry-alternative" className="text-brand hover:underline">
           Sentry alternative
         </Link>
+        . Already sending data with Sentry?{" "}
+        <Link href="/docs/migrate-from-sentry" className="text-brand hover:underline">
+          Migrate from Sentry
+        </Link>
         .
       </p>
 

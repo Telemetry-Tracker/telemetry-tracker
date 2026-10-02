@@ -15,8 +15,11 @@ export default function DocsAlertsPage() {
       title="Alerts"
       lede={
         <p>
-          Custom rules are AND groups of conditions. Delivery is in-app, email, and optional
-          webhooks. The Email channel in notification settings must be on or email is skipped.
+          Custom rules are AND groups of conditions. The dashboard rule editor currently authors
+          error-count conditions. Delivery is in-app notifications, email, HTTPS webhooks, Slack,
+          Discord and Telegram. Slack and Discord use incoming webhook URLs. Telegram uses a bot{" "}
+          <code>sendMessage</code> URL. The Email channel in notification settings must be on or
+          email is skipped.
         </p>
       }
     >

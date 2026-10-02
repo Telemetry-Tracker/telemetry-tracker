@@ -22,6 +22,7 @@ export function GET() {
 - ${origin}/docs/nextjs
 - ${origin}/docs/source-maps
 - ${origin}/docs/alerts
+- ${origin}/docs/migrate-from-sentry
 - ${origin}/docs/self-hosting
 - ${origin}/docs/hosted-cloud
 - ${origin}/sentry-alternative

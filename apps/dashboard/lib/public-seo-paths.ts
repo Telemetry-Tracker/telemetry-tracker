@@ -18,6 +18,7 @@ export const PUBLIC_SEO_PATHS = [
   "/docs/source-maps",
   "/docs/self-hosting",
   "/docs/alerts",
+  "/docs/migrate-from-sentry",
   "/contact",
   "/pricing",
   "/privacy",
@@ -43,7 +44,7 @@ export const MARKETING_GUIDE_PATHS = [
 ] as const;
 
 /** Content date for sitemap lastmod. Bump when public pages change. */
-export const SITEMAP_LAST_MODIFIED = new Date("2026-09-25T00:00:00.000Z");
+export const SITEMAP_LAST_MODIFIED = new Date("2026-10-02T00:00:00.000Z");
 
 export function sitemapPriority(path: PublicSeoPath): number {
   if (path === "") return 1;

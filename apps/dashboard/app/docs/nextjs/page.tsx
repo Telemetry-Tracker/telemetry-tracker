@@ -81,7 +81,7 @@ export default function DocsNextJsPage() {
       <CodeBlock code={nextDocsCheckButton} lang="tsx" caption="optional verification button" />
       <CodeBlock code={nextDocsCheckPage} lang="tsx" caption="optional temporary route" />
 
-      <h2>Server errors (optional)</h2>
+      <h2>Server-side error tracking with Next.js App Router</h2>
       <p>
         Skip this section for browser-only setup.{" "}
         <code>@telemetry-tracker/next/server</code> (published with{" "}
@@ -121,6 +121,7 @@ identify(null);     // on logout`}
       <DocsAlsoSee
         links={[
           { href: "/error-tracking/nextjs", label: "Next.js error tracking guide" },
+          { href: "/docs/migrate-from-sentry", label: "Migrate from Sentry" },
           { href: "/error-tracking/react", label: "React error tracking" },
           { href: "/docs/hosted-cloud", label: "Hosted cloud getting started" },
         ]}
