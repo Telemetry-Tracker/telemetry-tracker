@@ -21,7 +21,8 @@ export type UserReferralCaptureResult =
   | { kind: "rejected_self_referral"; reason: string };
 
 /**
- * Check if user is trying to refer themselves.
+ * Check if user is trying to refer themselves or if affiliate email is unknown.
+ * Returns error string if invalid, null if OK.
  */
 async function checkUserSelfReferral(
   prisma: PrismaClient,
@@ -35,6 +36,11 @@ async function checkUserSelfReferral(
 
   if (!affiliate) {
     return "Affiliate not found";
+  }
+
+  // Check if affiliate email is unknown/missing
+  if (!affiliate.email_normalized || affiliate.email_normalized.trim() === "") {
+    return "Affiliate email unknown";
   }
 
   const userNormalized = normalizeEmailForSelfReferralCheck(userEmail);

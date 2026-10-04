@@ -157,29 +157,34 @@ export async function attributeOrganizationToAffiliate(
   }
 
   // Only first org as OWNER is attributed
-  // Check if user already owns any organizations
-  const existingOwnershipCount = await prisma.organizationMembership.count({
+  // Check if user already has an attributed org (not by count, to allow delete-and-recreate)
+  const existingAttribution = await prisma.organizationReferral.findFirst({
     where: {
-      user_id: input.userId,
-      role: "OWNER",
       organization: {
+        memberships: {
+          some: {
+            user_id: input.userId,
+            role: "OWNER",
+          },
+        },
         deleted_at: null,
       },
     },
+    select: { id: true, organization_id: true },
   });
 
-  if (existingOwnershipCount > 1) {
-    // User already owns another org - don't attribute
+  if (existingAttribution) {
+    // User already has an attributed org - don't attribute
     if (logger) {
       logger.info(
-        { userId: input.userId, orgId: input.organizationId, existingOwnershipCount },
-        "User already owns an organization - not attributing second org"
+        { userId: input.userId, orgId: input.organizationId, existingOrgId: existingAttribution.organization_id },
+        "User already has an attributed organization - not attributing second org"
       );
     }
     return { kind: "not_referred" };
   }
 
-  // Self-referral check: verify at org attribution time (catch late resolutions)
+  // Self-referral and affiliate email validation
   if (userReferral.affiliate_id) {
     const affiliate = await prisma.affiliate.findUnique({
       where: { id: userReferral.affiliate_id },
@@ -187,30 +192,44 @@ export async function attributeOrganizationToAffiliate(
     });
 
     if (affiliate) {
-      const userNormalized = normalizeEmailForSelfReferralCheck(userReferral.user.email);
-      if (affiliate.email_normalized === userNormalized) {
-        // Self-referral detected at org creation
+      // Check if affiliate email is unknown/missing
+      if (!affiliate.email_normalized || affiliate.email_normalized.trim() === "") {
+        // Unknown affiliate email - flag for attention but continue
+        needsAttention = true;
+        attentionReason = "affiliate_email_unknown";
         if (logger) {
           logger.warn(
             { userId: input.userId, affiliateId: userReferral.affiliate_id },
-            "Self-referral rejected at org attribution"
+            "Affiliate email unknown at org attribution"
           );
         }
-        // Create OrganizationReferral with rejection reason
-        await prisma.organizationReferral.create({
-          data: {
-            organization_id: input.organizationId,
-            affiliate_id: null,
-            rewardful_referral_id: userReferral.rewardful_referral_id,
-            via_token: userReferral.via_token,
-            source: userReferral.source,
-            first_seen_at: userReferral.captured_at,
-            attributed_at: new Date(),
-            needs_attention: true,
-            attention_reason: "rejected_self_referral",
-          },
-        });
-        return { kind: "rejected_self_referral", reason: "Self-referral: email matches affiliate" };
+      } else {
+        // Check self-referral
+        const userNormalized = normalizeEmailForSelfReferralCheck(userReferral.user.email);
+        if (affiliate.email_normalized === userNormalized) {
+          // Self-referral detected at org creation
+          if (logger) {
+            logger.warn(
+              { userId: input.userId, affiliateId: userReferral.affiliate_id },
+              "Self-referral rejected at org attribution"
+            );
+          }
+          // Create OrganizationReferral with rejection reason
+          await prisma.organizationReferral.create({
+            data: {
+              organization_id: input.organizationId,
+              affiliate_id: null,
+              rewardful_referral_id: userReferral.rewardful_referral_id,
+              via_token: userReferral.via_token,
+              source: userReferral.source,
+              first_seen_at: userReferral.captured_at,
+              attributed_at: new Date(),
+              needs_attention: true,
+              attention_reason: "rejected_self_referral",
+            },
+          });
+          return { kind: "rejected_self_referral", reason: "Self-referral: email matches affiliate" };
+        }
       }
     } else if (logger) {
       logger.warn(

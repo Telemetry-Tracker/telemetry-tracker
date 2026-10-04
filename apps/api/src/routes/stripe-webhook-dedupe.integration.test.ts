@@ -36,7 +36,13 @@ describeIf("Stripe webhook deduplication", () => {
     });
   });
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    // Clean up events from previous test BEFORE clearing the array
+    if (createdEventIds.length > 0) {
+      await prisma.webhookEvent.deleteMany({
+        where: { event_id: { in: createdEventIds } },
+      }).catch(() => undefined);
+    }
     createdEventIds.length = 0;
   });
 
