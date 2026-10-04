@@ -1,8 +1,12 @@
 /**
  * Rewardful webhook handler (`POST /webhooks/rewardful`).
  * Registered only when AFFILIATES_ENABLED=true and REWARDFUL_WEBHOOK_SECRET is set.
+ * 
+ * Payload structure: { object, event: { id, type }, request }
+ * Docs: https://developers.rewardful.com/webhooks/requests
  */
 import type { FastifyInstance } from "fastify";
+import { z } from "zod";
 import { prisma } from "../lib/db.js";
 import { verifyRewardfulSignature } from "../lib/rewardful-webhook-signature.js";
 import {
@@ -12,55 +16,76 @@ import {
 } from "../lib/webhook-dedupe.js";
 import { normalizeEmailForSelfReferralCheck } from "../lib/affiliate-email-normalize.js";
 
-type RewardfulWebhookEvent = {
-  id: string;
-  type: string;
-  data: {
-    affiliate?: {
-      id: string;
-      token?: string;
-      email?: string;
-      state?: string;
-    };
-    referral?: {
-      id: string;
-      affiliate_id?: string;
-      stripe_customer_id?: string;
-      state?: string;
-    };
-    commission?: {
-      id: string;
-      affiliate_id?: string;
-      stripe_charge_id?: string;
-      amount_cents?: number;
-      currency?: string;
-      state?: string;
-      due_at?: string;
-      paid_at?: string;
-      voided_at?: string;
-    };
-  };
-};
+// Rewardful webhook payload schemas
+const RewardfulAffiliateSchema = z.object({
+  id: z.string(),
+  state: z.enum(["active", "suspended"]).optional(),
+  email: z.string().optional(),
+  links: z.array(z.object({ token: z.string().optional() })).optional(),
+});
+
+const RewardfulReferralSchema = z.object({
+  id: z.string(),
+  affiliate: z.object({ id: z.string() }).optional(),
+  stripe_customer_id: z.string().optional(),
+  state: z.string().optional(),
+});
+
+const RewardfulCommissionSchema = z.object({
+  id: z.string(),
+  affiliate: z.object({ id: z.string() }).optional(),
+  amount: z.number().optional(), // cents
+  currency: z.string().optional(),
+  state: z.string().optional(),
+  due_at: z.string().optional(),
+  paid_at: z.string().optional(),
+  voided_at: z.string().optional(),
+  sale: z.object({ stripe_charge_id: z.string().optional() }).optional(),
+});
+
+const RewardfulPayoutSchema = z.object({
+  id: z.string(),
+  affiliate: z.object({ id: z.string() }).optional(),
+  amount: z.number().optional(), // cents
+  currency: z.string().optional(),
+  state: z.string().optional(),
+  paid_at: z.string().optional(),
+});
+
+const RewardfulWebhookEventSchema = z.object({
+  event: z.object({
+    id: z.string(),
+    type: z.string(),
+  }),
+  object: z.union([
+    RewardfulAffiliateSchema,
+    RewardfulReferralSchema,
+    RewardfulCommissionSchema,
+    RewardfulPayoutSchema,
+  ]),
+});
+
+type RewardfulWebhookEvent = z.infer<typeof RewardfulWebhookEventSchema>;
 
 /**
  * Upsert Affiliate mirror from Rewardful webhook.
  */
-async function upsertAffiliate(affiliateData: NonNullable<RewardfulWebhookEvent["data"]["affiliate"]>) {
-  const emailNormalized = affiliateData.email
-    ? normalizeEmailForSelfReferralCheck(affiliateData.email)
-    : "";
+async function upsertAffiliate(affiliateData: z.infer<typeof RewardfulAffiliateSchema>) {
+  const email = affiliateData.email?.trim();
+  const emailNormalized = email ? normalizeEmailForSelfReferralCheck(email) : null;
+  const linkToken = affiliateData.links?.[0]?.token ?? null;
 
   await prisma.affiliate.upsert({
     where: { rewardful_affiliate_id: affiliateData.id },
     create: {
       rewardful_affiliate_id: affiliateData.id,
-      link_token: affiliateData.token ?? null,
+      link_token: linkToken,
       email_normalized: emailNormalized,
       state: affiliateData.state ?? "active",
     },
     update: {
-      link_token: affiliateData.token ?? undefined,
-      email_normalized: emailNormalized || undefined,
+      link_token: linkToken ?? undefined,
+      email_normalized: emailNormalized === null ? undefined : emailNormalized,
       state: affiliateData.state ?? undefined,
     },
   });
@@ -74,7 +99,7 @@ async function completeUnresolvedReferrals(
   rewardfulReferralId: string,
   logger?: { info: (msg: unknown, context: string) => void }
 ) {
-  // Complete UserReferrals
+  // Complete UserReferrals - only update if affiliate_id is NULL
   const updatedUsers = await prisma.userReferral.updateMany({
     where: {
       rewardful_referral_id: rewardfulReferralId,
@@ -83,7 +108,7 @@ async function completeUnresolvedReferrals(
     data: { affiliate_id: affiliateId },
   });
 
-  // Complete OrganizationReferrals and clear needs_attention
+  // Complete OrganizationReferrals and clear needs_attention - only update if affiliate_id is NULL
   const updatedOrgs = await prisma.organizationReferral.updateMany({
     where: {
       rewardful_referral_id: rewardfulReferralId,
@@ -156,18 +181,16 @@ async function linkReferralToOrganization(
 /**
  * Upsert Commission mirror from Rewardful webhook.
  */
-async function upsertCommission(commissionData: NonNullable<RewardfulWebhookEvent["data"]["commission"]>) {
+async function upsertCommission(commissionData: z.infer<typeof RewardfulCommissionSchema>) {
   // Find affiliate by Rewardful ID
-  const affiliate = commissionData.affiliate_id
+  const affiliate = commissionData.affiliate?.id
     ? await prisma.affiliate.findFirst({
-        where: { rewardful_affiliate_id: commissionData.affiliate_id },
+        where: { rewardful_affiliate_id: commissionData.affiliate.id },
         select: { id: true },
       })
     : null;
 
-  // Find organization by Stripe charge ID
-  // Note: We don't store charge IDs directly, but Customer ID should be in metadata
-  // For V1, leave organization_id null; manual reconciliation if needed
+  // Organization ID lookup via charge not implemented in V1
   const organizationId: string | null = null;
 
   await prisma.affiliateCommission.upsert({
@@ -176,8 +199,8 @@ async function upsertCommission(commissionData: NonNullable<RewardfulWebhookEven
       rewardful_commission_id: commissionData.id,
       affiliate_id: affiliate?.id ?? null,
       organization_id: organizationId,
-      stripe_charge_id: commissionData.stripe_charge_id ?? null,
-      amount_cents: commissionData.amount_cents ?? 0,
+      stripe_charge_id: commissionData.sale?.stripe_charge_id ?? null,
+      amount_cents: commissionData.amount ?? 0,
       currency: commissionData.currency ?? "EUR",
       state: commissionData.state ?? "pending",
       due_at: commissionData.due_at ? new Date(commissionData.due_at) : null,
@@ -186,7 +209,6 @@ async function upsertCommission(commissionData: NonNullable<RewardfulWebhookEven
     },
     update: {
       affiliate_id: affiliate?.id ?? undefined,
-      organization_id: organizationId ?? undefined,
       state: commissionData.state ?? undefined,
       due_at: commissionData.due_at ? new Date(commissionData.due_at) : undefined,
       paid_at: commissionData.paid_at ? new Date(commissionData.paid_at) : undefined,
@@ -196,54 +218,95 @@ async function upsertCommission(commissionData: NonNullable<RewardfulWebhookEven
 }
 
 /**
+ * Mirror payout (never move money, just record for audit).
+ */
+async function mirrorPayout(
+  payoutData: z.infer<typeof RewardfulPayoutSchema>,
+  logger: { info: (msg: unknown, context: string) => void }
+) {
+  const affiliate = payoutData.affiliate?.id
+    ? await prisma.affiliate.findFirst({
+        where: { rewardful_affiliate_id: payoutData.affiliate.id },
+        select: { id: true },
+      })
+    : null;
+
+  logger.info(
+    {
+      payoutId: payoutData.id,
+      affiliateId: affiliate?.id,
+      amount: payoutData.amount,
+      currency: payoutData.currency,
+      state: payoutData.state,
+    },
+    "Rewardful payout mirrored (audit only, no money movement)"
+  );
+}
+
+/**
  * Process Rewardful webhook event.
  */
 async function processRewardfulEvent(
   event: RewardfulWebhookEvent,
   logger: { info: (msg: unknown, context: string) => void; warn: (msg: unknown, context: string) => void }
 ): Promise<void> {
-  switch (event.type) {
+  switch (event.event.type) {
     case "affiliate.created":
-    case "affiliate.updated":
-      if (event.data.affiliate) {
-        await upsertAffiliate(event.data.affiliate);
+    case "affiliate.updated": {
+      const parsed = RewardfulAffiliateSchema.safeParse(event.object);
+      if (parsed.success) {
+        await upsertAffiliate(parsed.data);
       }
       break;
+    }
 
     case "referral.created":
-    case "referral.converted":
-      if (event.data.referral) {
-        const referralData = event.data.referral;
-        
-        // Complete unresolved referrals
-        if (referralData.affiliate_id && referralData.id) {
-          const affiliate = await prisma.affiliate.findFirst({
-            where: { rewardful_affiliate_id: referralData.affiliate_id },
-            select: { id: true },
-          });
-          if (affiliate) {
-            await completeUnresolvedReferrals(affiliate.id, referralData.id, logger);
-          }
-        }
-
-        // Link to organization if Stripe customer is known
-        if (referralData.stripe_customer_id && referralData.id) {
-          await linkReferralToOrganization(referralData.stripe_customer_id, referralData.id, logger);
+    case "referral.converted": {
+      const parsed = RewardfulReferralSchema.safeParse(event.object);
+      if (!parsed.success) break;
+      
+      const referralData = parsed.data;
+      
+      // Complete unresolved referrals
+      if (referralData.affiliate?.id && referralData.id) {
+        const affiliate = await prisma.affiliate.findFirst({
+          where: { rewardful_affiliate_id: referralData.affiliate.id },
+          select: { id: true },
+        });
+        if (affiliate) {
+          await completeUnresolvedReferrals(affiliate.id, referralData.id, logger);
         }
       }
+
+      // Link to organization if Stripe customer is known
+      if (referralData.stripe_customer_id && referralData.id) {
+        await linkReferralToOrganization(referralData.stripe_customer_id, referralData.id, logger);
+      }
       break;
+    }
 
     case "commission.created":
     case "commission.updated":
     case "commission.paid":
-    case "commission.voided":
-      if (event.data.commission) {
-        await upsertCommission(event.data.commission);
+    case "commission.voided": {
+      const parsed = RewardfulCommissionSchema.safeParse(event.object);
+      if (parsed.success) {
+        await upsertCommission(parsed.data);
       }
       break;
+    }
+
+    case "payout.created":
+    case "payout.paid": {
+      const parsed = RewardfulPayoutSchema.safeParse(event.object);
+      if (parsed.success) {
+        await mirrorPayout(parsed.data, logger);
+      }
+      break;
+    }
 
     default:
-      logger.info({ eventType: event.type }, "Unhandled Rewardful event type");
+      logger.info({ eventType: event.event.type }, "Unhandled Rewardful event type");
   }
 }
 
@@ -262,6 +325,14 @@ export async function registerRewardfulWebhookIfConfigured(
 
   await app.register(
     async function rewardfulScope(f) {
+      // Rate limit
+      const { rateLimitMaxPublic, RATE_LIMIT_WINDOW_MS } = await import("../lib/rate-limit-env.js");
+      const isTest = process.env.NODE_ENV === "test";
+      await f.register(import("@fastify/rate-limit"), {
+        max: rateLimitMaxPublic(isTest),
+        timeWindow: RATE_LIMIT_WINDOW_MS,
+      });
+
       f.addContentTypeParser(
         "application/json",
         { parseAs: "buffer" },
@@ -272,8 +343,8 @@ export async function registerRewardfulWebhookIfConfigured(
 
       f.post("/webhooks/rewardful", async (request, reply) => {
         const sig = request.headers["x-rewardful-signature"];
-        if (typeof sig !== "string") {
-          return reply.status(400).send({ error: "Missing X-Rewardful-Signature" });
+        if (typeof sig !== "string" || !/^[0-9a-f]{64}$/i.test(sig)) {
+          return reply.status(400).send({ error: "Missing or invalid X-Rewardful-Signature" });
         }
 
         const buf = request.body as Buffer;
@@ -285,7 +356,12 @@ export async function registerRewardfulWebhookIfConfigured(
 
         let event: RewardfulWebhookEvent;
         try {
-          event = JSON.parse(buf.toString("utf8"));
+          const parsed = JSON.parse(buf.toString("utf8"));
+          const validated = RewardfulWebhookEventSchema.safeParse(parsed);
+          if (!validated.success) {
+            return reply.status(400).send({ error: "Invalid webhook payload" });
+          }
+          event = validated.data;
         } catch {
           return reply.status(400).send({ error: "Invalid JSON" });
         }
@@ -294,8 +370,8 @@ export async function registerRewardfulWebhookIfConfigured(
         const dedupeResult = await dedupeWebhookEvent(
           prisma,
           "rewardful",
-          event.id,
-          event.type
+          event.event.id,
+          event.event.type
         );
         if (dedupeResult.kind === "duplicate") {
           return reply.send({ received: true });
