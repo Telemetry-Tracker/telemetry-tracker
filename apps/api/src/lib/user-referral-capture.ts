@@ -162,6 +162,7 @@ export async function captureUserReferral(
         rewardful_referral_id: validRewardfulId,
         via_token: validViaToken,
         source: "link",
+        status: affiliateId ? "ACTIVE" : "UNRESOLVED",
         captured_at: new Date(),
       },
       select: { id: true },
