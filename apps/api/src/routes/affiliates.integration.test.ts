@@ -6,6 +6,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { createApp } from "../app.js";
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../lib/db.js";
+import crypto from "node:crypto";
 
 const shouldRun = process.env.RUN_DB_INTEGRATION_TESTS === "true";
 const testSuite = shouldRun ? describe : describe.skip;
@@ -348,11 +349,32 @@ testSuite("Affiliate Integration Tests", () => {
     });
 
     it("returns 404 for Rewardful webhook when flag is OFF", async () => {
+      // Create a valid signed payload
+      const payload = {
+        event: {
+          id: `evt_flagoff_${Date.now()}`,
+          type: "referral.converted",
+        },
+        object: {
+          id: "ref_test",
+          affiliate: { id: "aff_test" },
+          state: "converted",
+        },
+      };
+
+      const signature = crypto
+        .createHmac("sha256", "test_secret")
+        .update(JSON.stringify(payload))
+        .digest("hex");
+
       const response = await flagOffApp.inject({
         method: "POST",
-        url: "/api/webhooks/rewardful",
-        headers: { "x-rewardful-signature": "0".repeat(64) },
-        payload: { event: { id: "evt_test", type: "test" }, object: {} },
+        url: "/webhooks/rewardful",
+        headers: {
+          "x-rewardful-signature": signature,
+          "content-type": "application/json",
+        },
+        payload,
       });
 
       expect(response.statusCode).toBe(404);
@@ -406,6 +428,269 @@ testSuite("Affiliate Integration Tests", () => {
         // Restore original key
         process.env.STRIPE_SECRET_KEY = originalKey;
       }
+    });
+  });
+
+  describe("Last-click attribution", () => {
+    it("UUID wins over link token when both are sent", async () => {
+      // Create two affiliates
+      const affiliate1 = await prisma.affiliate.create({
+        data: {
+          rewardful_affiliate_id: `aff_via_${Date.now()}`,
+          link_token: `token_via_${Date.now()}`,
+          email_normalized: "aff1@example.com",
+          state: "active",
+        },
+      });
+      testAffiliateIds.push(affiliate1.id);
+
+      const affiliate2 = await prisma.affiliate.create({
+        data: {
+          rewardful_affiliate_id: `aff_uuid_${Date.now()}`,
+          email_normalized: "aff2@example.com",
+          state: "active",
+        },
+      });
+      testAffiliateIds.push(affiliate2.id);
+
+      // Create UUID referral for affiliate2
+      const uuidReferralId = `00000000-0000-4000-8000-${Date.now().toString().padStart(12, "0").slice(-12)}`;
+      await prisma.affiliate.update({
+        where: { id: affiliate2.id },
+        data: { rewardful_affiliate_id: uuidReferralId },
+      });
+
+      // Register with both viaToken (affiliate1) and rewardfulReferralId (affiliate2)
+      const regResponse = await app.inject({
+        method: "POST",
+        url: "/api/auth/register",
+        payload: {
+          email: `lastclick${Date.now()}@example.com`,
+          password: "Password123!",
+          viaToken: affiliate1.link_token,
+          rewardfulReferralId: uuidReferralId,
+        },
+      });
+
+      expect(regResponse.statusCode).toBe(201);
+      const { user } = JSON.parse(regResponse.body);
+      testUserIds.push(user.id);
+
+      // Verify UUID (affiliate2) was used, not via token (affiliate1)
+      const userReferral = await prisma.userReferral.findUnique({
+        where: { user_id: user.id },
+      });
+      expect(userReferral?.affiliate_id).toBe(affiliate2.id);
+      expect(userReferral?.rewardful_referral_id).toBe(uuidReferralId);
+    });
+  });
+
+  describe("Attribution locked at signup", () => {
+    it("later referral.converted for different affiliate doesn't change attribution", async () => {
+      // Create two affiliates
+      const affiliate1 = await prisma.affiliate.create({
+        data: {
+          rewardful_affiliate_id: `aff_first_${Date.now()}`,
+          link_token: `token1_${Date.now()}`,
+          email_normalized: "aff1@example.com",
+          state: "active",
+        },
+      });
+      testAffiliateIds.push(affiliate1.id);
+
+      const affiliate2 = await prisma.affiliate.create({
+        data: {
+          rewardful_affiliate_id: `aff_second_${Date.now()}`,
+          email_normalized: "aff2@example.com",
+          state: "active",
+        },
+      });
+      testAffiliateIds.push(affiliate2.id);
+
+      // Register with affiliate1
+      const regResponse = await app.inject({
+        method: "POST",
+        url: "/api/auth/register",
+        payload: {
+          email: `locked${Date.now()}@example.com`,
+          password: "Password123!",
+          viaToken: affiliate1.link_token,
+        },
+      });
+      expect(regResponse.statusCode).toBe(201);
+      const { user, sessionId } = JSON.parse(regResponse.body);
+      testUserIds.push(user.id);
+
+      // Create org
+      const orgResponse = await app.inject({
+        method: "POST",
+        url: "/api/meta/organizations",
+        headers: { cookie: `telemetry_session=${sessionId}` },
+        payload: { name: "Locked Org" },
+      });
+      const { id: orgId } = JSON.parse(orgResponse.body);
+      testOrgIds.push(orgId);
+
+      // Verify attributed to affiliate1
+      const orgRef1 = await prisma.organizationReferral.findUnique({
+        where: { organization_id: orgId },
+      });
+      expect(orgRef1?.affiliate_id).toBe(affiliate1.id);
+
+      // Send webhook for different affiliate (affiliate2)
+      const payload = {
+        event: {
+          id: `evt_switch_${Date.now()}`,
+          type: "referral.converted",
+        },
+        object: {
+          id: `ref_locked_${Date.now()}`,
+          affiliate: { id: affiliate2.rewardful_affiliate_id },
+          state: "converted",
+        },
+      };
+
+      const signature = crypto
+        .createHmac("sha256", process.env.REWARDFUL_WEBHOOK_SECRET || "test_secret")
+        .update(JSON.stringify(payload))
+        .digest("hex");
+
+      await app.inject({
+        method: "POST",
+        url: "/webhooks/rewardful",
+        headers: {
+          "x-rewardful-signature": signature,
+          "content-type": "application/json",
+        },
+        payload,
+      });
+
+      // Verify still attributed to affiliate1, not changed
+      const orgRef2 = await prisma.organizationReferral.findUnique({
+        where: { organization_id: orgId },
+      });
+      expect(orgRef2?.affiliate_id).toBe(affiliate1.id);
+    });
+  });
+
+  describe("Duplicate Rewardful webhook", () => {
+    it("same signed body posted twice is processed once", async () => {
+      const affiliate = await prisma.affiliate.create({
+        data: {
+          rewardful_affiliate_id: `aff_dup_${Date.now()}`,
+          email_normalized: "aff@example.com",
+          state: "active",
+        },
+      });
+      testAffiliateIds.push(affiliate.id);
+
+      const payload = {
+        event: {
+          id: `evt_dup_${Date.now()}`,
+          type: "referral.converted",
+        },
+        object: {
+          id: `ref_dup_${Date.now()}`,
+          affiliate: { id: affiliate.rewardful_affiliate_id },
+          state: "converted",
+        },
+      };
+
+      const signature = crypto
+        .createHmac("sha256", process.env.REWARDFUL_WEBHOOK_SECRET || "test_secret")
+        .update(JSON.stringify(payload))
+        .digest("hex");
+
+      // First post
+      const resp1 = await app.inject({
+        method: "POST",
+        url: "/webhooks/rewardful",
+        headers: {
+          "x-rewardful-signature": signature,
+          "content-type": "application/json",
+        },
+        payload,
+      });
+      expect(resp1.statusCode).toBe(200);
+
+      // Second post (duplicate)
+      const resp2 = await app.inject({
+        method: "POST",
+        url: "/webhooks/rewardful",
+        headers: {
+          "x-rewardful-signature": signature,
+          "content-type": "application/json",
+        },
+        payload,
+      });
+      expect(resp2.statusCode).toBe(200);
+
+      // Verify only one WebhookEvent was created
+      const events = await prisma.webhookEvent.findMany({
+        where: { event_id: payload.event.id },
+      });
+      expect(events.length).toBe(1);
+      expect(events[0].status).toBe("processed");
+    });
+
+    it("2 concurrent posts of same event are processed once", async () => {
+      const affiliate = await prisma.affiliate.create({
+        data: {
+          rewardful_affiliate_id: `aff_conc_${Date.now()}`,
+          email_normalized: "aff@example.com",
+          state: "active",
+        },
+      });
+      testAffiliateIds.push(affiliate.id);
+
+      const payload = {
+        event: {
+          id: `evt_conc_${Date.now()}`,
+          type: "referral.converted",
+        },
+        object: {
+          id: `ref_conc_${Date.now()}`,
+          affiliate: { id: affiliate.rewardful_affiliate_id },
+          state: "converted",
+        },
+      };
+
+      const signature = crypto
+        .createHmac("sha256", process.env.REWARDFUL_WEBHOOK_SECRET || "test_secret")
+        .update(JSON.stringify(payload))
+        .digest("hex");
+
+      // Two concurrent posts
+      const results = await Promise.all([
+        app.inject({
+          method: "POST",
+          url: "/webhooks/rewardful",
+          headers: {
+            "x-rewardful-signature": signature,
+            "content-type": "application/json",
+          },
+          payload,
+        }),
+        app.inject({
+          method: "POST",
+          url: "/webhooks/rewardful",
+          headers: {
+            "x-rewardful-signature": signature,
+            "content-type": "application/json",
+          },
+          payload,
+        }),
+      ]);
+
+      expect(results[0].statusCode).toBe(200);
+      expect(results[1].statusCode).toBe(200);
+
+      // Verify only one WebhookEvent was processed
+      const events = await prisma.webhookEvent.findMany({
+        where: { event_id: payload.event.id },
+      });
+      expect(events.length).toBe(1);
+      expect(events[0].status).toBe("processed");
     });
   });
 });

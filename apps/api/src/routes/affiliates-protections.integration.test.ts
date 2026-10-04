@@ -1,19 +1,46 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from "vitest";
 import { prisma } from "../lib/db.js";
 import { createApp } from "../app.js";
 import type { FastifyInstance } from "fastify";
 import crypto from "node:crypto";
 
 const RUN_DB_TESTS = process.env.RUN_DB_INTEGRATION_TESTS === "true";
-const AFFILIATES_ENABLED = process.env.AFFILIATES_ENABLED === "true";
 
-(RUN_DB_TESTS && AFFILIATES_ENABLED ? describe : describe.skip)("Affiliates protections (integration)", () => {
+(RUN_DB_TESTS ? describe : describe.skip)("Affiliates protections (integration)", () => {
   let app: FastifyInstance;
   const createdUserIds: string[] = [];
   const createdOrgIds: string[] = [];
   const createdAffiliateIds: string[] = [];
   const createdReferralIds: string[] = [];
   const createdWebhookEventIds: string[] = [];
+  let originalEnv: Record<string, string | undefined> = {};
+
+  beforeAll(() => {
+    // Save original env
+    originalEnv = {
+      AFFILIATES_ENABLED: process.env.AFFILIATES_ENABLED,
+      STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
+      REWARDFUL_WEBHOOK_SECRET: process.env.REWARDFUL_WEBHOOK_SECRET,
+      TELEMETRY_ALLOW_REGISTRATION: process.env.TELEMETRY_ALLOW_REGISTRATION,
+    };
+    
+    // Set test env
+    process.env.AFFILIATES_ENABLED = "true";
+    process.env.STRIPE_SECRET_KEY = "sk_test_fake_key_for_tests";
+    process.env.REWARDFUL_WEBHOOK_SECRET = "test_secret";
+    process.env.TELEMETRY_ALLOW_REGISTRATION = "true";
+  });
+
+  afterAll(() => {
+    // Restore original env
+    for (const [key, value] of Object.entries(originalEnv)) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+  });
 
   beforeEach(async () => {
     app = await createApp();
@@ -147,7 +174,6 @@ const AFFILIATES_ENABLED = process.env.AFFILIATES_ENABLED === "true";
     const org = await prisma.organization.create({
       data: {
         name: "Expired Checkout Org",
-        
         stripe_customer_id: `cus_expired_${Date.now()}`,
         memberships: {
           create: {
@@ -165,7 +191,9 @@ const AFFILIATES_ENABLED = process.env.AFFILIATES_ENABLED === "true";
         affiliate_id: affiliate.id,
         rewardful_referral_id: `ref_exp_checkout_${Date.now()}`,
         source: "link",
+        status: "EXPIRED",
         captured_at: expiredDate,
+        attributed_organization_id: org.id,
       },
     });
 
@@ -175,6 +203,7 @@ const AFFILIATES_ENABLED = process.env.AFFILIATES_ENABLED === "true";
         affiliate_id: affiliate.id,
         rewardful_referral_id: `ref_exp_checkout_${Date.now()}`,
         source: "link",
+        status: "EXPIRED",
         first_seen_at: expiredDate,
         needs_attention: true,
         attention_reason: "referral_expired_55_days",
@@ -182,108 +211,238 @@ const AFFILIATES_ENABLED = process.env.AFFILIATES_ENABLED === "true";
     });
     createdReferralIds.push(referral.id);
 
-    // Verify the referral is marked as expired
-    const orgReferral = await prisma.organizationReferral.findUnique({
-      where: { organization_id: org.id },
-      select: { needs_attention: true, attention_reason: true },
-    });
+    // Mock Stripe SDK
+    const mockStripe = {
+      checkout: {
+        sessions: {
+          create: async (params: any) => {
+            // Verify no tt_* metadata
+            expect(params.metadata?.tt_org_id).toBeUndefined();
+            expect(params.metadata?.tt_affiliate_id).toBeUndefined();
+            expect(params.metadata?.organization_id).toBe(org.id);
+            return {
+              id: `cs_test_${Date.now()}`,
+              url: `https://checkout.stripe.com/test`,
+            };
+          },
+        },
+      },
+    };
 
-    expect(orgReferral?.needs_attention).toBe(true);
-    expect(orgReferral?.attention_reason).toContain("expired");
-    
-    // The billing.ts code checks for expired/rejected referrals and skips metadata
-    // This is verified by the code inspection rather than a full checkout flow test
-    // since mocking Stripe in integration tests is complex
+    // Inject checkout request (will use mocked Stripe)
+    const { getStripeClient } = await import("../lib/stripe.js");
+    const originalGetStripe = getStripeClient;
+    (await import("../lib/stripe.js")).getStripeClient = () => mockStripe as any;
+
+    try {
+      const response = await app.inject({
+        method: "POST",
+        url: "/api/billing/checkout",
+        headers: {
+          cookie: `telemetry_session=dummy_session`,
+          "x-organization-id": org.id,
+        },
+        payload: {
+          priceId: "price_1test",
+          plan: "PRO",
+        },
+      });
+
+      expect(response.statusCode).toBe(200);
+    } finally {
+      (await import("../lib/stripe.js")).getStripeClient = originalGetStripe;
+    }
   });
 
   it("dedupe claim_token: stale first owner can't mark reclaimer's row", async () => {
-    // Create a webhook event
-    const eventId = `evt_claim_${Date.now()}`;
-    const firstToken = crypto.randomBytes(16).toString("hex");
+    // Use real webhook-dedupe functions instead of raw SQL
+    const { dedupeWebhookEvent, markWebhookProcessed } = await import("../lib/webhook-dedupe.js");
     
-    const event = await prisma.webhookEvent.create({
-      data: {
-        provider: "stripe",
-        event_id: eventId,
-        event_type: "test.event",
-        status: "processing",
-        locked_at: new Date(Date.now() - 15 * 60 * 1000), // 15 minutes ago (stale)
-        claim_token: firstToken,
-      },
-    });
-    createdWebhookEventIds.push(event.id);
-
-    // Simulate reclaim (sets new token)
-    const reclaimToken = crypto.randomBytes(16).toString("hex");
-    await prisma.$executeRaw`
-      UPDATE "WebhookEvent"
-      SET status = 'processing',
-          locked_at = NOW(),
-          attempts = attempts + 1,
-          claim_token = ${reclaimToken}
-      WHERE provider = 'stripe'
-        AND event_id = ${eventId}
-        AND (status = 'failed' OR (status = 'processing' AND locked_at < NOW() - INTERVAL '10 minutes'))
-    `;
-
-    // Original owner tries to mark processed with old token (should fail)
-    await prisma.$executeRaw`
-      UPDATE "WebhookEvent"
-      SET status = 'processed',
-          processed_at = NOW()
-      WHERE id = ${event.id}
-        AND status = 'processing'
-        AND claim_token = ${firstToken}
-        AND locked_at <= NOW()
-    `;
-
-    // Verify it's still processing (not marked by stale owner)
-    const stillProcessing = await prisma.webhookEvent.findUnique({
-      where: { id: event.id },
-      select: { status: true, claim_token: true },
-    });
-
-    expect(stillProcessing?.status).toBe("processing");
-    expect(stillProcessing?.claim_token).toBe(reclaimToken); // New owner's token
-
-    // Reclaimer marks processed with correct token (should succeed)
-    await prisma.$executeRaw`
-      UPDATE "WebhookEvent"
-      SET status = 'processed',
-          processed_at = NOW()
-      WHERE id = ${event.id}
-        AND status = 'processing'
-        AND claim_token = ${reclaimToken}
-        AND locked_at <= NOW()
-    `;
-
-    const processed = await prisma.webhookEvent.findUnique({
-      where: { id: event.id },
-      select: { status: true },
-    });
-
-    expect(processed?.status).toBe("processed");
+    const eventId = `evt_claim_${Date.now()}`;
+    
+    // First delivery claims it
+    const firstResult = await dedupeWebhookEvent(prisma, "stripe", eventId, "test.event");
+    expect(firstResult.kind).toBe("first_delivery");
+    
+    if (firstResult.kind === "first_delivery") {
+      createdWebhookEventIds.push(firstResult.id);
+      
+      // Make it stale by updating locked_at to 15 minutes ago
+      await prisma.webhookEvent.update({
+        where: { id: firstResult.id },
+        data: { locked_at: new Date(Date.now() - 15 * 60 * 1000) },
+      });
+      
+      // Second delivery reclaims it (stale threshold is 10 minutes)
+      const reclaimResult = await dedupeWebhookEvent(prisma, "stripe", eventId, "test.event");
+      expect(reclaimResult.kind).toBe("first_delivery");
+      
+      if (reclaimResult.kind === "first_delivery") {
+        // Original owner tries to mark processed with old token (should fail silently)
+        await markWebhookProcessed(prisma, firstResult.id, firstResult.claimToken);
+        
+        // Verify it's still processing (not marked by stale owner)
+        const stillProcessing = await prisma.webhookEvent.findUnique({
+          where: { id: firstResult.id },
+          select: { status: true, claim_token: true },
+        });
+        
+        expect(stillProcessing?.status).toBe("processing");
+        expect(stillProcessing?.claim_token).toBe(reclaimResult.claimToken); // New owner's token
+        
+        // Reclaimer marks processed with correct token (should succeed)
+        await markWebhookProcessed(prisma, reclaimResult.id, reclaimResult.claimToken);
+        
+        const processed = await prisma.webhookEvent.findUnique({
+          where: { id: firstResult.id },
+          select: { status: true },
+        });
+        
+        expect(processed?.status).toBe("processed");
+      }
+    }
   });
 
   it("dispute alert: test mode disputes (livemode=false) log only, no email", async () => {
-    // This test verifies the logic in stripe-webhook.ts
-    // We can't easily test the full flow without actually sending emails,
-    // but we can verify the check exists in the code by reading the file
-    const fs = await import("node:fs/promises");
-    const webhookCode = await fs.readFile("src/routes/stripe-webhook.ts", "utf-8");
-    
-    // Verify the livemode check exists before sending emails
-    expect(webhookCode).toContain("if (!dispute.livemode)");
-    expect(webhookCode).toContain("Skipping dispute alert email for test-mode dispute");
+    const org = await prisma.organization.create({
+      data: {
+        name: "Dispute Test Org",
+        stripe_customer_id: `cus_dispute_${Date.now()}`,
+        memberships: {
+          create: {
+            user_id: (await prisma.user.create({
+              data: {
+                email: `dispute${Date.now()}@example.com`,
+                password_hash: "dummy",
+              },
+            })).id,
+            role: "OWNER",
+          },
+        },
+      },
+    });
+    createdOrgIds.push(org.id);
+    const userId = (await prisma.organizationMembership.findFirst({
+      where: { organization_id: org.id },
+      select: { user_id: true },
+    }))?.user_id;
+    if (userId) createdUserIds.push(userId);
+
+    // Mock email sending to track calls
+    let emailsSent = 0;
+    const originalSendEmail = (await import("../lib/email.js")).sendEmail;
+    (await import("../lib/email.js")).sendEmail = async () => {
+      emailsSent++;
+    };
+
+    try {
+      // Test mode dispute (livemode=false) - should NOT send email
+      const testModePayload = {
+        id: `evt_test_dispute_${Date.now()}`,
+        type: "charge.dispute.created",
+        data: {
+          object: {
+            id: `dp_test_${Date.now()}`,
+            charge: `ch_test_${Date.now()}`,
+            amount: 5000,
+            currency: "usd",
+            reason: "fraudulent",
+            status: "needs_response",
+            livemode: false,
+          },
+        },
+      };
+
+      const testSignature = crypto
+        .createHmac("sha256", process.env.STRIPE_WEBHOOK_SECRET || "whsec_stripe_mock")
+        .update(JSON.stringify(testModePayload))
+        .digest("hex");
+
+      await app.inject({
+        method: "POST",
+        url: "/webhooks/stripe",
+        headers: {
+          "stripe-signature": `t=${Date.now()},v1=${testSignature}`,
+          "content-type": "application/json",
+        },
+        payload: testModePayload,
+      });
+
+      expect(emailsSent).toBe(0); // No email for test mode
+
+      // Live mode dispute (livemode=true) - should send email
+      const liveModePayload = {
+        id: `evt_live_dispute_${Date.now()}`,
+        type: "charge.dispute.created",
+        data: {
+          object: {
+            id: `dp_live_${Date.now()}`,
+            charge: `ch_live_${Date.now()}`,
+            amount: 5000,
+            currency: "usd",
+            reason: "fraudulent",
+            status: "needs_response",
+            livemode: true,
+          },
+        },
+      };
+
+      const liveSignature = crypto
+        .createHmac("sha256", process.env.STRIPE_WEBHOOK_SECRET || "whsec_stripe_mock")
+        .update(JSON.stringify(liveModePayload))
+        .digest("hex");
+
+      await app.inject({
+        method: "POST",
+        url: "/webhooks/stripe",
+        headers: {
+          "stripe-signature": `t=${Date.now()},v1=${liveSignature}`,
+          "content-type": "application/json",
+        },
+        payload: liveModePayload,
+      });
+
+      expect(emailsSent).toBe(1); // Email sent for live mode
+    } finally {
+      (await import("../lib/email.js")).sendEmail = originalSendEmail;
+    }
   });
 });
 
-(RUN_DB_TESTS && AFFILIATES_ENABLED ? describe : describe.skip)("Self-referral protection (integration)", () => {
+(RUN_DB_TESTS ? describe : describe.skip)("Self-referral protection (integration)", () => {
   let app: FastifyInstance;
   const createdUserIds: string[] = [];
   const createdOrgIds: string[] = [];
   const createdAffiliateIds: string[] = [];
   const createdReferralIds: string[] = [];
+  let originalEnv: Record<string, string | undefined> = {};
+
+  beforeAll(() => {
+    // Save original env
+    originalEnv = {
+      AFFILIATES_ENABLED: process.env.AFFILIATES_ENABLED,
+      STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
+      REWARDFUL_WEBHOOK_SECRET: process.env.REWARDFUL_WEBHOOK_SECRET,
+      TELEMETRY_ALLOW_REGISTRATION: process.env.TELEMETRY_ALLOW_REGISTRATION,
+    };
+    
+    // Set test env
+    process.env.AFFILIATES_ENABLED = "true";
+    process.env.STRIPE_SECRET_KEY = "sk_test_fake_key_for_tests";
+    process.env.REWARDFUL_WEBHOOK_SECRET = "test_secret";
+    process.env.TELEMETRY_ALLOW_REGISTRATION = "true";
+  });
+
+  afterAll(() => {
+    // Restore original env
+    for (const [key, value] of Object.entries(originalEnv)) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+  });
 
   beforeEach(async () => {
     app = await createApp();
@@ -324,8 +483,8 @@ const AFFILIATES_ENABLED = process.env.AFFILIATES_ENABLED === "true";
       url: "/api/auth/register",
       payload: {
         email,
-        password: "password123",
-        via: affiliate.link_token,
+        password: "Password123!",
+        viaToken: affiliate.link_token,
       },
     });
 
@@ -339,6 +498,47 @@ const AFFILIATES_ENABLED = process.env.AFFILIATES_ENABLED === "true";
       where: { user_id: body.user.id },
     });
     expect(userReferral).toBeNull();
+  });
+
+  it("register: non-self-referral via token creates referral (positive control)", async () => {
+    const userEmail = `valid-ref-register-${Date.now()}@example.com`;
+    const affiliateEmail = `affiliate-${Date.now()}@example.com`;
+    
+    // Create affiliate with different email
+    const affiliate = await prisma.affiliate.create({
+      data: {
+        rewardful_affiliate_id: `aff_valid_${Date.now()}`,
+        link_token: `token_valid_${Date.now()}`,
+        email_normalized: affiliateEmail.toLowerCase(),
+        state: "active",
+      },
+    });
+    createdAffiliateIds.push(affiliate.id);
+
+    // Register with the affiliate's via token
+    const registerResponse = await app.inject({
+      method: "POST",
+      url: "/api/auth/register",
+      payload: {
+        email: userEmail,
+        password: "Password123!",
+        viaToken: affiliate.link_token,
+      },
+    });
+
+    // Registration should succeed
+    expect(registerResponse.statusCode).toBe(201);
+    const body = JSON.parse(registerResponse.body);
+    createdUserIds.push(body.user.id);
+
+    // Check UserReferral WAS created (valid referral)
+    const userReferral = await prisma.userReferral.findUnique({
+      where: { user_id: body.user.id },
+    });
+    expect(userReferral).toBeTruthy();
+    expect(userReferral?.affiliate_id).toBe(affiliate.id);
+    expect(userReferral?.via_token).toBe(affiliate.link_token);
+    expect(userReferral?.status).toBe("ACTIVE");
   });
 
   it("org attribution: self-referral with matching affiliate email is rejected", async () => {
@@ -579,12 +779,40 @@ const AFFILIATES_ENABLED = process.env.AFFILIATES_ENABLED === "true";
   });
 });
 
-(RUN_DB_TESTS && AFFILIATES_ENABLED ? describe : describe.skip)("First-org-only attribution (integration)", () => {
+(RUN_DB_TESTS ? describe : describe.skip)("First-org-only attribution (integration)", () => {
   let app: FastifyInstance;
   const createdUserIds: string[] = [];
   const createdOrgIds: string[] = [];
   const createdAffiliateIds: string[] = [];
   const createdReferralIds: string[] = [];
+  let originalEnv: Record<string, string | undefined> = {};
+
+  beforeAll(() => {
+    // Save original env
+    originalEnv = {
+      AFFILIATES_ENABLED: process.env.AFFILIATES_ENABLED,
+      STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
+      REWARDFUL_WEBHOOK_SECRET: process.env.REWARDFUL_WEBHOOK_SECRET,
+      TELEMETRY_ALLOW_REGISTRATION: process.env.TELEMETRY_ALLOW_REGISTRATION,
+    };
+    
+    // Set test env
+    process.env.AFFILIATES_ENABLED = "true";
+    process.env.STRIPE_SECRET_KEY = "sk_test_fake_key_for_tests";
+    process.env.REWARDFUL_WEBHOOK_SECRET = "test_secret";
+    process.env.TELEMETRY_ALLOW_REGISTRATION = "true";
+  });
+
+  afterAll(() => {
+    // Restore original env
+    for (const [key, value] of Object.entries(originalEnv)) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+  });
 
   beforeEach(async () => {
     app = await createApp();
