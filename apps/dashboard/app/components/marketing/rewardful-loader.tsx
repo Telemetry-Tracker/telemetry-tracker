@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { preferenceCookiesAllowed } from "../../lib/cookie-consent-client";
+import { preferenceCookiesAllowed, readStoredCookieConsentChoice } from "@/lib/cookie-consent";
 
 declare global {
   interface Window {
@@ -27,12 +27,57 @@ export function RewardfulLoader() {
       return;
     }
 
+    function loadScript() {
+      if (scriptLoaded) {
+        return;
+      }
+      if (typeof window === "undefined") {
+        return;
+      }
+
+      // Check if script is already loaded
+      const existingScript = document.querySelector('script[src*="r.wdfl.co"]');
+      if (existingScript) {
+        setScriptLoaded(true);
+        return;
+      }
+
+      // Initialize Rewardful queue
+      window.rewardful =
+        window.rewardful ||
+        function rewardfulQueue(command: string, arg?: unknown) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (window.rewardful as any).q = (window.rewardful as any).q || [];
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (window.rewardful as any).q.push([command, arg]);
+        };
+
+      // Load Rewardful script
+      const script = document.createElement("script");
+      script.async = true;
+      script.src = "https://r.wdfl.co/rw.js";
+      script.setAttribute("data-rewardful", process.env.NEXT_PUBLIC_REWARDFUL_API_KEY || "");
+      
+      script.onload = () => {
+        setScriptLoaded(true);
+        console.debug("[Rewardful] Script loaded");
+      };
+      
+      script.onerror = () => {
+        console.error("[Rewardful] Failed to load script");
+      };
+
+      document.head.appendChild(script);
+    }
+
     // Check cookie consent
-    if (!preferenceCookiesAllowed()) {
+    const currentChoice = readStoredCookieConsentChoice();
+    if (!preferenceCookiesAllowed(currentChoice)) {
       // Not consented yet; listen for consent event
       const handleConsentChange = () => {
-        if (preferenceCookiesAllowed()) {
-          loadRewardfulScript();
+        const newChoice = readStoredCookieConsentChoice();
+        if (preferenceCookiesAllowed(newChoice)) {
+          loadScript();
         }
       };
       
@@ -41,8 +86,9 @@ export function RewardfulLoader() {
       
       // Also check periodically in case consent is granted in the same tab
       const interval = setInterval(() => {
-        if (preferenceCookiesAllowed()) {
-          loadRewardfulScript();
+        const newChoice = readStoredCookieConsentChoice();
+        if (preferenceCookiesAllowed(newChoice)) {
+          loadScript();
           clearInterval(interval);
         }
       }, 1000);
@@ -54,49 +100,9 @@ export function RewardfulLoader() {
     }
 
     // Consent already granted; load immediately
-    loadRewardfulScript();
-  }, []);
+    loadScript();
+  }, [scriptLoaded]);
 
-  function loadRewardfulScript() {
-    if (scriptLoaded) {
-      return;
-    }
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    // Check if script is already loaded
-    const existingScript = document.querySelector('script[src*="r.wdfl.co"]');
-    if (existingScript) {
-      setScriptLoaded(true);
-      return;
-    }
-
-    // Initialize Rewardful queue
-    window.rewardful =
-      window.rewardful ||
-      function rewardfulQueue(command: string, arg?: unknown) {
-        (window.rewardful as any).q = (window.rewardful as any).q || [];
-        (window.rewardful as any).q.push([command, arg]);
-      };
-
-    // Load Rewardful script
-    const script = document.createElement("script");
-    script.async = true;
-    script.src = "https://r.wdfl.co/rw.js";
-    script.setAttribute("data-rewardful", process.env.NEXT_PUBLIC_REWARDFUL_API_KEY || "");
-    
-    script.onload = () => {
-      setScriptLoaded(true);
-      console.debug("[Rewardful] Script loaded");
-    };
-    
-    script.onerror = () => {
-      console.error("[Rewardful] Failed to load script");
-    };
-
-    document.head.appendChild(script);
-  }
 
   return null; // No visual UI
 }

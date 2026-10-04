@@ -22,6 +22,7 @@ describe("webhook-dedupe", () => {
       mockPrisma.webhookEvent.create.mockResolvedValue({ id: "evt_123" });
 
       const result = await dedupeWebhookEvent(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         mockPrisma as any,
         "stripe",
         "evt_abc",
@@ -46,6 +47,7 @@ describe("webhook-dedupe", () => {
       mockPrisma.webhookEvent.create.mockRejectedValue(uniqueConstraintError);
 
       const result = await dedupeWebhookEvent(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         mockPrisma as any,
         "stripe",
         "evt_duplicate",
@@ -60,6 +62,7 @@ describe("webhook-dedupe", () => {
       mockPrisma.webhookEvent.create.mockRejectedValue(dbError);
 
       const result = await dedupeWebhookEvent(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         mockPrisma as any,
         "rewardful",
         "rwf_evt_123"
@@ -72,6 +75,7 @@ describe("webhook-dedupe", () => {
       mockPrisma.webhookEvent.create.mockResolvedValue({ id: "evt_456" });
 
       const result = await dedupeWebhookEvent(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         mockPrisma as any,
         "rewardful",
         "rwf_evt_no_type"
@@ -91,6 +95,7 @@ describe("webhook-dedupe", () => {
 
   describe("markWebhookProcessed", () => {
     it("updates webhook event with processed_at", async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await markWebhookProcessed(mockPrisma as any, "evt_123");
 
       expect(mockPrisma.webhookEvent.update).toHaveBeenCalledWith({
@@ -100,6 +105,7 @@ describe("webhook-dedupe", () => {
     });
 
     it("skips update for unknown webhook ID", async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await markWebhookProcessed(mockPrisma as any, "unknown");
 
       expect(mockPrisma.webhookEvent.update).not.toHaveBeenCalled();
@@ -108,6 +114,7 @@ describe("webhook-dedupe", () => {
 
   describe("markWebhookFailed", () => {
     it("updates webhook event with error", async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await markWebhookFailed(mockPrisma as any, "evt_123", "Processing failed");
 
       expect(mockPrisma.webhookEvent.update).toHaveBeenCalledWith({
@@ -121,6 +128,7 @@ describe("webhook-dedupe", () => {
 
     it("truncates long error messages", async () => {
       const longError = "x".repeat(2000);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await markWebhookFailed(mockPrisma as any, "evt_123", longError);
 
       const updateCall = mockPrisma.webhookEvent.update.mock.calls[0][0];
@@ -128,6 +136,7 @@ describe("webhook-dedupe", () => {
     });
 
     it("skips update for unknown webhook ID", async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await markWebhookFailed(mockPrisma as any, "unknown", "Error");
 
       expect(mockPrisma.webhookEvent.update).not.toHaveBeenCalled();

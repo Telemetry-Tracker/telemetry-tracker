@@ -6,7 +6,6 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { createApp } from "../app.js";
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../lib/db.js";
-import Stripe from "stripe";
 
 const integrationTest = process.env.RUN_DB_INTEGRATION_TESTS === "true";
 const describeIf = integrationTest ? describe : describe.skip;
@@ -49,25 +48,8 @@ describeIf("Stripe webhook deduplication", () => {
 
     const eventId = "evt_first_delivery_" + Date.now();
     
-    // Construct a mock Stripe event (won't actually hit Stripe)
-    const mockEvent = {
-      id: eventId,
-      type: "checkout.session.completed",
-      data: {
-        object: {
-          id: "cs_test",
-          metadata: {
-            organization_id: testOrgId,
-            plan_tier: "PRO",
-          },
-          customer: "cus_test",
-          subscription: "sub_test",
-        },
-      },
-    };
-
-    // Note: This test won't actually call the webhook endpoint because we'd need valid Stripe signature
-    // Instead, verify the dedupe logic directly via the WebhookEvent table
+    // Note: This test verifies the dedupe logic directly via the WebhookEvent table
+    // We can't call the webhook endpoint without a valid Stripe signature
     
     const eventsBefore = await prisma.webhookEvent.count({
       where: { provider: "stripe", event_id: eventId },
@@ -79,6 +61,9 @@ describeIf("Stripe webhook deduplication", () => {
     const result = await dedupeWebhookEvent(prisma, "stripe", eventId, "checkout.session.completed");
     
     expect(result.kind).toBe("first_delivery");
+    if (result.kind !== "first_delivery") {
+      throw new Error("Expected first_delivery");
+    }
     expect(result.id).not.toBe("unknown");
     
     const eventsAfter = await prisma.webhookEvent.count({
@@ -128,7 +113,9 @@ describeIf("Stripe webhook deduplication", () => {
     
     expect(result1.kind).toBe("first_delivery");
     expect(result2.kind).toBe("first_delivery");
-    expect(result1.id).not.toBe(result2.id);
+    if (result1.kind === "first_delivery" && result2.kind === "first_delivery") {
+      expect(result1.id).not.toBe(result2.id);
+    }
   });
 
   it("isolates events by provider", async () => {
@@ -163,6 +150,9 @@ describeIf("Stripe webhook deduplication", () => {
     // Dedupe check
     const dedupeResult = await dedupeWebhookEvent(prisma, "stripe", eventId, "checkout.session.completed");
     expect(dedupeResult.kind).toBe("first_delivery");
+    if (dedupeResult.kind !== "first_delivery") {
+      throw new Error("Expected first_delivery");
+    }
     
     // Simulate organization update (existing behavior)
     await prisma.organization.updateMany({

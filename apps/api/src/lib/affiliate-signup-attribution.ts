@@ -109,7 +109,7 @@ async function checkSelfReferral(
   prisma: PrismaClient,
   affiliateId: string,
   userEmail: string,
-  organizationId: string
+  _organizationId: string
 ): Promise<string | null> {
   const affiliate = await prisma.affiliate.findUnique({
     where: { id: affiliateId },
@@ -171,15 +171,22 @@ export async function attributeSignupToAffiliate(
     // Create Stripe Customer with metadata
     let customerId: string;
     try {
+      // Validate Rewardful referral UUID before including in metadata
+      let validReferralUuid: string | undefined;
+      if (attribution.rewardfulReferralId) {
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (uuidRegex.test(attribution.rewardfulReferralId)) {
+          validReferralUuid = attribution.rewardfulReferralId;
+        }
+      }
+
       const customer = await stripe.customers.create({
         name: input.organizationName,
         email: input.userEmail,
         metadata: {
           tt_org_id: input.organizationId,
           tt_affiliate_id: attribution.affiliateId,
-          ...(attribution.rewardfulReferralId
-            ? { referral: attribution.rewardfulReferralId }
-            : {}),
+          ...(validReferralUuid ? { referral: validReferralUuid } : {}),
         },
       });
       customerId = customer.id;
