@@ -80,6 +80,7 @@ testSuite("Billing Checkout Integration", () => {
       // Mock Stripe
       const stripeMock = {
         customers: {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           create: async (params: any) => ({ id: `cus_${Date.now()}`, ...params }),
         },
         checkout: {
@@ -164,10 +165,6 @@ testSuite("Billing Checkout Integration", () => {
       };
 
       const payload = JSON.stringify(event);
-      const signature = crypto
-        .createHmac("sha256", webhookSecret)
-        .update(payload)
-        .digest("hex");
       const timestamp = Math.floor(Date.now() / 1000);
       const signedPayload = `${timestamp}.${payload}`;
       const finalSig = crypto
@@ -240,6 +237,7 @@ testSuite("Billing Checkout Integration", () => {
       testOrgIds.push(orgId);
 
       // Mock Stripe
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let capturedMetadata: any;
       const stripeMock = {
         customers: {

@@ -35,6 +35,7 @@ describe("RegisterPageForm - Referral Forwarding", () => {
 
   it("forwards rewardfulReferralId when window.Rewardful.referral is present", async () => {
     // Set up global Rewardful object
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (global as any).window = {
       Rewardful: {
         referral: "00000000-0000-4000-8000-000000000001",
@@ -96,6 +97,7 @@ describe("RegisterPageForm - Referral Forwarding", () => {
   });
 
   it("forwards both fields when both are present", async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (global as any).window = {
       Rewardful: {
         referral: "00000000-0000-4000-8000-000000000002",
