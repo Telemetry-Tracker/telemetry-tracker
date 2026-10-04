@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { prisma } from "../lib/db.js";
 import { createApp } from "../app.js";
 import type { FastifyInstance } from "fastify";
