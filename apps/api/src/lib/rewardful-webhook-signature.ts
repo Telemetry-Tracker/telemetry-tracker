@@ -19,19 +19,26 @@ export function verifyRewardfulSignature(
     return false;
   }
 
+  // Validate hex format before decoding
+  // Reject if signature doesn't match exactly 64 hex characters
+  if (!/^[0-9a-f]{64}$/i.test(signature)) {
+    return false;
+  }
+
   const expectedSignature = crypto
     .createHmac("sha256", secret)
     .update(payload)
     .digest("hex");
 
   // Constant-time comparison to prevent timing attacks
+  // timingSafeEqual will throw if lengths don't match
   try {
     return crypto.timingSafeEqual(
       Buffer.from(expectedSignature, "hex"),
       Buffer.from(signature, "hex")
     );
   } catch {
-    // Length mismatch or invalid hex
+    // Length mismatch or invalid hex (shouldn't happen after validation above)
     return false;
   }
 }
