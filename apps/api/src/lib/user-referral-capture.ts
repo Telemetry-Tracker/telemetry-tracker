@@ -107,27 +107,14 @@ export async function captureUserReferral(
 
   try {
     // Resolve affiliate deterministically from via token
+    // NOTE: Rewardful UUIDs are REFERRAL identifiers, not AFFILIATE identifiers
+    // They cannot be resolved locally and will be completed by referral.converted webhook
     const viaResolution = validViaToken
       ? await resolveAffiliate(prisma, { viaToken: validViaToken })
       : null;
 
-    // Resolve affiliate from Rewardful UUID (for conflict detection)
-    // In V1 we don't call Rewardful API, so we can't resolve from UUID alone yet
-    // But we can detect conflicts if via token resolves to a different affiliate
-    const rewardfulResolution = validRewardfulId
-      ? await resolveAffiliate(prisma, { rewardfulReferralId: validRewardfulId })
-      : null;
-
-    // UUID preferred, via token stored as fallback
-    let affiliateId: string | null = null;
-    
-    if (rewardfulResolution?.kind === "resolved") {
-      // Prefer UUID if resolved
-      affiliateId = rewardfulResolution.affiliateId;
-    } else if (viaResolution?.kind === "resolved") {
-      // Fallback to via token if UUID not resolved
-      affiliateId = viaResolution.affiliateId;
-    }
+    // Only via token resolves locally
+    const affiliateId = viaResolution?.kind === "resolved" ? viaResolution.affiliateId : null;
 
     // Check self-referral if we resolved an affiliate
     if (affiliateId) {

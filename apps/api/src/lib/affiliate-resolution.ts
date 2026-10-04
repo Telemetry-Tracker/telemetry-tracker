@@ -34,42 +34,21 @@ async function resolveAffiliateFromViaToken(
 }
 
 /**
- * Resolve affiliate from Rewardful UUID (match against rewardful_affiliate_id).
- */
-async function resolveAffiliateFromUUID(
-  prisma: PrismaClient,
-  rewardfulReferralId: string
-): Promise<string | null> {
-  const affiliate = await prisma.affiliate.findFirst({
-    where: {
-      rewardful_affiliate_id: rewardfulReferralId,
-      state: "active",
-    },
-    select: { id: true },
-  });
-  return affiliate?.id ?? null;
-}
-
-/**
  * Resolve affiliate deterministically. Never returns a placeholder.
  * If affiliate cannot be resolved, returns "unresolved" so caller can store with affiliate_id=null.
+ * 
+ * IMPORTANT: Rewardful referral UUIDs are NOT affiliate IDs. They identify referrals, not affiliates.
+ * The UUID is stored in UserReferral.rewardful_referral_id and written to Stripe Customer metadata.referral,
+ * but it does NOT resolve to an affiliate locally. Only the link token resolves locally via Affiliate.link_token.
+ * The referral UUID stays UNRESOLVED until a referral.converted webhook arrives with the affiliate mapping.
  */
 export async function resolveAffiliate(
   prisma: PrismaClient,
   input: AffiliateResolutionInput
 ): Promise<AffiliateResolutionResult> {
   const viaToken = input.viaToken?.trim();
-  const rewardfulId = input.rewardfulReferralId?.trim();
   
-  // Try Rewardful UUID first (most authoritative)
-  if (rewardfulId) {
-    const affiliateId = await resolveAffiliateFromUUID(prisma, rewardfulId);
-    if (affiliateId) {
-      return { kind: "resolved", affiliateId };
-    }
-  }
-  
-  // Fallback to via token
+  // Try via token (only local resolution method for V1)
   if (viaToken) {
     const affiliateId = await resolveAffiliateFromViaToken(prisma, viaToken);
     if (affiliateId) {
@@ -77,13 +56,13 @@ export async function resolveAffiliate(
     }
   }
 
-  // Neither resolved
+  // If via token didn't resolve and we have a Rewardful UUID, store it for webhook completion
+  // The UUID is a REFERRAL identifier, not an AFFILIATE identifier, so it cannot be resolved locally
+  
   return {
     kind: "unresolved",
-    reason: rewardfulId
-      ? "uuid_not_found"
-      : viaToken
+    reason: viaToken
       ? "via_token_not_found"
-      : "no_referral_data",
+      : "no_via_token_and_webhook_not_yet_received",
   };
 }

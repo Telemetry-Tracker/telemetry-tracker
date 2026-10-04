@@ -120,36 +120,33 @@ async function completeUnresolvedReferrals(
 
   // Check if affiliate email is null (needs attention for self-referral check)
   if (!affiliate.email_normalized) {
-    // Can't check self-referral without email, but still check expired and rejected status
+    // Can't check self-referral without email - only process UNRESOLVED status
     
-    // Get all unresolved referrals
+    // Get all unresolved referrals (expiry decided at org creation)
     const unresolvedUsers = await prisma.userReferral.findMany({
       where: {
         rewardful_referral_id: rewardfulReferralId,
         affiliate_id: null,
+        status: "UNRESOLVED",
       },
-      select: { id: true, status: true },
+      select: { id: true },
     });
 
     const unresolvedOrgs = await prisma.organizationReferral.findMany({
       where: {
         rewardful_referral_id: rewardfulReferralId,
         affiliate_id: null,
+        status: "UNRESOLVED",
       },
       select: {
         id: true,
-        status: true,
         needs_attention: true,
         attention_reason: true,
-        first_seen_at: true,
       },
     });
 
-    // Update users (mark as needs attention since we can't verify)
+    // Update users
     for (const userRef of unresolvedUsers) {
-      // Skip if already rejected or expired
-      if (userRef.status === "REJECTED" || userRef.status === "EXPIRED") continue;
-      
       await prisma.userReferral.updateMany({
         where: { id: userRef.id, affiliate_id: null },
         data: {
@@ -159,43 +156,18 @@ async function completeUnresolvedReferrals(
       });
     }
 
-    // Update orgs (check expiry, append attention reason)
+    // Update orgs (mark needs_attention since we can't verify self-referral)
     for (const orgRef of unresolvedOrgs) {
-      // Skip if already rejected
-      if (orgRef.status === "REJECTED") continue;
-      
-      // Check if expired
-      let newStatus = orgRef.status;
-      let needsAttention = orgRef.needs_attention;
-      let attentionReason = orgRef.attention_reason || "";
-      
-      if (orgRef.first_seen_at) {
-        const daysSinceCapture = (Date.now() - orgRef.first_seen_at.getTime()) / (1000 * 60 * 60 * 24);
-        if (daysSinceCapture > 55) {
-          newStatus = "EXPIRED";
-          needsAttention = true;
-          attentionReason = attentionReason
-            ? `${attentionReason};referral_expired_55_days`
-            : "referral_expired_55_days";
-          continue; // Don't complete expired referrals
-        }
-      }
-      
-      // Mark as active but needs attention for self-referral check
-      if (newStatus !== "EXPIRED") {
-        newStatus = "ACTIVE";
-        needsAttention = true;
-        attentionReason = attentionReason
-          ? `${attentionReason};affiliate_email_unknown_cannot_verify_self_referral`
-          : "affiliate_email_unknown_cannot_verify_self_referral";
-      }
+      const attentionReason = orgRef.attention_reason
+        ? `${orgRef.attention_reason};affiliate_email_unknown_cannot_verify_self_referral`
+        : "affiliate_email_unknown_cannot_verify_self_referral";
       
       await prisma.organizationReferral.updateMany({
         where: { id: orgRef.id, affiliate_id: null },
         data: {
           affiliate_id: affiliateId,
-          status: newStatus,
-          needs_attention: needsAttention,
+          status: "ACTIVE",
+          needs_attention: true,
           attention_reason: attentionReason,
         },
       });
@@ -211,10 +183,12 @@ async function completeUnresolvedReferrals(
   }
 
   // Get all unresolved UserReferrals with this Rewardful ID
+  // Only process status=UNRESOLVED (expiry decided at org creation, not here)
   const unresolvedUsers = await prisma.userReferral.findMany({
     where: {
       rewardful_referral_id: rewardfulReferralId,
       affiliate_id: null,
+      status: "UNRESOLVED",
     },
     select: {
       id: true,
@@ -270,15 +244,12 @@ async function completeUnresolvedReferrals(
   }
 
   // Get all unresolved OrganizationReferrals with this Rewardful ID
-  // Never complete or clear needs_attention on expired or rejected referrals
+  // Only process status=UNRESOLVED (expiry decided at org creation, not here)
   const unresolvedOrgs = await prisma.organizationReferral.findMany({
     where: {
       rewardful_referral_id: rewardfulReferralId,
       affiliate_id: null,
-      OR: [
-        { needs_attention: false },
-        { needs_attention: true, status: { not: "EXPIRED" } },
-      ],
+      status: "UNRESOLVED",
     },
     select: {
       id: true,
@@ -286,7 +257,6 @@ async function completeUnresolvedReferrals(
       status: true,
       needs_attention: true,
       attention_reason: true,
-      first_seen_at: true,
       organization: {
         select: {
           memberships: {
@@ -309,36 +279,9 @@ async function completeUnresolvedReferrals(
 
   let completedOrgs = 0;
   let rejectedOrgs = 0;
-  let skippedExpired = 0;
-  let skippedRejected = 0;
 
   for (const orgReferral of unresolvedOrgs) {
-    // Skip expired referrals
-    if (orgReferral.first_seen_at) {
-      const daysSinceCapture = (Date.now() - orgReferral.first_seen_at.getTime()) / (1000 * 60 * 60 * 24);
-      if (daysSinceCapture > 55) {
-        skippedExpired++;
-        if (logger) {
-          logger.warn(
-            { orgId: orgReferral.organization_id, affiliateId, rewardfulReferralId, daysSinceCapture },
-            "Skipping completion of expired referral (>55 days)"
-          );
-        }
-        continue;
-      }
-    }
-
-    // Skip already-rejected referrals
-    if (orgReferral.status === "REJECTED") {
-      skippedRejected++;
-      if (logger) {
-        logger.warn(
-          { orgId: orgReferral.organization_id, affiliateId, rewardfulReferralId, reason: orgReferral.attention_reason },
-          "Skipping completion of rejected referral"
-        );
-      }
-      continue;
-    }
+    // Expiry is decided at org creation, not here
 
     const ownerEmail = orgReferral.organization.memberships[0]?.user.email;
     if (!ownerEmail) {
@@ -400,7 +343,7 @@ async function completeUnresolvedReferrals(
     }
   }
 
-  if ((completedUsers > 0 || completedOrgs > 0 || rejectedUsers > 0 || rejectedOrgs > 0 || skippedExpired > 0 || skippedRejected > 0) && logger) {
+  if ((completedUsers > 0 || completedOrgs > 0 || rejectedUsers > 0 || rejectedOrgs > 0) && logger) {
     logger.info(
       {
         affiliateId,
@@ -409,8 +352,6 @@ async function completeUnresolvedReferrals(
         rejectedUsers,
         completedOrgs,
         rejectedOrgs,
-        skippedExpired,
-        skippedRejected,
       },
       "Completed unresolved referrals via Rewardful webhook"
     );

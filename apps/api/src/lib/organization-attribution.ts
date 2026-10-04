@@ -282,12 +282,6 @@ export async function attributeOrganizationToAffiliate(
     },
   });
 
-  // UUID/via conflict check
-  if (userReferral.rewardful_referral_id && userReferral.via_token) {
-    needsAttention = true;
-    attentionReason = attentionReason ? `${attentionReason};uuid_via_conflict` : "uuid_via_conflict";
-  }
-
   // Create Stripe Customer if:
   // 1. Referral has not expired (55-day rule)
   // 2. We have a UUID (affiliate may be unresolved) OR we have via token + resolved affiliate

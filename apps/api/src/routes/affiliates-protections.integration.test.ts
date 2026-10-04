@@ -105,6 +105,7 @@ const RUN_DB_TESTS = process.env.RUN_DB_INTEGRATION_TESTS === "true";
         affiliate_id: null,
         rewardful_referral_id: `ref_expired_${Date.now()}`,
         source: "link",
+        status: "EXPIRED",
         first_seen_at: expiredDate,
         needs_attention: false,
       },

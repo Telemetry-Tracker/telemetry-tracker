@@ -136,14 +136,15 @@ export async function billingRoutes(
               status: true,
             },
           });
-          // Only update if referral is active
-          const isActive = referral?.status === "ACTIVE";
+          // Backfill Customer metadata for UNRESOLVED or ACTIVE (not EXPIRED/REJECTED)
+          // This handles cases where customers.create failed at org creation
+          const canBackfill = referral && (referral.status === "UNRESOLVED" || referral.status === "ACTIVE");
           
           // Update Customer if referral has UUID (even if affiliate unresolved) or resolved via token
           const hasUuid = !!referral?.rewardful_referral_id;
           const hasResolvedViaToken = !!referral?.via_token && !!referral?.affiliate_id;
           
-          if (referral && isActive && (hasUuid || hasResolvedViaToken)) {
+          if (canBackfill && (hasUuid || hasResolvedViaToken)) {
               // Check if Customer already has affiliate metadata
               const customer = await stripe.customers.retrieve(customerId);
               if (!customer.deleted && !customer.metadata?.tt_affiliate_id) {
@@ -193,19 +194,20 @@ export async function billingRoutes(
       // Add affiliate metadata only when feature is enabled
       if (isAffiliateFeatureEnabled()) {
         try {
-          // Check if this org has an active attribution
-          const userReferral = await prisma.userReferral.findUnique({
-            where: { attributed_organization_id: orgId },
+          // Check if this org has an active attribution without needs_attention
+          const orgReferral = await prisma.organizationReferral.findUnique({
+            where: { organization_id: orgId },
             select: {
               status: true,
               affiliate_id: true,
+              needs_attention: true,
             },
           });
           
-          // Only add metadata for active attributions owned by this org
-          if (userReferral?.status === "ACTIVE" && userReferral.affiliate_id) {
+          // Only add metadata for ACTIVE status AND no needs_attention
+          if (orgReferral?.status === "ACTIVE" && orgReferral.affiliate_id && !orgReferral.needs_attention) {
             metadata.tt_org_id = orgId;
-            metadata.tt_affiliate_id = userReferral.affiliate_id;
+            metadata.tt_affiliate_id = orgReferral.affiliate_id;
           }
         } catch (err) {
           request.log.warn({ err, orgId }, "Failed to fetch referral at checkout metadata build");
