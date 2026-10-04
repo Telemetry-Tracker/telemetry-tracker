@@ -4,17 +4,18 @@
  */
 import type { PrismaClient } from "@prisma/client";
 import { Prisma } from "@prisma/client";
+import { randomBytes } from "node:crypto";
 
 export type WebhookProvider = "stripe" | "rewardful";
 
 export type WebhookDedupeResult =
-  | { kind: "first_delivery"; id: string }
+  | { kind: "first_delivery"; id: string; claimToken: string }
   | { kind: "duplicate" }
   | { kind: "processing"; retryAfterMs: number };
 
 /**
  * Claim a webhook event for processing.
- * Returns "first_delivery" with ID if claimed, "duplicate" if already processed successfully,
+ * Returns "first_delivery" with ID and claim token if claimed, "duplicate" if already processed successfully,
  * or "processing" if another delivery is currently processing it.
  */
 export async function dedupeWebhookEvent(
@@ -23,6 +24,8 @@ export async function dedupeWebhookEvent(
   eventId: string,
   eventType?: string
 ): Promise<WebhookDedupeResult> {
+  const claimToken = randomBytes(16).toString("hex");
+  
   try {
     // Try to insert as a new event
     const created = await prisma.webhookEvent.create({
@@ -33,10 +36,11 @@ export async function dedupeWebhookEvent(
         status: "processing",
         locked_at: new Date(),
         attempts: 1,
+        claim_token: claimToken,
       },
       select: { id: true },
     });
-    return { kind: "first_delivery", id: created.id };
+    return { kind: "first_delivery", id: created.id, claimToken };
   } catch (err) {
     // Unique constraint violation - event exists
     if (
@@ -55,7 +59,8 @@ export async function dedupeWebhookEvent(
             SET status = 'processing',
                 locked_at = NOW(),
                 attempts = attempts + 1,
-                error = NULL
+                error = NULL,
+                claim_token = ${claimToken}
             WHERE provider = ${provider}
               AND event_id = ${eventId}
               AND (status = 'failed' OR (status = 'processing' AND locked_at < ${staleThreshold}))
@@ -69,7 +74,7 @@ export async function dedupeWebhookEvent(
             where: { provider_event_id: { provider, event_id: eventId } },
             select: { id: true },
           });
-          return { kind: "first_delivery", id: event!.id };
+          return { kind: "first_delivery", id: event!.id, claimToken };
         }
 
         // Couldn't reclaim - check current status
@@ -97,40 +102,46 @@ export async function dedupeWebhookEvent(
 
 /**
  * Mark webhook event as successfully processed.
+ * Only marks if the claim token matches (ownership guard).
  */
 export async function markWebhookProcessed(
   prisma: PrismaClient,
-  webhookEventId: string
+  webhookEventId: string,
+  claimToken: string
 ): Promise<void> {
-  await prisma.webhookEvent.updateMany({
-    where: {
-      id: webhookEventId,
-      status: "processing",
-    },
-    data: {
-      status: "processed",
-      processed_at: new Date(),
-      error: null,
-    },
-  });
+  await prisma.$executeRaw(
+    Prisma.sql`
+      UPDATE "WebhookEvent"
+      SET status = 'processed',
+          processed_at = NOW(),
+          error = NULL
+      WHERE id = ${webhookEventId}
+        AND status = 'processing'
+        AND claim_token = ${claimToken}
+        AND locked_at <= NOW()
+    `
+  );
 }
 
 /**
  * Mark webhook event as failed (will be retried by provider).
+ * Only marks if the claim token matches (ownership guard).
  */
 export async function markWebhookFailed(
   prisma: PrismaClient,
   webhookEventId: string,
+  claimToken: string,
   errorMessage: string
 ): Promise<void> {
-  await prisma.webhookEvent.updateMany({
-    where: {
-      id: webhookEventId,
-      status: "processing",
-    },
-    data: {
-      status: "failed",
-      error: errorMessage.slice(0, 1000),
-    },
-  });
+  await prisma.$executeRaw(
+    Prisma.sql`
+      UPDATE "WebhookEvent"
+      SET status = 'failed',
+          error = ${errorMessage.slice(0, 1000)}
+      WHERE id = ${webhookEventId}
+        AND status = 'processing'
+        AND claim_token = ${claimToken}
+        AND locked_at <= NOW()
+    `
+  );
 }

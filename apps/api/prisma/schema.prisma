@@ -669,6 +669,7 @@ model WebhookEvent {
   processed_at DateTime? @map("processed_at")
   attempts    Int      @default(1) @map("attempts")
   error       String?
+  claim_token String?  @map("claim_token")
 
   @@unique([provider, event_id])
   @@index([provider, received_at])

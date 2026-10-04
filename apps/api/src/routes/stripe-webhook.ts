@@ -83,10 +83,10 @@ export async function registerStripeWebhookIfConfigured(
 
         try {
           await processStripeEvent(event, request, stripe);
-          await markWebhookProcessed(prisma, dedupeResult.id);
+          await markWebhookProcessed(prisma, dedupeResult.id, dedupeResult.claimToken);
         } catch (err) {
           const errorMessage = err instanceof Error ? err.message : String(err);
-          await markWebhookFailed(prisma, dedupeResult.id, errorMessage);
+          await markWebhookFailed(prisma, dedupeResult.id, dedupeResult.claimToken, errorMessage);
           throw err; // Re-throw to let Fastify handle error response
         }
 
@@ -272,36 +272,44 @@ async function processStripeEvent(
             // Notify founder
             const adminEmails = process.env.AFFILIATE_ADMIN_EMAILS?.trim();
             if (adminEmails) {
-              const { sendTransactionalEmail } = await import("../lib/email.js");
-              const { escapeHtml } = await import("../lib/notification-email-template.js");
-              const emails = adminEmails.split(",").map((e) => e.trim()).filter(Boolean);
-              
-              // Include livemode in subject for test disputes
-              const livemodePrefix = dispute.livemode ? "" : "[TEST MODE] ";
-              const subject = `${livemodePrefix}[Affiliate] Dispute on referred organization: ${org.name}`;
-              
-              for (const email of emails) {
-                try {
-                  await sendTransactionalEmail({
-                    to: email,
-                    subject,
-                    html: `<p>A Stripe dispute was created for a referred organization:</p>
-                      <ul>
-                        <li>Organization: ${escapeHtml(org.name)} (${org.id})</li>
-                        <li>Dispute ID: ${dispute.id}</li>
-                        <li>Charge ID: ${chargeId}</li>
-                        <li>Amount: ${dispute.amount / 100} ${dispute.currency.toUpperCase()}</li>
-                        <li>Reason: ${dispute.reason}</li>
-                        <li>Livemode: ${dispute.livemode ? "Yes" : "No"}</li>
-                      </ul>
-                      <p>Review in Stripe Dashboard and Rewardful for commission impact.</p>`,
-                  });
-                } catch (mailErr) {
-                  // Log error but don't fail webhook
-                  request.log.warn(
-                    { err: mailErr, email, disputeId: dispute.id },
-                    "Failed to send dispute alert email"
-                  );
+              // Skip email for test disputes (livemode false), log only
+              if (!dispute.livemode) {
+                request.log.warn(
+                  { disputeId: dispute.id, chargeId, orgId: org.id, livemode: false },
+                  "Skipping dispute alert email for test-mode dispute (livemode=false)"
+                );
+              } else {
+                const { sendTransactionalEmail } = await import("../lib/email.js");
+                const { escapeHtml } = await import("../lib/notification-email-template.js");
+                const emails = adminEmails.split(",").map((e) => e.trim()).filter(Boolean);
+                
+                // Include livemode in subject for test disputes
+                const livemodePrefix = dispute.livemode ? "" : "[TEST MODE] ";
+                const subject = `${livemodePrefix}[Affiliate] Dispute on referred organization: ${org.name}`;
+                
+                for (const email of emails) {
+                  try {
+                    await sendTransactionalEmail({
+                      to: email,
+                      subject,
+                      html: `<p>A Stripe dispute was created for a referred organization:</p>
+                        <ul>
+                          <li>Organization: ${escapeHtml(org.name)} (${org.id})</li>
+                          <li>Dispute ID: ${dispute.id}</li>
+                          <li>Charge ID: ${chargeId}</li>
+                          <li>Amount: ${dispute.amount / 100} ${dispute.currency.toUpperCase()}</li>
+                          <li>Reason: ${dispute.reason}</li>
+                          <li>Livemode: ${dispute.livemode ? "Yes" : "No"}</li>
+                        </ul>
+                        <p>Review in Stripe Dashboard and Rewardful for commission impact.</p>`,
+                    });
+                  } catch (mailErr) {
+                    // Log error but don't fail webhook
+                    request.log.warn(
+                      { err: mailErr, email, disputeId: dispute.id },
+                      "Failed to send dispute alert email"
+                    );
+                  }
                 }
               }
             }

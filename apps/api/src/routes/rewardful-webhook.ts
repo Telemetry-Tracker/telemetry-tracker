@@ -94,6 +94,7 @@ async function upsertAffiliate(affiliateData: z.infer<typeof RewardfulAffiliateS
 /**
  * Complete unresolved UserReferral or OrganizationReferral with affiliate_id.
  * Checks for self-referral before completing.
+ * Never completes or clears needs_attention on expired or rejected referrals.
  */
 async function completeUnresolvedReferrals(
   affiliateId: string,
@@ -196,14 +197,22 @@ async function completeUnresolvedReferrals(
   }
 
   // Get all unresolved OrganizationReferrals with this Rewardful ID
+  // Never complete or clear needs_attention on expired or rejected referrals
   const unresolvedOrgs = await prisma.organizationReferral.findMany({
     where: {
       rewardful_referral_id: rewardfulReferralId,
       affiliate_id: null,
+      OR: [
+        { needs_attention: false },
+        { needs_attention: true, NOT: { attention_reason: { contains: "expired" } } },
+      ],
     },
     select: {
       id: true,
       organization_id: true,
+      needs_attention: true,
+      attention_reason: true,
+      first_seen_at: true,
       organization: {
         select: {
           memberships: {
@@ -226,8 +235,37 @@ async function completeUnresolvedReferrals(
 
   let completedOrgs = 0;
   let rejectedOrgs = 0;
+  let skippedExpired = 0;
+  let skippedRejected = 0;
 
   for (const orgReferral of unresolvedOrgs) {
+    // Skip expired referrals
+    if (orgReferral.first_seen_at) {
+      const daysSinceCapture = (Date.now() - orgReferral.first_seen_at.getTime()) / (1000 * 60 * 60 * 24);
+      if (daysSinceCapture > 55) {
+        skippedExpired++;
+        if (logger) {
+          logger.warn(
+            { orgId: orgReferral.organization_id, affiliateId, rewardfulReferralId, daysSinceCapture },
+            "Skipping completion of expired referral (>55 days)"
+          );
+        }
+        continue;
+      }
+    }
+
+    // Skip already-rejected referrals
+    if (orgReferral.needs_attention && orgReferral.attention_reason?.includes("rejected")) {
+      skippedRejected++;
+      if (logger) {
+        logger.warn(
+          { orgId: orgReferral.organization_id, affiliateId, rewardfulReferralId, reason: orgReferral.attention_reason },
+          "Skipping completion of rejected referral"
+        );
+      }
+      continue;
+    }
+
     const ownerEmail = orgReferral.organization.memberships[0]?.user.email;
     if (!ownerEmail) {
       // No owner found - flag for attention
@@ -286,7 +324,7 @@ async function completeUnresolvedReferrals(
     }
   }
 
-  if ((completedUsers > 0 || completedOrgs > 0 || rejectedUsers > 0 || rejectedOrgs > 0) && logger) {
+  if ((completedUsers > 0 || completedOrgs > 0 || rejectedUsers > 0 || rejectedOrgs > 0 || skippedExpired > 0 || skippedRejected > 0) && logger) {
     logger.info(
       {
         affiliateId,
@@ -295,6 +333,8 @@ async function completeUnresolvedReferrals(
         rejectedUsers,
         completedOrgs,
         rejectedOrgs,
+        skippedExpired,
+        skippedRejected,
       },
       "Completed unresolved referrals via Rewardful webhook"
     );
@@ -303,6 +343,7 @@ async function completeUnresolvedReferrals(
 
 /**
  * Link referral to organization via Stripe customer ID.
+ * Uses guarded updateMany to prevent overwriting existing rewardful_referral_id.
  */
 async function linkReferralToOrganization(
   stripeCustomerId: string,
@@ -332,10 +373,13 @@ async function linkReferralToOrganization(
   });
 
   if (existing) {
-    // Update rewardful_referral_id if missing
+    // Update rewardful_referral_id only if missing (guarded)
     if (!existing.rewardful_referral_id && rewardfulReferralId) {
-      await prisma.organizationReferral.update({
-        where: { organization_id: org.id },
+      await prisma.organizationReferral.updateMany({
+        where: {
+          organization_id: org.id,
+          rewardful_referral_id: null,
+        },
         data: { rewardful_referral_id: rewardfulReferralId },
       });
     }
@@ -554,10 +598,10 @@ export async function registerRewardfulWebhookIfConfigured(
 
         try {
           await processRewardfulEvent(event, request.log);
-          await markWebhookProcessed(prisma, dedupeResult.id);
+          await markWebhookProcessed(prisma, dedupeResult.id, dedupeResult.claimToken);
         } catch (err) {
           const errorMessage = err instanceof Error ? err.message : String(err);
-          await markWebhookFailed(prisma, dedupeResult.id, errorMessage);
+          await markWebhookFailed(prisma, dedupeResult.id, dedupeResult.claimToken, errorMessage);
           throw err;
         }
 

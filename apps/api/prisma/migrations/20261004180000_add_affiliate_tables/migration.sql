@@ -10,6 +10,7 @@ CREATE TABLE "WebhookEvent" (
     "processed_at" TIMESTAMP(3),
     "attempts" INTEGER NOT NULL DEFAULT 1,
     "error" TEXT,
+    "claim_token" TEXT,
 
     CONSTRAINT "WebhookEvent_pkey" PRIMARY KEY ("id")
 );
