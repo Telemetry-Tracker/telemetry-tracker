@@ -176,7 +176,6 @@ export async function billingRoutes(
                   "Updated Customer metadata with referral info at checkout"
                 );
               }
-            }
           }
         } catch (err) {
           // Log error but don't fail checkout
