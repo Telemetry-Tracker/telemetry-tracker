@@ -34,6 +34,23 @@ async function resolveAffiliateFromViaToken(
 }
 
 /**
+ * Resolve affiliate from Rewardful UUID (match against rewardful_affiliate_id).
+ */
+async function resolveAffiliateFromUUID(
+  prisma: PrismaClient,
+  rewardfulReferralId: string
+): Promise<string | null> {
+  const affiliate = await prisma.affiliate.findFirst({
+    where: {
+      rewardful_affiliate_id: rewardfulReferralId,
+      state: "active",
+    },
+    select: { id: true },
+  });
+  return affiliate?.id ?? null;
+}
+
+/**
  * Resolve affiliate deterministically. Never returns a placeholder.
  * If affiliate cannot be resolved, returns "unresolved" so caller can store with affiliate_id=null.
  */
@@ -42,8 +59,17 @@ export async function resolveAffiliate(
   input: AffiliateResolutionInput
 ): Promise<AffiliateResolutionResult> {
   const viaToken = input.viaToken?.trim();
+  const rewardfulId = input.rewardfulReferralId?.trim();
   
-  // Try via token first (most reliable for V1)
+  // Try Rewardful UUID first (most authoritative)
+  if (rewardfulId) {
+    const affiliateId = await resolveAffiliateFromUUID(prisma, rewardfulId);
+    if (affiliateId) {
+      return { kind: "resolved", affiliateId };
+    }
+  }
+  
+  // Fallback to via token
   if (viaToken) {
     const affiliateId = await resolveAffiliateFromViaToken(prisma, viaToken);
     if (affiliateId) {
@@ -51,14 +77,13 @@ export async function resolveAffiliate(
     }
   }
 
-  // If via token didn't resolve and we have a Rewardful UUID, store it for webhook completion
-  // In future versions, could call Rewardful API here: GET /referrals/{id} -> affiliate
-  // For V1, rely on webhook to complete the link
-  
+  // Neither resolved
   return {
     kind: "unresolved",
-    reason: viaToken
+    reason: rewardfulId
+      ? "uuid_not_found"
+      : viaToken
       ? "via_token_not_found"
-      : "no_via_token_and_webhook_not_yet_received",
+      : "no_referral_data",
   };
 }
