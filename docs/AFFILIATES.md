@@ -1,190 +1,244 @@
-# Affiliate Program (Rewardful Integration)
+# Affiliate Program Integration (Rewardful)
 
 ## Overview
 
-The affiliate program allows partners to earn commissions for referring new customers. It's powered by [Rewardful](https://www.getrewardful.com/) and integrates with Stripe billing.
+Telemetry Tracker integrates with [Rewardful](https://www.getrewardful.com/) to track and reward affiliates who refer new customers. When the feature flag is **OFF**, the system behaves identically to develop (no affiliate tracking).
 
-**Feature flag:** `AFFILIATES_ENABLED` (default: `false`)
+## Feature Flag
 
-When the feature is disabled:
-- Registration accepts but ignores referral parameters
-- No Rewardful script loads in the dashboard
-- No Stripe Customer metadata is written
-- The Rewardful webhook route returns 404
-- Existing billing flows remain byte-for-byte identical
+```bash
+AFFILIATES_ENABLED=true
+```
+
+When `false` or unset:
+- Registration ignores all referral fields (`rewardfulReferralId`, `viaToken`)
+- `/webhooks/rewardful` returns 404
+- Checkout sessions have no `tt_*` metadata
+- All affiliate tables remain empty
+
+## Referral Capture
+
+### Registration Route
+
+**Endpoint**: `/api/auth/register`
+
+**Referral Fields** (optional):
+```json
+{
+  "email": "user@example.com",
+  "password": "...",
+  "rewardfulReferralId": "00000000-0000-4000-8000-000000000001",
+  "viaToken": "affiliate-link-token"
+}
+```
+
+**UUID Format**: RFC 4122 UUID v4 (regex: `^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
+
+**Via Token Format**: alphanumeric + hyphens/underscores, 3-100 characters
+
+### Last-Click Attribution
+
+When both `rewardfulReferralId` (UUID) and `viaToken` are present:
+- **UUID preferred** (last-click wins)
+- Via token stored as fallback for audit trail
+- No conflict detection
+
+### Script-Blocked Fallback
+
+When Rewardful's third-party script is blocked:
+1. Affiliate link redirects to `/register?via=TOKEN`
+2. Client sends `via` as first-party URL param → backend as `viaToken`
+3. No Rewardful cookie required
+
+## Referral Status Lifecycle
+
+```typescript
+enum ReferralStatus {
+  UNRESOLVED  // Affiliate not yet resolved (UUID without webhook)
+  ACTIVE      // Affiliate resolved, within 55-day window
+  EXPIRED     // Outside 55-day attribution window
+  REJECTED    // Self-referral or policy violation
+}
+```
+
+Status is set on both `UserReferral` and `OrganizationReferral` models.
+
+### 55-Day Attribution Window
+
+Measured from `UserReferral.captured_at` (registration time), **never** from webhook arrival:
+- A referral captured at signup is **never** expired by a late `referral.converted` webhook
+- Window checks use Rewardful referral timestamps when available
+
+### Self-Referral Protection
+
+Rejected when:
+- User email matches affiliate email (after normalization)
+- `gmail.com` ↔ `googlemail.com` treated as equivalent
+
+When affiliate email is unknown:
+- Expiry/rejection checks still run
+- Status set to `UNRESOLVED` or `ACTIVE`
+- Flagged `needs_attention` for manual verification
+
+## Organization Attribution
+
+### First-Org-Only Rule
+
+Only the **first organization** created by a referred user receives:
+- Stripe Customer with `tt_*` metadata
+- OrganizationReferral record
+
+Subsequent orgs (including after deleting the first) are **not** attributed.
+
+**Implementation**: `UserReferral.attributed_organization_id` (unique, nullable) is set atomically via `updateMany` with `WHERE attributed_organization_id IS NULL` guard.
+
+## Stripe Checkout Metadata
+
+### Active Attributions Only
+
+Checkout session `metadata` includes `tt_*` fields **only** for:
+- `UserReferral.status === "ACTIVE"`
+- `UserReferral.attributed_organization_id === <this org>`
+
+Expired/rejected referrals: no `tt_*` metadata.
+
+### Metadata Example
+
+```json
+{
+  "organization_id": "org_abc123",
+  "tt_org_id": "org_abc123",
+  "tt_affiliate_id": "aff_xyz789"
+}
+```
+
+**Checkout Args**: Identical to develop for all users (no `allow_promotion_codes`), except `tt_*` metadata for referred orgs.
+
+### Customer Reuse
+
+For referred orgs upgrading from Free:
+- Existing `stripe_customer_id` **reused**
+- Metadata added to existing Customer (not recreated)
+- Works even if referral captured 90+ days ago (no expiry on metadata)
+
+## Commission Eligibility
+
+Commissions apply to **all paid hosted plans**:
+- ✅ Pro
+- ✅ Business
+- ❌ Self-hosted (never eligible)
+
+## Stripe Webhook Handling
+
+### Dispute Alerts
+
+`charge.dispute.created` webhooks:
+- **Test mode** (`livemode: false`): log only, **no email**
+- **Live mode** (`livemode: true`): send email alert
+
+### Deduplication
+
+All Stripe webhooks use atomic claim-based deduplication:
+- `WebhookEvent` table with `claim_token` (16-byte hex)
+- Concurrent deliveries: exactly one processes
+- Stale processing rows (10+ minutes): reclaimed
+- Ownership guard: only token owner can mark processed/failed
+
+**Timezone Safety**: All `WebhookEvent` timestamps use `TIMESTAMPTZ(3)` for correct comparisons regardless of database session timezone.
+
+## Rewardful Webhook Handling
+
+**Endpoint**: `/webhooks/rewardful`
+
+**Signature Verification**: `X-Rewardful-Signature` header (HMAC-SHA256)
+
+### Supported Events
+
+- `referral.lead`: Tracks click (future use)
+- `referral.created`: Pre-conversion tracking
+- `referral.converted`: Completes unresolved referrals, links affiliate
+- `commission.created`: Records commission due
+- `commission.voided`: Marks commission voided
+
+### Webhook Deduplication
+
+Same atomic claim system as Stripe webhooks.
 
 ## Environment Variables
 
-### API (`apps/api/.env`)
-
+Required when `AFFILIATES_ENABLED=true`:
 ```bash
-# Master switch (requires Stripe to be configured)
 AFFILIATES_ENABLED=true
-
-# Rewardful API credentials (from Rewardful dashboard)
 REWARDFUL_WEBHOOK_SECRET=whsec_...
-
-# Founder notification emails for disputes (comma-separated)
-AFFILIATE_ADMIN_EMAILS=founder@example.com,admin@example.com
+STRIPE_SECRET_KEY=sk_live_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+TELEMETRY_ALLOW_REGISTRATION=true
 ```
 
-### Dashboard (`apps/dashboard/.env.local`)
+## Database Schema
 
-```bash
-# Client-side feature flag
-NEXT_PUBLIC_AFFILIATES_ENABLED=true
+### Tables
 
-# Rewardful public API key (safe for client-side)
-NEXT_PUBLIC_REWARDFUL_API_KEY=pk_...
-```
+- **WebhookEvent**: Deduplication (provider, event_id unique)
+- **UserReferral**: User-level capture (user_id unique, status, attributed_organization_id unique nullable)
+- **Affiliate**: Rewardful affiliate data (rewardful_affiliate_id unique)
+- **OrganizationReferral**: Org-level attribution (organization_id unique, status)
+- **AffiliateCommission**: Commission tracking (rewardful_commission_id unique)
 
-## Attribution Flow
+### Key Constraints
 
-### 1. Referral Capture (Registration)
-
-When a user signs up:
-
-1. Dashboard reads `window.Rewardful.referral` (UUID) or `?via=` query param (affiliate link token)
-2. Both values are sent to `POST /auth/register` as `rewardfulReferralId` and `viaToken`
-3. API validates formats:
-   - UUID: `/^[0-9a-f-]{36}$/i`
-   - via token: `/^[A-Za-z0-9_-]{1,64}$/`
-4. Creates immutable `UserReferral` row with:
-   - `affiliate_id`: resolved affiliate (if known), else `null`
-   - `rewardful_referral_id`: validated UUID
-   - `via_token`: validated token
-   - `captured_at`: signup timestamp
-
-**Self-referral check:** If the user's normalized email matches the affiliate's email, the referral is rejected.
-
-**Script-blocked fallback:** If Rewardful script fails to load but `?via=` is present, the via token is stored and used for attribution.
-
-**Conflict handling:** If both UUID and via token are present and point to different affiliates, the UUID wins (last-click priority), and `needs_attention` is flagged.
-
-### 2. Organization Attribution (First Org Creation)
-
-When a referred user creates their **first organization as OWNER**:
-
-1. API checks if user has a `UserReferral`
-2. Verifies:
-   - Not expired (≤55 days since capture)
-   - Not self-referral (checks again in case affiliate was resolved after signup)
-   - Only first org as OWNER (later orgs are not attributed)
-3. Creates `OrganizationReferral` row
-4. Creates Stripe `Customer` with metadata:
-   ```json
-   {
-     "tt_org_id": "org-uuid",
-     "tt_affiliate_id": "affiliate-uuid",
-     "referral": "rewardful-uuid-or-via-token"
-   }
-   ```
-   This triggers a **lead** in Rewardful.
-
-**55-day rule:** If the org is created >55 days after signup, `OrganizationReferral` is created with `needs_attention = true` and `attention_reason = 'referral_expired_55_days'`. No Stripe Customer metadata is written.
-
-**Invitees:** Users invited to existing orgs are never attributed (they don't create the org as OWNER).
-
-### 3. Checkout (Free → Paid Conversion)
-
-When an organization upgrades to a paid plan:
-
-1. If a `Customer` already exists (from org attribution), checkout reuses it
-2. If not (non-referred org or lazy creation), a new Customer is created **without** affiliate metadata
-3. On successful checkout, Rewardful sees the charge on the Customer with `metadata.referral` and creates a **conversion**
-
-**Months-later conversion:** A Free account that upgrades months after signup still converts because the Customer metadata was set at org creation.
-
-**Metadata update at checkout:** If the Customer exists but lacks `metadata.referral`, and the org has a valid `OrganizationReferral` (not expired/rejected), the metadata is added. Failures are logged but never fail checkout.
-
-## Webhooks
-
-### Rewardful Webhook (`POST /webhooks/rewardful`)
-
-Mirrors affiliate data from Rewardful for self-referral checks and reconciliation. **Never moves money.**
-
-**Signature verification:** HMAC-SHA256 with `REWARDFUL_WEBHOOK_SECRET`. Rejects unless header matches `/^[0-9a-f]{64}$/i` before decoding. Uses `timingSafeEqual` for constant-time comparison.
-
-**Deduplication:** Atomic claim-based dedupe via `WebhookEvent` table. Concurrent deliveries are safe.
-
-**Events mirrored:**
-- `affiliate.created`, `affiliate.updated`: upserts `Affiliate` table
-- `referral.created`, `referral.converted`: completes unresolved `UserReferral` / `OrganizationReferral` with `affiliate_id`
-- `commission.created`, `commission.updated`, `commission.paid`, `commission.voided`: mirrors to `AffiliateCommission`
-- `payout.created`, `payout.paid`: audit log only
-
-**Self-referral check on completion:** When webhook completes an unresolved referral, it checks normalized emails. Self-referrals are rejected by setting `needs_attention = true` and `attention_reason = 'rejected_self_referral'`.
-
-### Stripe Webhook (Dispute Alert)
-
-**Event:** `charge.dispute.created`
-
-When a dispute is created on a charge for a referred organization:
-
-1. Finds org via Stripe `customer_id`
-2. Checks if org has an `OrganizationReferral`
-3. Logs `OrganizationAuditEvent` with action `affiliate.dispute.created`
-4. Emails each address in `AFFILIATE_ADMIN_EMAILS` with:
-   - Organization name (HTML-escaped)
-   - Dispute ID, charge ID, amount, reason
-   - `[TEST MODE]` prefix in subject if `livemode = false`
-   - Livemode field in body
-
-**Deduplication:** Handled by `WebhookEvent` claim. Retries don't duplicate audit rows or emails.
-
-**Error handling:** Email failures are logged but never fail the webhook.
-
-## Immutability
-
-**`affiliate_id` on `UserReferral` and `OrganizationReferral`:**
-- May only change from `null` to a value, **once**
-- All `updateMany` operations include `WHERE affiliate_id IS NULL`
-- No update paths allow changing non-null `affiliate_id`
-
-**`metadata.referral` on Stripe Customer:**
-- Set at org creation (if attributed) or checkout (backfill)
-- Once set, never changed
-- Never set for expired or rejected referrals
-
-## Deferred Features
-
-Not included in V1 (implement later):
-
-1. **Public application form** for new affiliates
-2. **IBAN storage** and Wise batch payments (payout automation)
-3. **Self-billing PDFs** for EU contractors
-4. **SDK event gate** for free-tier analytics (require referral to unlock)
-5. **Reconciliation job** to compare TT commissions vs Rewardful payouts
-6. **Click analytics** (track affiliate link visits before signup)
-7. **Fraud detection engine** (pattern-based self-referral detection)
-
-## Self-Hosting Notes
-
-Self-hosted instances without Stripe configuration will never enable the feature (no `STRIPE_SECRET_KEY`). The affiliate program is designed for SaaS deployments only.
+- `UserReferral.user_id` → `User.id` (unique)
+- `UserReferral.attributed_organization_id` → `Organization.id` (unique nullable)
+- `OrganizationReferral.organization_id` → `Organization.id` (unique)
 
 ## Testing
 
-Run integration tests with:
+### Run All Tests
 
 ```bash
-# Flag OFF (must match develop behavior)
+# API tests (flag unset)
+cd apps/api
 RUN_DB_INTEGRATION_TESTS=true pnpm test
 
-# Flag ON
-AFFILIATES_ENABLED=true RUN_DB_INTEGRATION_TESTS=true pnpm test
+# API tests (flag ON)
+AFFILIATES_ENABLED=true \
+REWARDFUL_WEBHOOK_SECRET=test_secret \
+STRIPE_SECRET_KEY=sk_test_fake \
+TELEMETRY_ALLOW_REGISTRATION=true \
+RUN_DB_INTEGRATION_TESTS=true \
+pnpm test
+
+# Dedupe tests with non-UTC timezone
+TZ=Europe/Ljubljana \
+RUN_DB_INTEGRATION_TESTS=true \
+DATABASE_URL="postgresql://...?options=-c%20TimeZone=Europe/Ljubljana" \
+pnpm test src/lib/webhook-dedupe.test.ts src/routes/stripe-webhook-dedupe.integration.test.ts
 ```
 
-Dashboard consent tests:
+### Affiliate Test Files
 
 ```bash
-cd apps/dashboard
-pnpm test
+# Protections (expired, rejected, dispute, dedupe, self-referral)
+pnpm test affiliates-protections.integration
+
+# Core flows (registration, attribution, flag-off, errors)
+pnpm test affiliates.integration
 ```
 
-## Monitoring
+All affiliate tests run in plain CI (no `AFFILIATES_ENABLED` gate) with env vars set in `beforeAll`.
 
-Key metrics to track:
-- `OrganizationReferral.needs_attention = true` (manual review required)
-- `WebhookEvent.status = 'failed'` (Rewardful webhook failures)
-- `OrganizationAuditEvent.action = 'affiliate.dispute.created'` (dispute alerts)
-- Stripe Customer metadata coverage for referred orgs
+## Migration
+
+Single unreleased migration: `20261004180000_add_affiliate_tables`
+
+Run: `npx prisma migrate dev`
+
+## Known Limitations
+
+- Rewardful API not called during registration (V1 scope)
+- UUID-only referrals remain `UNRESOLVED` until `referral.converted` webhook
+- Commission calculation handled entirely by Rewardful
+
+## Support
+
+For questions or issues, contact the platform team or see `docs/DEVELOPMENT.md`.
