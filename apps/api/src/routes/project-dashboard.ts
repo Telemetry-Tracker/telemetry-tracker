@@ -118,14 +118,6 @@ export async function projectDashboardRoutes(
       return reply.status(400).send({ error: "name is required" });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: session.userId },
-      select: { email: true },
-    });
-    if (!user) {
-      return reply.status(401).send({ error: "Unauthorized" });
-    }
-
     const org = await prisma.organization.create({
       data: {
         name,
