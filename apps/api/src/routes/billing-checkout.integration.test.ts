@@ -341,14 +341,15 @@ testSuite("Billing Checkout Integration", () => {
       testOrgIds.push(org.id);
 
       // Build webhook event without affiliate metadata (non-referred org)
+      const timestamp = Date.now();
       const event = {
-        id: `evt_nonref_on_${Date.now()}`,
+        id: `evt_nonref_on_${timestamp}`,
         type: "checkout.session.completed",
         data: {
           object: {
-            id: "cs_nonref_on",
-            customer: "cus_nonref_on",
-            subscription: "sub_nonref_on",
+            id: `cs_nonref_on_${timestamp}`,
+            customer: `cus_nonref_on_${timestamp}`,
+            subscription: `sub_nonref_on_${timestamp}`,
             metadata: {
               organization_id: org.id,  // Only organization_id, no tt_* fields
               plan_tier: "PRO",
@@ -358,8 +359,8 @@ testSuite("Billing Checkout Integration", () => {
       };
 
       const payload = JSON.stringify(event);
-      const timestamp = Math.floor(Date.now() / 1000);
-      const signedPayload = `${timestamp}.${payload}`;
+      const webhookTimestamp = Math.floor(Date.now() / 1000);
+      const signedPayload = `${webhookTimestamp}.${payload}`;
       const signature = crypto
         .createHmac("sha256", webhookSecret)
         .update(signedPayload)
@@ -370,7 +371,7 @@ testSuite("Billing Checkout Integration", () => {
         url: "/webhooks/stripe",
         headers: {
           "content-type": "application/json",
-          "stripe-signature": `t=${timestamp},v1=${signature}`,
+          "stripe-signature": `t=${webhookTimestamp},v1=${signature}`,
         },
         payload,
       });
@@ -382,8 +383,8 @@ testSuite("Billing Checkout Integration", () => {
         where: { id: org.id },
       });
       expect(upgraded?.plan_tier).toBe("PRO");
-      expect(upgraded?.stripe_customer_id).toBe("cus_nonref_on");
-      expect(upgraded?.stripe_subscription_id).toBe("sub_nonref_on");
+      expect(upgraded?.stripe_customer_id).toBe(`cus_nonref_on_${timestamp}`);
+      expect(upgraded?.stripe_subscription_id).toBe(`sub_nonref_on_${timestamp}`);
     });
   });
 });

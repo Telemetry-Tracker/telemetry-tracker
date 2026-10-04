@@ -7,6 +7,7 @@ import { createApp } from "../app.js";
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../lib/db.js";
 import { dedupeWebhookEvent, markWebhookProcessed, markWebhookFailed } from "../lib/webhook-dedupe.js";
+import crypto from "node:crypto";
 
 const integrationTest = process.env.RUN_DB_INTEGRATION_TESTS === "true";
 const describeIf = integrationTest ? describe : describe.skip;
@@ -275,7 +276,7 @@ describeIf("Stripe webhook deduplication", () => {
       const payload = JSON.stringify(event);
       const timestamp = Math.floor(Date.now() / 1000);
       const signedPayload = `${timestamp}.${payload}`;
-      const signature = require("node:crypto")
+      const signature = crypto
         .createHmac("sha256", webhookSecret)
         .update(signedPayload)
         .digest("hex");
