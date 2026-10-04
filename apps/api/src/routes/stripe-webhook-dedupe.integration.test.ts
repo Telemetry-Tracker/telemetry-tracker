@@ -72,7 +72,7 @@ describeIf("Stripe webhook deduplication", () => {
     if (result1.kind !== "first_delivery") throw new Error("Expected first_delivery");
 
     // Simulate processing failure
-    await markWebhookFailed(prisma, result1.id, "Simulated failure");
+    await markWebhookFailed(prisma, result1.id, result1.claimToken, "Simulated failure");
 
     // Verify status is failed
     const failedEvent = await prisma.webhookEvent.findFirst({
@@ -89,7 +89,7 @@ describeIf("Stripe webhook deduplication", () => {
     if (result2.kind !== "first_delivery") throw new Error("Expected first_delivery on retry");
 
     // Mark as processed
-    await markWebhookProcessed(prisma, result2.id);
+    await markWebhookProcessed(prisma, result2.id, result2.claimToken);
 
     // Verify final state
     const processedEvent = await prisma.webhookEvent.findFirst({
@@ -118,7 +118,7 @@ describeIf("Stripe webhook deduplication", () => {
     if (result1.kind !== "first_delivery") throw new Error("Expected first_delivery");
 
     // Process successfully
-    await markWebhookProcessed(prisma, result1.id);
+    await markWebhookProcessed(prisma, result1.id, result1.claimToken);
 
     // Second delivery returns duplicate
     const result2 = await dedupeWebhookEvent(prisma, "stripe", eventId, "test.event");
@@ -154,7 +154,7 @@ describeIf("Stripe webhook deduplication", () => {
 
     // Mark as processed
     if (firstDeliveries[0].kind === "first_delivery") {
-      await markWebhookProcessed(prisma, firstDeliveries[0].id);
+      await markWebhookProcessed(prisma, firstDeliveries[0].id, firstDeliveries[0].claimToken);
     }
 
     // Verify only one event record
@@ -218,7 +218,7 @@ describeIf("Stripe webhook deduplication", () => {
     });
     
     // Mark as processed
-    await markWebhookProcessed(prisma, dedupeResult.id);
+    await markWebhookProcessed(prisma, dedupeResult.id, dedupeResult.claimToken);
     
     // Verify organization was updated
     const org = await prisma.organization.findFirst({
