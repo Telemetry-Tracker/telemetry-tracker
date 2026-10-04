@@ -216,6 +216,18 @@ export async function attributeOrganizationToAffiliate(
               "Self-referral rejected at org attribution"
             );
           }
+          
+          // Update UserReferral to mark as rejected
+          await prisma.userReferral.updateMany({
+            where: {
+              id: userReferral.id,
+              user_id: input.userId,
+            },
+            data: {
+              status: "REJECTED",
+            },
+          });
+          
           // Create OrganizationReferral with rejection reason
           await prisma.organizationReferral.create({
             data: {
@@ -258,6 +270,17 @@ export async function attributeOrganizationToAffiliate(
     // Affiliate is resolved and not expired
     referralStatus = "ACTIVE";
   }
+  
+  // Update UserReferral status
+  await prisma.userReferral.updateMany({
+    where: {
+      id: userReferral.id,
+      user_id: input.userId,
+    },
+    data: {
+      status: referralStatus,
+    },
+  });
 
   // UUID/via conflict check
   if (userReferral.rewardful_referral_id && userReferral.via_token) {

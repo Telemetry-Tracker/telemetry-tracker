@@ -287,8 +287,8 @@ testSuite("Billing Checkout Integration", () => {
       expect(checkoutResponse.statusCode).toBe(200);
       expect(capturedCheckoutArgs).toBeTruthy();
 
-      // Verify flag-ON args for referred org
-      expect(capturedCheckoutArgs?.allow_promotion_codes).toBe(true);
+      // Verify flag-ON args for referred org (no allow_promotion_codes, matches develop)
+      expect(capturedCheckoutArgs?.allow_promotion_codes).toBeUndefined();
       expect(capturedCheckoutArgs?.metadata?.organization_id).toBe(orgId);
       expect(capturedCheckoutArgs?.metadata?.tt_org_id).toBe(orgId);
       expect(capturedCheckoutArgs?.metadata?.tt_affiliate_id).toBe(affiliate.id);
@@ -371,8 +371,8 @@ testSuite("Billing Checkout Integration", () => {
       expect(checkoutResponse.statusCode).toBe(200);
       expect(capturedCheckoutArgs).toBeTruthy();
 
-      // Verify args identical to flag OFF (but allow_promotion_codes is true in flag ON)
-      expect(capturedCheckoutArgs?.allow_promotion_codes).toBe(true); // Only difference
+      // Verify args identical to flag OFF (checkout matches develop for non-referred orgs)
+      expect(capturedCheckoutArgs?.allow_promotion_codes).toBeUndefined();
       expect(capturedCheckoutArgs?.metadata?.organization_id).toBe(orgId);
       expect(capturedCheckoutArgs?.metadata?.tt_org_id).toBeUndefined();
       expect(capturedCheckoutArgs?.metadata?.tt_affiliate_id).toBeUndefined();
