@@ -3,9 +3,10 @@
  * Run with: RUN_DB_INTEGRATION_TESTS=true pnpm test affiliates.integration
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
-import { build } from "../app.js";
+import { createApp } from "../app.js";
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../lib/db.js";
+import crypto from "node:crypto";
 
 const shouldRun = process.env.RUN_DB_INTEGRATION_TESTS === "true";
 const testSuite = shouldRun ? describe : describe.skip;
@@ -20,7 +21,8 @@ testSuite("Affiliate Integration Tests", () => {
     process.env.AFFILIATES_ENABLED = "true";
     process.env.STRIPE_SECRET_KEY = "sk_test_mock";
     process.env.REWARDFUL_WEBHOOK_SECRET = "whsec_mock";
-    app = await build();
+    process.env.STRIPE_WEBHOOK_SECRET = "whsec_stripe_mock";
+    app = await createApp();
     await app.ready();
   });
 
@@ -72,7 +74,7 @@ testSuite("Affiliate Integration Tests", () => {
 
       const response = await app.inject({
         method: "POST",
-        url: "/auth/register",
+        url: "/api/auth/register",
         payload: {
           email: `user${Date.now()}@example.com`,
           password: "Password123!",
@@ -97,7 +99,7 @@ testSuite("Affiliate Integration Tests", () => {
     it("ignores invalid referral formats", async () => {
       const response = await app.inject({
         method: "POST",
-        url: "/auth/register",
+        url: "/api/auth/register",
         payload: {
           email: `user${Date.now()}@example.com`,
           password: "Password123!",
@@ -133,7 +135,7 @@ testSuite("Affiliate Integration Tests", () => {
 
       const response = await app.inject({
         method: "POST",
-        url: "/auth/register",
+        url: "/api/auth/register",
         payload: {
           email: userEmail,
           password: "Password123!",
@@ -181,7 +183,7 @@ testSuite("Affiliate Integration Tests", () => {
       // Create org
       const orgResponse = await app.inject({
         method: "POST",
-        url: "/meta/organizations",
+        url: "/api/meta/organizations",
         headers: { cookie: `tt-session=${sessionId}` },
         payload: { name: "First Org" },
       });
@@ -289,7 +291,7 @@ testSuite("Affiliate Integration Tests", () => {
       // Create org
       const orgResponse = await app.inject({
         method: "POST",
-        url: "/meta/organizations",
+        url: "/api/meta/organizations",
         headers: { cookie: `tt-session=${sessionId}` },
         payload: { name: "Expired Org" },
       });
@@ -306,18 +308,23 @@ testSuite("Affiliate Integration Tests", () => {
   });
 
   describe("Feature Flag OFF", () => {
-    beforeAll(() => {
+    let flagOffApp: FastifyInstance;
+
+    beforeAll(async () => {
       delete process.env.AFFILIATES_ENABLED;
+      flagOffApp = await createApp();
+      await flagOffApp.ready();
     });
 
-    afterAll(() => {
+    afterAll(async () => {
+      await flagOffApp.close();
       process.env.AFFILIATES_ENABLED = "true";
     });
 
     it("ignores referral fields when flag is OFF", async () => {
-      const response = await app.inject({
+      const response = await flagOffApp.inject({
         method: "POST",
-        url: "/auth/register",
+        url: "/api/auth/register",
         payload: {
           email: `flagoff${Date.now()}@example.com`,
           password: "Password123!",
@@ -337,9 +344,9 @@ testSuite("Affiliate Integration Tests", () => {
     });
 
     it("returns 404 for Rewardful webhook when flag is OFF", async () => {
-      const response = await app.inject({
+      const response = await flagOffApp.inject({
         method: "POST",
-        url: "/webhooks/rewardful",
+        url: "/api/webhooks/rewardful",
         headers: { "x-rewardful-signature": "0".repeat(64) },
         payload: { event: { id: "evt_test", type: "test" }, object: {} },
       });
@@ -349,51 +356,77 @@ testSuite("Affiliate Integration Tests", () => {
   });
 
   describe("Webhook Deduplication", () => {
-    it("processes webhook once despite concurrent deliveries", async () => {
-      const eventId = `stripe_${Date.now()}`;
+    it("processes 4 concurrent Stripe webhooks exactly once", async () => {
+      const eventId = `evt_dedupe_${Date.now()}`;
+      const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
       
-      // Simulate 4 concurrent deliveries
+      // Build webhook event
+      const event = {
+        id: eventId,
+        type: "customer.subscription.updated",
+        data: {
+          object: {
+            id: "sub_test",
+            status: "active",
+          },
+        },
+      };
+
+      const payload = JSON.stringify(event);
+      const timestamp = Math.floor(Date.now() / 1000);
+      const signedPayload = `${timestamp}.${payload}`;
+      const signature = crypto
+        .createHmac("sha256", webhookSecret)
+        .update(signedPayload)
+        .digest("hex");
+
+      // Send 4 concurrent webhook deliveries
       const responses = await Promise.all([
-        prisma.webhookEvent.create({
-          data: {
-            provider: "stripe",
-            event_id: eventId,
-            event_type: "test",
-            status: "processing",
-            locked_at: new Date(),
-          },
+        app.inject({
+          method: "POST",
+          url: "/api/webhooks/stripe",
+          headers: { "stripe-signature": `t=${timestamp},v1=${signature}` },
+          payload,
         }),
-        prisma.webhookEvent.create({
-          data: {
-            provider: "stripe",
-            event_id: eventId,
-            event_type: "test",
-            status: "processing",
-            locked_at: new Date(),
-          },
-        }).catch(() => null),
-        prisma.webhookEvent.create({
-          data: {
-            provider: "stripe",
-            event_id: eventId,
-            event_type: "test",
-            status: "processing",
-            locked_at: new Date(),
-          },
-        }).catch(() => null),
-        prisma.webhookEvent.create({
-          data: {
-            provider: "stripe",
-            event_id: eventId,
-            event_type: "test",
-            status: "processing",
-            locked_at: new Date(),
-          },
-        }).catch(() => null),
+        app.inject({
+          method: "POST",
+          url: "/api/webhooks/stripe",
+          headers: { "stripe-signature": `t=${timestamp},v1=${signature}` },
+          payload,
+        }),
+        app.inject({
+          method: "POST",
+          url: "/api/webhooks/stripe",
+          headers: { "stripe-signature": `t=${timestamp},v1=${signature}` },
+          payload,
+        }),
+        app.inject({
+          method: "POST",
+          url: "/api/webhooks/stripe",
+          headers: { "stripe-signature": `t=${timestamp},v1=${signature}` },
+          payload,
+        }),
       ]);
 
-      const created = responses.filter(r => r !== null);
-      expect(created.length).toBe(1); // Only one created
+      // Check responses
+      const statusCodes = responses.map(r => r.statusCode);
+      const processedCount = statusCodes.filter(c => c === 200).length;
+      const conflictCount = statusCodes.filter(c => c === 409).length;
+
+      // Exactly one should process (200), others should be duplicate (200) or processing (409)
+      expect(processedCount + conflictCount).toBe(4);
+      expect(processedCount).toBeGreaterThanOrEqual(1);
+
+      // Verify only one row created
+      const events = await prisma.webhookEvent.findMany({
+        where: { provider: "stripe", event_id: eventId },
+      });
+      expect(events.length).toBe(1);
+
+      // Cleanup
+      await prisma.webhookEvent.deleteMany({
+        where: { provider: "stripe", event_id: eventId },
+      });
     });
   });
 });

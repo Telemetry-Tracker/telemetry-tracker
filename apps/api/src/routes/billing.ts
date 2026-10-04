@@ -139,7 +139,7 @@ export async function billingRoutes(
           });
           // Only update if referral is valid (not expired or rejected)
           const isExpiredOrRejected = referral?.needs_attention &&
-            referral.attention_reason?.includes('expired' || 'rejected');
+            (referral.attention_reason?.includes('expired') || referral.attention_reason?.includes('rejected'));
           
           if (referral && referral.affiliate_id && !isExpiredOrRejected) {
             const hasReferralSource = referral.rewardful_referral_id || referral.via_token;

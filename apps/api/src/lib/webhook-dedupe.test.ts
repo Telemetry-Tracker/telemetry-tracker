@@ -81,7 +81,9 @@ describe("webhook-dedupe", () => {
       );
 
       expect(result.kind).toBe("first_delivery");
-      expect(result.id).toBe("evt_retry");
+      if (result.kind === "first_delivery") {
+        expect(result.id).toBe("evt_retry");
+      }
       expect(mockPrisma.$executeRaw).toHaveBeenCalled();
     });
 
