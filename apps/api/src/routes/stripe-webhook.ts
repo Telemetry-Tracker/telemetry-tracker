@@ -229,6 +229,73 @@ async function processStripeEvent(
             }
             break;
           }
+          case "charge.dispute.created": {
+            const dispute = event.data.object as Stripe.Dispute;
+            const chargeId = typeof dispute.charge === "string" ? dispute.charge : null;
+            if (!chargeId) break;
+
+            // Check if this charge relates to a referred organization
+            const { isAffiliateFeatureEnabled } = await import("../lib/affiliates-feature-flag.js");
+            if (!isAffiliateFeatureEnabled()) break;
+
+            // Find organization via Stripe customer
+            const charge = await stripe.charges.retrieve(chargeId);
+            const customerId = typeof charge.customer === "string" ? charge.customer : null;
+            if (!customerId) break;
+
+            const org = await prisma.organization.findFirst({
+              where: { stripe_customer_id: customerId, deleted_at: null },
+              select: { id: true, name: true },
+            });
+            if (!org) break;
+
+            const referral = await prisma.organizationReferral.findUnique({
+              where: { organization_id: org.id },
+              select: { id: true, affiliate_id: true },
+            });
+            if (!referral) break;
+
+            // Log audit event
+            await prisma.organizationAuditEvent.create({
+              data: {
+                organization_id: org.id,
+                actor_email: "system@telemetry-tracker.com",
+                action: "affiliate.dispute.created",
+                target: `Stripe dispute ${dispute.id} for charge ${chargeId}`,
+              },
+            });
+
+            // Notify founder
+            const adminEmails = process.env.AFFILIATE_ADMIN_EMAILS?.trim();
+            if (adminEmails) {
+              const { sendTransactionalEmail } = await import("../lib/email.js");
+              const emails = adminEmails.split(",").map((e) => e.trim()).filter(Boolean);
+              
+              for (const email of emails) {
+                // Respect test-mail protection
+                const canSend = process.env.NODE_ENV === "production" || 
+                               process.env.TELEMETRY_ALLOW_TEST_EMAILS === "true" ||
+                               email.endsWith("@telemetry-tracker.com");
+                
+                if (canSend) {
+                  await sendTransactionalEmail({
+                    to: email,
+                    subject: `[Affiliate] Dispute on referred organization: ${org.name}`,
+                    html: `<p>A Stripe dispute was created for a referred organization:</p>
+                      <ul>
+                        <li>Organization: ${org.name} (${org.id})</li>
+                        <li>Dispute ID: ${dispute.id}</li>
+                        <li>Charge ID: ${chargeId}</li>
+                        <li>Amount: ${dispute.amount / 100} ${dispute.currency.toUpperCase()}</li>
+                        <li>Reason: ${dispute.reason}</li>
+                      </ul>
+                      <p>Review in Stripe Dashboard and Rewardful for commission impact.</p>`,
+                  });
+                }
+              }
+            }
+            break;
+          }
           default:
             break;
         }

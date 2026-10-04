@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useTransition, type FormEvent } from "react";
+import * as React from "react";
 import { register } from "@/app/auth/actions";
 import { LegalExternalLink } from "@/app/components/legal/LegalPageShell";
 import {
@@ -25,10 +26,19 @@ type RegisterPageFormProps = {
   serverChoice: CookieConsentChoice | null;
 };
 
+declare global {
+  interface Window {
+    Rewardful?: {
+      referral?: string;
+    };
+  }
+}
+
 export function RegisterPageForm({ serverChoice }: RegisterPageFormProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const inviteToken = searchParams.get("invite")?.trim() ?? "";
+  const viaToken = searchParams.get("via")?.trim() ?? "";
 
   const [values, setValues] = useState<RegisterPageValues>({
     name: "",
@@ -41,12 +51,20 @@ export function RegisterPageForm({ serverChoice }: RegisterPageFormProps) {
   const [errors, setErrors] = useState<Partial<Record<keyof RegisterPageValues, string>>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [rewardfulReferralId, setRewardfulReferralId] = useState<string | null>(null);
 
   function update<K extends keyof RegisterPageValues>(key: K, val: RegisterPageValues[K]) {
     setValues((v) => ({ ...v, [key]: val }));
     if (errors[key]) setErrors((e) => ({ ...e, [key]: undefined }));
     if (formError) setFormError(null);
   }
+
+  // Capture Rewardful referral UUID from global object on mount
+  React.useEffect(() => {
+    if (typeof window !== "undefined" && window.Rewardful?.referral) {
+      setRewardfulReferralId(window.Rewardful.referral);
+    }
+  }, []);
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -65,6 +83,8 @@ export function RegisterPageForm({ serverChoice }: RegisterPageFormProps) {
     formData.set("termsAccepted", "yes");
     if (parsed.data.marketingOptIn) formData.set("marketingOptIn", "yes");
     if (inviteToken) formData.set("inviteToken", inviteToken);
+    if (rewardfulReferralId) formData.set("rewardfulReferralId", rewardfulReferralId);
+    if (viaToken) formData.set("viaToken", viaToken);
     appendCookieConsentToFormData(formData, serverChoice);
 
     startTransition(async () => {

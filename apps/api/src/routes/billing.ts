@@ -154,12 +154,16 @@ export async function billingRoutes(
         }
       }
 
+      // Enable promotion codes only when affiliate feature is ON (to avoid changing existing billing)
+      const allowPromotionCodes = isAffiliateFeatureEnabled();
+
       const checkout = await stripe.checkout.sessions.create({
         mode: "subscription",
         customer: customerId,
         line_items: [{ price: priceId, quantity: 1 }],
         success_url: `${origin}/dashboard/settings/organization?billing=success`,
         cancel_url: `${origin}/dashboard/settings/organization?billing=canceled`,
+        allow_promotion_codes: allowPromotionCodes,
         metadata: {
           organization_id: orgId,
           plan_tier: tier,

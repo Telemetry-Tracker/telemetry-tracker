@@ -2,7 +2,8 @@
  * Organization attribution: copy from UserReferral and create Stripe Customer with metadata.
  * Always writes OrganizationReferral even if Stripe Customer creation fails.
  */
-import type { PrismaClient, Prisma } from "@prisma/client";
+import type { PrismaClient } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import type Stripe from "stripe";
 import { isAffiliateFeatureEnabled } from "./affiliates-feature-flag.js";
 
