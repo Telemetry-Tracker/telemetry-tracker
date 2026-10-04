@@ -400,7 +400,10 @@ async function linkReferralToOrganization(
  */
 async function upsertCommission(commissionData: z.infer<typeof RewardfulCommissionSchema>) {
   // Find affiliate by Rewardful ID - check object.affiliate or sale.affiliate
-  const affiliateRewardfulId = commissionData.affiliate?.id ?? commissionData.sale?.affiliate?.id;
+  const objectAffiliate = commissionData.affiliate as { id?: string } | null | undefined;
+  const saleAffiliate = (commissionData.sale as { affiliate?: { id?: string } } | null | undefined)?.affiliate;
+  const affiliateRewardfulId = objectAffiliate?.id ?? saleAffiliate?.id;
+  
   const affiliate = affiliateRewardfulId
     ? await prisma.affiliate.findFirst({
         where: { rewardful_affiliate_id: affiliateRewardfulId },
