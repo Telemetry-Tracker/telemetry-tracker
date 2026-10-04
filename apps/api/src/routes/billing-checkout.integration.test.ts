@@ -37,7 +37,7 @@ vi.mock("stripe", () => {
       retrieve: (...args: unknown[]) => mockSubscriptionsRetrieve(...args),
     },
     webhooks: {
-      constructEvent: (payload: Buffer | string, sig: string, secret: string) => {
+      constructEvent: (payload: Buffer | string, _sig: string, _secret: string) => {
         // Simple signature verification for tests
         const payloadStr = typeof payload === "string" ? payload : payload.toString();
         return JSON.parse(payloadStr);
@@ -49,9 +49,9 @@ vi.mock("stripe", () => {
 
 testSuite("Billing Checkout Integration", () => {
   let app: FastifyInstance;
-  let testUserIds: string[] = [];
-  let testOrgIds: string[] = [];
-  let testAffiliateIds: string[] = [];
+  const testUserIds: string[] = [];
+  const testOrgIds: string[] = [];
+  const testAffiliateIds: string[] = [];
   const webhookSecret = "whsec_test_billing";
 
   beforeAll(async () => {

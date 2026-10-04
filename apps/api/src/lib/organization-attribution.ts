@@ -184,6 +184,10 @@ export async function attributeOrganizationToAffiliate(
     return { kind: "not_referred" };
   }
 
+  // Initialize needs_attention tracking
+  let needsAttention = false;
+  let attentionReason: string | null = null;
+
   // Self-referral and affiliate email validation
   if (userReferral.affiliate_id) {
     const affiliate = await prisma.affiliate.findUnique({
@@ -241,12 +245,11 @@ export async function attributeOrganizationToAffiliate(
 
   // Check if referral has expired (55-day rule)
   const expired = isReferralExpired(userReferral.captured_at);
-  let needsAttention = expired || !userReferral.affiliate_id;
-  let attentionReason: string | null = null;
-  
   if (expired) {
+    needsAttention = true;
     attentionReason = "referral_expired_55_days";
   } else if (!userReferral.affiliate_id) {
+    needsAttention = true;
     attentionReason = "affiliate_unresolved";
   }
 
