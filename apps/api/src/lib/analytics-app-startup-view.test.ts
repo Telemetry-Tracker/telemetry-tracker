@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 const migrationPath = join(
   dirname(fileURLToPath(import.meta.url)),
-  "../../prisma/migrations/20261004120000_analytics_app_startup_view/migration.sql",
+  "../../prisma/migrations/20261004130000_analytics_app_startup_bigint/migration.sql",
 );
 
 const migration = readFileSync(migrationPath, "utf8");
@@ -45,6 +45,7 @@ const exposedColumns = [
 
 describe("analytics_app_startup migration", () => {
   it("creates an owner-rights barrier view for besedna-igra app_startup only", () => {
+    expect(migration).toContain("DROP VIEW public.analytics_app_startup;");
     expect(migration).toContain("CREATE VIEW public.analytics_app_startup");
     expect(migration).toContain("security_barrier = true");
     expect(migration).toContain("security_invoker = false");
@@ -71,11 +72,13 @@ describe("analytics_app_startup migration", () => {
     expect(selectList).not.toMatch(/\bAS os\b/);
   });
 
-  it("nulls malformed property values instead of casting them directly", () => {
+  it("stores timing marks as bigint and nulls malformed values", () => {
     expect(migration).toContain("jsonb_typeof(");
     expect(migration).toContain("ELSE NULL");
-    expect(migration).not.toMatch(/properties->>'[a-z0-9_]+'\)::integer/);
-    expect(migration).toContain("~ '^[0-9]{1,7}$'");
+    expect(migration.match(/::bigint/g)).toHaveLength(16);
+    expect(migration).not.toContain("::integer");
+    expect(migration.match(/~\s*'\^\[0-9\]\{1,18\}\$'/g)).toHaveLength(16);
+    expect(migration).not.toContain("^[0-9]{1,7}$");
     expect(migration).toContain("~ '^[A-Za-z0-9._+-]{1,32}$'");
   });
 
