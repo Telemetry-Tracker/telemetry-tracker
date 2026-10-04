@@ -31,6 +31,8 @@ model Organization {
   audit_events         OrganizationAuditEvent[]
   brief_completed      BriefCompleted[]
   brief_generation_jobs BriefGenerationJob[]
+  organization_referral OrganizationReferral?
+  affiliate_commissions AffiliateCommission[]
 
   @@index([deleted_at])
 }
@@ -628,4 +630,95 @@ model ScheduledJobHeartbeat {
   job         String   @id
   last_ok_at  DateTime @map("last_ok_at")
   updated_at  DateTime @updatedAt @map("updated_at")
+}
+
+/// Webhook event deduplication (Stripe + Rewardful). Provider-scoped event IDs.
+model WebhookEvent {
+  id          String   @id @default(uuid())
+  provider    String   @map("provider")
+  event_id    String   @map("event_id")
+  event_type  String?  @map("event_type")
+  received_at DateTime @default(now()) @map("received_at")
+  processed_at DateTime? @map("processed_at")
+  error       String?
+
+  @@unique([provider, event_id])
+  @@index([provider, received_at])
+}
+
+/// Affiliate program: mirror of Rewardful affiliates for self-referral checks and attribution.
+/// Only affiliates created by the founder in Rewardful dashboard are synced via webhook.
+model Affiliate {
+  id                      String    @id @default(uuid())
+  rewardful_affiliate_id  String    @unique @map("rewardful_affiliate_id")
+  /// Link token (e.g. 'alice') from Rewardful affiliate.token, for via= resolution.
+  link_token              String?   @map("link_token")
+  /// Email normalized (lowercase, +tag stripped, gmail dots removed) for self-referral checks.
+  email_normalized        String    @map("email_normalized")
+  /// Rewardful state: active | disabled | deleted (via webhook).
+  state                   String
+  created_at              DateTime  @default(now()) @map("created_at")
+  updated_at              DateTime  @updatedAt @map("updated_at")
+  organization_referrals  OrganizationReferral[]
+  commissions             AffiliateCommission[]
+
+  @@index([link_token])
+  @@index([email_normalized])
+  @@index([state])
+}
+
+/// Canonical TT attribution: ONE row per organization, immutable after creation.
+/// Source of truth for which affiliate referred this org. Survives plan changes, cancellations.
+model OrganizationReferral {
+  id                       String       @id @default(uuid())
+  organization_id          String       @unique @map("organization_id")
+  organization             Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  affiliate_id             String       @map("affiliate_id")
+  affiliate                Affiliate    @relation(fields: [affiliate_id], references: [id], onDelete: Restrict)
+  /// Rewardful referral UUID (from Rewardful.referral or webhook), nullable for token-only fallback.
+  rewardful_referral_id    String?      @map("rewardful_referral_id")
+  /// The via token used (if any), for audit trail.
+  via_token                String?      @map("via_token")
+  /// Source: link | promo_code | manual
+  source                   String
+  /// When the affiliate link was first seen (click timestamp if available).
+  first_seen_at            DateTime?    @map("first_seen_at")
+  /// When attribution was locked to this org (signup timestamp).
+  attributed_at            DateTime     @default(now()) @map("attributed_at")
+  /// For manual attribution/correction: User ID who performed the action.
+  created_by               String?      @map("created_by")
+  created_at               DateTime     @default(now()) @map("created_at")
+  updated_at               DateTime     @updatedAt @map("updated_at")
+
+  @@index([affiliate_id])
+  @@index([rewardful_referral_id])
+  @@index([source])
+  @@index([attributed_at])
+}
+
+/// Mirror of Rewardful commissions for accounting, reconciliation, and migration readiness.
+/// Rewardful remains the commission engine; this is read-only sync via webhook.
+model AffiliateCommission {
+  id                       String    @id @default(uuid())
+  rewardful_commission_id  String    @unique @map("rewardful_commission_id")
+  affiliate_id             String?   @map("affiliate_id")
+  affiliate                Affiliate? @relation(fields: [affiliate_id], references: [id], onDelete: SetNull)
+  /// Organization if resolvable from Stripe customer ID.
+  organization_id          String?   @map("organization_id")
+  organization             Organization? @relation(fields: [organization_id], references: [id], onDelete: SetNull)
+  stripe_charge_id         String?   @map("stripe_charge_id")
+  amount_cents             Int       @map("amount_cents")
+  currency                 String
+  /// Rewardful commission state: pending | due | paid | voided
+  state                    String
+  due_at                   DateTime? @map("due_at")
+  paid_at                  DateTime? @map("paid_at")
+  voided_at                DateTime? @map("voided_at")
+  created_at               DateTime  @default(now()) @map("created_at")
+  updated_at               DateTime  @updatedAt @map("updated_at")
+
+  @@index([affiliate_id, state])
+  @@index([organization_id])
+  @@index([stripe_charge_id])
+  @@index([state, due_at])
 }

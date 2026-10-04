@@ -8,6 +8,11 @@ import {
   subscriptionToOrgSyncPatch,
 } from "../lib/stripe-subscription-sync.js";
 import { stripeSubscriptionPeriodEndUnix } from "../lib/stripe-runtime-fields.js";
+import {
+  dedupeWebhookEvent,
+  markWebhookProcessed,
+  markWebhookFailed,
+} from "../lib/webhook-dedupe.js";
 
 /** Prisma P2002 — unique constraint (e.g. Stripe customer/sub already bound to another org). */
 function isUniqueConstraintError(e: unknown): boolean {
@@ -60,6 +65,42 @@ export async function registerStripeWebhookIfConfigured(
           return reply.status(400).send({ error: "Invalid signature" });
         }
 
+        // Deduplicate webhook events (idempotency)
+        const dedupeResult = await dedupeWebhookEvent(
+          prisma,
+          "stripe",
+          event.id,
+          event.type
+        );
+        if (dedupeResult.kind === "duplicate") {
+          // Already processed; return success to prevent Stripe retries
+          return reply.send({ received: true });
+        }
+
+        try {
+          await processStripeEvent(event, request, stripe);
+          await markWebhookProcessed(prisma, dedupeResult.id);
+        } catch (err) {
+          const errorMessage = err instanceof Error ? err.message : String(err);
+          await markWebhookFailed(prisma, dedupeResult.id, errorMessage);
+          throw err; // Re-throw to let Fastify handle error response
+        }
+
+        return reply.send({ received: true });
+      });
+    },
+    { prefix: "/" }
+  );
+}
+
+/**
+ * Process Stripe webhook event (extracted for testability and to preserve existing behavior).
+ */
+async function processStripeEvent(
+  event: Stripe.Event,
+  request: { log: { warn: (arg: unknown, msg: string) => void } },
+  stripe: Stripe
+): Promise<void> {
         switch (event.type) {
           case "checkout.session.completed": {
             const session = event.data.object as Stripe.Checkout.Session;
@@ -191,10 +232,4 @@ export async function registerStripeWebhookIfConfigured(
           default:
             break;
         }
-
-        return reply.send({ received: true });
-      });
-    },
-    { prefix: "/" }
-  );
 }
