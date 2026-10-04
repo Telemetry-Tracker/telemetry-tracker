@@ -54,6 +54,14 @@ function isValidUUID(str: string): boolean {
 }
 
 /**
+ * Validate via token format (Rewardful link token).
+ */
+function isValidViaToken(str: string): boolean {
+  const viaTokenRegex = /^[A-Za-z0-9_-]{1,64}$/;
+  return viaTokenRegex.test(str);
+}
+
+/**
  * Capture referral at user registration (locked permanently).
  * Never throws - returns result indicating outcome.
  */
@@ -77,34 +85,84 @@ export async function captureUserReferral(
   // Validate Rewardful UUID if provided
   const validRewardfulId = rewardfulId && isValidUUID(rewardfulId) ? rewardfulId : null;
 
-  try {
-    // Resolve affiliate deterministically
-    const resolution = await resolveAffiliate(prisma, {
-      viaToken,
-      rewardfulReferralId: validRewardfulId ?? undefined,
-    });
+  // Validate via token if provided
+  const validViaToken = viaToken && isValidViaToken(viaToken) ? viaToken : null;
 
+  // Need at least one valid source
+  if (!validRewardfulId && !validViaToken) {
+    if (logger) {
+      logger.warn(
+        { userId: input.userId, invalidRewardfulId: !!rewardfulId, invalidViaToken: !!viaToken },
+        "Invalid referral formats; ignoring"
+      );
+    }
+    return { kind: "no_referral" };
+  }
+
+  try {
+    // Resolve affiliate deterministically from via token
+    const viaResolution = validViaToken
+      ? await resolveAffiliate(prisma, { viaToken: validViaToken })
+      : null;
+
+    // Resolve affiliate from Rewardful UUID (for conflict detection)
+    // In V1 we don't call Rewardful API, so we can't resolve from UUID alone yet
+    // But we can detect conflicts if via token resolves to a different affiliate
+    const rewardfulResolution = validRewardfulId
+      ? await resolveAffiliate(prisma, { rewardfulReferralId: validRewardfulId })
+      : null;
+
+    // Conflict detection: both present and resolve to different affiliates
+    let needsAttention = false;
+    let attentionReason: string | null = null;
     let affiliateId: string | null = null;
-    if (resolution.kind === "resolved") {
-      // Check self-referral
+
+    if (viaResolution?.kind === "resolved" && rewardfulResolution?.kind === "resolved") {
+      if (viaResolution.affiliateId !== rewardfulResolution.affiliateId) {
+        // Conflict: prefer Rewardful UUID (last-click priority)
+        needsAttention = true;
+        attentionReason = "conflict_uuid_via_different_affiliates";
+        affiliateId = viaResolution.affiliateId; // Use UUID affiliate
+        if (logger) {
+          logger.warn(
+            {
+              userId: input.userId,
+              uuidAffiliateId: viaResolution.affiliateId,
+              viaAffiliateId: rewardfulResolution.affiliateId,
+            },
+            "Referral conflict: UUID and via token point to different affiliates"
+          );
+        }
+      } else {
+        // Both resolve to same affiliate - no conflict
+        affiliateId = viaResolution.affiliateId;
+      }
+    } else if (viaResolution?.kind === "resolved") {
+      // Only via token resolved
+      affiliateId = viaResolution.affiliateId;
+    } else if (rewardfulResolution?.kind === "resolved") {
+      // Only Rewardful UUID resolved
+      affiliateId = rewardfulResolution.affiliateId;
+    }
+
+    // Check self-referral if we resolved an affiliate
+    if (affiliateId) {
       const selfReferralReason = await checkUserSelfReferral(
         prisma,
-        resolution.affiliateId,
+        affiliateId,
         input.userEmail
       );
       if (selfReferralReason) {
         return { kind: "rejected_self_referral", reason: selfReferralReason };
       }
-      affiliateId = resolution.affiliateId;
     } else {
       // Affiliate not resolved - will be completed by Rewardful webhook later
       if (logger) {
         logger.warn(
           {
             userId: input.userId,
-            reason: resolution.reason,
             hasRewardfulId: !!validRewardfulId,
-            hasViaToken: !!viaToken,
+            hasViaToken: !!validViaToken,
           },
           "Affiliate not resolved at registration; will be completed by webhook"
         );
@@ -112,17 +170,22 @@ export async function captureUserReferral(
     }
 
     // Create UserReferral record (affiliate_id may be null)
+    // Store both sources for audit trail
     const userReferral = await prisma.userReferral.create({
       data: {
         user_id: input.userId,
         affiliate_id: affiliateId,
         rewardful_referral_id: validRewardfulId,
-        via_token: viaToken ?? null,
+        via_token: validViaToken,
         source: "link",
         captured_at: new Date(),
       },
       select: { id: true },
     });
+
+    // If needs attention, update the record
+    // Note: We don't have a needs_attention field on UserReferral, only on OrganizationReferral
+    // So we just log the conflict here and it will be carried forward to OrganizationReferral
 
     return { kind: "captured", userReferralId: userReferral.id };
   } catch (err) {

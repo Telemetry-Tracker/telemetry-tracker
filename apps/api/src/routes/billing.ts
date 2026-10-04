@@ -54,9 +54,9 @@ async function resolveStripeCustomerId(
   if (!pendingCreate) return null;
   if (pendingCreate.kind === "existing") return pendingCreate.customerId;
 
-  const customer = await stripe.customers.create({
+      const customer = await stripe.customers.create({
     name: pendingCreate.orgName,
-    metadata: { organization_id: orgId },
+    metadata: { tt_org_id: orgId },
   });
 
   const savedId = await prisma.$transaction(async (tx) => {
@@ -126,55 +126,71 @@ export async function billingRoutes(
       // Update Customer metadata if org is referred but Customer lacks metadata
       const { isAffiliateFeatureEnabled } = await import("../lib/affiliates-feature-flag.js");
       if (isAffiliateFeatureEnabled()) {
-        const referral = await prisma.organizationReferral.findUnique({
-          where: { organization_id: orgId },
-          select: {
-            rewardful_referral_id: true,
-            affiliate_id: true,
-          },
-        });
-        if (referral?.rewardful_referral_id && referral.affiliate_id) {
-          // Check if Customer already has metadata.referral
-          const customer = await stripe.customers.retrieve(customerId);
-          if (!customer.deleted && !customer.metadata?.referral) {
-            // Update Customer metadata
-            await stripe.customers.update(customerId, {
-              metadata: {
-                ...customer.metadata,
-                referral: referral.rewardful_referral_id,
-                tt_org_id: orgId,
-                tt_affiliate_id: referral.affiliate_id,
-              },
-            });
-            request.log.info(
-              { customerId, orgId },
-              "Updated Customer metadata with referral info at checkout"
-            );
+        try {
+          const referral = await prisma.organizationReferral.findUnique({
+            where: { organization_id: orgId },
+            select: {
+              rewardful_referral_id: true,
+              affiliate_id: true,
+              via_token: true,
+              needs_attention: true,
+            },
+          });
+          // Only update if referral is valid (not expired or rejected)
+          if (referral && referral.affiliate_id && !referral.needs_attention) {
+            const hasReferralSource = referral.rewardful_referral_id || referral.via_token;
+            if (hasReferralSource) {
+              // Check if Customer already has metadata.referral
+              const customer = await stripe.customers.retrieve(customerId);
+              if (!customer.deleted && !customer.metadata?.referral) {
+                // Prefer Rewardful UUID, fall back to via token
+                const referralValue = referral.rewardful_referral_id || referral.via_token;
+                // Update Customer metadata
+                await stripe.customers.update(customerId, {
+                  metadata: {
+                    ...customer.metadata,
+                    referral: referralValue,
+                    tt_org_id: orgId,
+                    tt_affiliate_id: referral.affiliate_id,
+                  },
+                });
+                request.log.info(
+                  { customerId, orgId },
+                  "Updated Customer metadata with referral info at checkout"
+                );
+              }
+            }
           }
+        } catch (err) {
+          // Log error but don't fail checkout
+          request.log.error(
+            { err, orgId },
+            "Failed to update Customer metadata at checkout"
+          );
         }
       }
 
       // Enable promotion codes only when affiliate feature is ON (to avoid changing existing billing)
-      const allowPromotionCodes = isAffiliateFeatureEnabled();
-
-      const checkout = await stripe.checkout.sessions.create({
+      const sessionParams: Stripe.Checkout.SessionCreateParams = {
         mode: "subscription",
         customer: customerId,
         line_items: [{ price: priceId, quantity: 1 }],
         success_url: `${origin}/dashboard/settings/organization?billing=success`,
         cancel_url: `${origin}/dashboard/settings/organization?billing=canceled`,
-        allow_promotion_codes: allowPromotionCodes,
+        ...(isAffiliateFeatureEnabled() ? { allow_promotion_codes: true } : {}),
         metadata: {
-          organization_id: orgId,
+          tt_org_id: orgId,
           plan_tier: tier,
         },
         subscription_data: {
           metadata: {
-            organization_id: orgId,
+            tt_org_id: orgId,
             plan_tier: tier,
           },
         },
-      });
+      };
+
+      const checkout = await stripe.checkout.sessions.create(sessionParams);
 
       if (!checkout.url) {
         return reply.status(500).send({ error: "Could not create checkout session" });

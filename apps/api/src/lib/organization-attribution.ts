@@ -36,7 +36,7 @@ async function resolveStripeCustomerIdWithMetadata(
   stripe: Stripe,
   orgId: string,
   metadata: {
-    organization_id: string;
+    tt_org_id: string;
     tt_affiliate_id: string;
     referral?: string;
   },
@@ -160,21 +160,30 @@ export async function attributeOrganizationToAffiliate(
     attentionReason = "affiliate_unresolved";
   }
 
-  // Create Stripe Customer if affiliate is resolved and referral has Rewardful UUID
+  // Script-blocked fallback: if no UUID but we have a valid via token, use it
+  // This handles the case where Rewardful script didn't load but we have the via token from URL
+  const shouldCreateCustomer = userReferral.affiliate_id && (userReferral.rewardful_referral_id || userReferral.via_token);
+
+  // Create Stripe Customer if affiliate is resolved and we have a referral source
   let customerId: string | null = null;
-  if (userReferral.affiliate_id && userReferral.rewardful_referral_id) {
+  if (shouldCreateCustomer && userReferral.affiliate_id) {
     const metadata: {
       organization_id: string;
+      tt_org_id: string;
       tt_affiliate_id: string;
       referral?: string;
     } = {
       organization_id: input.organizationId,
+      tt_org_id: input.organizationId,
       tt_affiliate_id: userReferral.affiliate_id,
     };
 
-    // Only include referral UUID if it's valid
+    // Prefer Rewardful UUID, fall back to via token for manual attribution
     if (userReferral.rewardful_referral_id) {
       metadata.referral = userReferral.rewardful_referral_id;
+    } else if (userReferral.via_token) {
+      // Script-blocked fallback: use via token
+      metadata.referral = userReferral.via_token;
     }
 
     const customerResult = await resolveStripeCustomerIdWithMetadata(
