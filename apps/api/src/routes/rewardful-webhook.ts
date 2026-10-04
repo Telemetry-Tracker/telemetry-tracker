@@ -543,10 +543,13 @@ async function processRewardfulEvent(
 export async function registerRewardfulWebhookIfConfigured(
   app: FastifyInstance
 ): Promise<void> {
-  const secret = process.env.REWARDFUL_WEBHOOK_SECRET?.trim();
-  const enabled = process.env.AFFILIATES_ENABLED === "true";
+  const { isAffiliateFeatureEnabled } = await import("../lib/affiliates-feature-flag.js");
+  if (!isAffiliateFeatureEnabled()) {
+    return;
+  }
 
-  if (!enabled || !secret) {
+  const secret = process.env.REWARDFUL_WEBHOOK_SECRET?.trim();
+  if (!secret) {
     return;
   }
 

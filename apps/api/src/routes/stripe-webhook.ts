@@ -289,9 +289,7 @@ async function processStripeEvent(
                 const { escapeHtml } = await import("../lib/notification-email-template.js");
                 const emails = adminEmails.split(",").map((e) => e.trim()).filter(Boolean);
                 
-                // Include livemode in subject for test disputes
-                const livemodePrefix = dispute.livemode ? "" : "[TEST MODE] ";
-                const subject = `${livemodePrefix}[Affiliate] Dispute on referred organization: ${org.name}`;
+                const subject = `[Affiliate] Dispute on referred organization: ${org.name}`;
                 
                 for (const email of emails) {
                   try {
