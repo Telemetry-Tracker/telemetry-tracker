@@ -243,9 +243,14 @@ describeIf("Stripe webhook deduplication", () => {
     let routeApp: FastifyInstance | null = null;
     const routeTestOrgId = "test-route-dedupe-org-" + Date.now();
     const routeEventIds: string[] = [];
+    let originalAffiliatesEnabled: string | undefined;
 
     beforeAll(async () => {
       if (!integrationTest) return;
+      
+      // Save and set AFFILIATES_ENABLED for dedupe to work
+      originalAffiliatesEnabled = process.env.AFFILIATES_ENABLED;
+      process.env.AFFILIATES_ENABLED = "true";
       
       // Create app with route-test webhook secret
       process.env.STRIPE_WEBHOOK_SECRET = webhookSecret;
@@ -267,6 +272,13 @@ describeIf("Stripe webhook deduplication", () => {
 
     afterAll(async () => {
       if (!integrationTest || !routeApp) return;
+      
+      // Restore original env
+      if (originalAffiliatesEnabled === undefined) {
+        delete process.env.AFFILIATES_ENABLED;
+      } else {
+        process.env.AFFILIATES_ENABLED = originalAffiliatesEnabled;
+      }
       
       // Cleanup
       if (routeEventIds.length > 0) {
