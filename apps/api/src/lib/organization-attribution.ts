@@ -6,6 +6,7 @@ import type { PrismaClient } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 import type Stripe from "stripe";
 import { isAffiliateFeatureEnabled } from "./affiliates-feature-flag.js";
+import { normalizeEmailForSelfReferralCheck } from "./affiliate-email-normalize.js";
 
 export type OrganizationAttributionInput = {
   organizationId: string;
@@ -17,7 +18,8 @@ export type OrganizationAttributionResult =
   | { kind: "not_enabled" }
   | { kind: "not_referred" }
   | { kind: "attributed"; referralId: string; customerId: string | null; needsAttention: boolean }
-  | { kind: "invitee_not_attributed" };
+  | { kind: "invitee_not_attributed" }
+  | { kind: "rejected_self_referral"; reason: string };
 
 /**
  * Check if referral has expired (>55 days since capture).
@@ -142,11 +144,57 @@ export async function attributeOrganizationToAffiliate(
       via_token: true,
       source: true,
       captured_at: true,
+      user: {
+        select: {
+          email: true,
+        },
+      },
     },
   });
 
   if (!userReferral) {
     return { kind: "not_referred" };
+  }
+
+  // Self-referral check: verify at org attribution time (catch late resolutions)
+  if (userReferral.affiliate_id) {
+    const affiliate = await prisma.affiliate.findUnique({
+      where: { id: userReferral.affiliate_id },
+      select: { email_normalized: true },
+    });
+
+    if (affiliate) {
+      const userNormalized = normalizeEmailForSelfReferralCheck(userReferral.user.email);
+      if (affiliate.email_normalized === userNormalized) {
+        // Self-referral detected at org creation
+        if (logger) {
+          logger.warn(
+            { userId: input.userId, affiliateId: userReferral.affiliate_id },
+            "Self-referral rejected at org attribution"
+          );
+        }
+        // Create OrganizationReferral with rejection reason
+        await prisma.organizationReferral.create({
+          data: {
+            organization_id: input.organizationId,
+            affiliate_id: null,
+            rewardful_referral_id: userReferral.rewardful_referral_id,
+            via_token: userReferral.via_token,
+            source: userReferral.source,
+            first_seen_at: userReferral.captured_at,
+            attributed_at: new Date(),
+            needs_attention: true,
+            attention_reason: "rejected_self_referral",
+          },
+        });
+        return { kind: "rejected_self_referral", reason: "Self-referral: email matches affiliate" };
+      }
+    } else if (logger) {
+      logger.warn(
+        { userId: input.userId, affiliateId: userReferral.affiliate_id },
+        "Affiliate not found during org attribution self-referral check"
+      );
+    }
   }
 
   // Check if referral has expired

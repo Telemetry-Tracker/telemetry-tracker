@@ -93,37 +93,209 @@ async function upsertAffiliate(affiliateData: z.infer<typeof RewardfulAffiliateS
 
 /**
  * Complete unresolved UserReferral or OrganizationReferral with affiliate_id.
+ * Checks for self-referral before completing.
  */
 async function completeUnresolvedReferrals(
   affiliateId: string,
   rewardfulReferralId: string,
-  logger?: { info: (msg: unknown, context: string) => void }
+  logger?: { info: (msg: unknown, context: string) => void; warn: (msg: unknown, context: string) => void }
 ) {
-  // Complete UserReferrals - only update if affiliate_id is NULL
-  const updatedUsers = await prisma.userReferral.updateMany({
+  // Get affiliate email for self-referral check
+  const affiliate = await prisma.affiliate.findUnique({
+    where: { id: affiliateId },
+    select: { email_normalized: true },
+  });
+
+  if (!affiliate) {
+    if (logger) {
+      logger.warn(
+        { affiliateId, rewardfulReferralId },
+        "Affiliate not found when completing unresolved referrals"
+      );
+    }
+    return;
+  }
+
+  // Check if affiliate email is null (needs attention for self-referral check)
+  if (!affiliate.email_normalized) {
+    // Can't check self-referral without email - flag for attention
+    const updatedUsers = await prisma.userReferral.updateMany({
+      where: {
+        rewardful_referral_id: rewardfulReferralId,
+        affiliate_id: null,
+      },
+      data: { affiliate_id: affiliateId },
+    });
+
+    // For orgs, set needs_attention since we can't verify self-referral
+    const updatedOrgs = await prisma.organizationReferral.updateMany({
+      where: {
+        rewardful_referral_id: rewardfulReferralId,
+        affiliate_id: null,
+      },
+      data: {
+        affiliate_id: affiliateId,
+        needs_attention: true,
+        attention_reason: "affiliate_email_unknown_cannot_verify_self_referral",
+      },
+    });
+
+    if ((updatedUsers.count > 0 || updatedOrgs.count > 0) && logger) {
+      logger.warn(
+        { affiliateId, rewardfulReferralId, userCount: updatedUsers.count, orgCount: updatedOrgs.count },
+        "Completed unresolved referrals but affiliate email is unknown (needs attention for self-referral check)"
+      );
+    }
+    return;
+  }
+
+  // Get all unresolved UserReferrals with this Rewardful ID
+  const unresolvedUsers = await prisma.userReferral.findMany({
     where: {
       rewardful_referral_id: rewardfulReferralId,
       affiliate_id: null,
     },
-    data: { affiliate_id: affiliateId },
+    select: {
+      id: true,
+      user_id: true,
+      user: {
+        select: {
+          email: true,
+        },
+      },
+    },
   });
 
-  // Complete OrganizationReferrals and clear needs_attention - only update if affiliate_id is NULL
-  const updatedOrgs = await prisma.organizationReferral.updateMany({
+  let completedUsers = 0;
+  let rejectedUsers = 0;
+
+  for (const userReferral of unresolvedUsers) {
+    const { normalizeEmailForSelfReferralCheck } = await import("../lib/affiliate-email-normalize.js");
+    const userNormalized = normalizeEmailForSelfReferralCheck(userReferral.user.email);
+
+    if (affiliate.email_normalized === userNormalized) {
+      // Self-referral - don't complete
+      rejectedUsers++;
+      if (logger) {
+        logger.warn(
+          { userId: userReferral.user_id, affiliateId, rewardfulReferralId },
+          "Self-referral rejected in webhook completion"
+        );
+      }
+    } else {
+      // Complete this UserReferral
+      await prisma.userReferral.updateMany({
+        where: {
+          id: userReferral.id,
+          affiliate_id: null,
+        },
+        data: { affiliate_id: affiliateId },
+      });
+      completedUsers++;
+    }
+  }
+
+  // Get all unresolved OrganizationReferrals with this Rewardful ID
+  const unresolvedOrgs = await prisma.organizationReferral.findMany({
     where: {
       rewardful_referral_id: rewardfulReferralId,
       affiliate_id: null,
     },
-    data: {
-      affiliate_id: affiliateId,
-      needs_attention: false,
-      attention_reason: null,
+    select: {
+      id: true,
+      organization_id: true,
+      organization: {
+        select: {
+          memberships: {
+            where: {
+              role: "OWNER",
+            },
+            select: {
+              user: {
+                select: {
+                  email: true,
+                },
+              },
+            },
+            take: 1,
+          },
+        },
+      },
     },
   });
 
-  if ((updatedUsers.count > 0 || updatedOrgs.count > 0) && logger) {
+  let completedOrgs = 0;
+  let rejectedOrgs = 0;
+
+  for (const orgReferral of unresolvedOrgs) {
+    const ownerEmail = orgReferral.organization.memberships[0]?.user.email;
+    if (!ownerEmail) {
+      // No owner found - flag for attention
+      await prisma.organizationReferral.updateMany({
+        where: {
+          id: orgReferral.id,
+          affiliate_id: null,
+        },
+        data: {
+          affiliate_id: affiliateId,
+          needs_attention: true,
+          attention_reason: "no_owner_found_for_self_referral_check",
+        },
+      });
+      completedOrgs++;
+      continue;
+    }
+
+    const { normalizeEmailForSelfReferralCheck } = await import("../lib/affiliate-email-normalize.js");
+    const ownerNormalized = normalizeEmailForSelfReferralCheck(ownerEmail);
+
+    if (affiliate.email_normalized === ownerNormalized) {
+      // Self-referral - reject by setting needs_attention
+      await prisma.organizationReferral.updateMany({
+        where: {
+          id: orgReferral.id,
+          affiliate_id: null,
+        },
+        data: {
+          affiliate_id: null, // Don't set affiliate_id for self-referral
+          needs_attention: true,
+          attention_reason: "rejected_self_referral",
+        },
+      });
+      rejectedOrgs++;
+      if (logger) {
+        logger.warn(
+          { orgId: orgReferral.organization_id, affiliateId, rewardfulReferralId },
+          "Self-referral rejected for organization in webhook completion"
+        );
+      }
+    } else {
+      // Complete this OrganizationReferral
+      await prisma.organizationReferral.updateMany({
+        where: {
+          id: orgReferral.id,
+          affiliate_id: null,
+        },
+        data: {
+          affiliate_id: affiliateId,
+          needs_attention: false,
+          attention_reason: null,
+        },
+      });
+      completedOrgs++;
+    }
+  }
+
+  if ((completedUsers > 0 || completedOrgs > 0 || rejectedUsers > 0 || rejectedOrgs > 0) && logger) {
     logger.info(
-      { affiliateId, rewardfulReferralId, userCount: updatedUsers.count, orgCount: updatedOrgs.count },
+      {
+        affiliateId,
+        rewardfulReferralId,
+        completedUsers,
+        rejectedUsers,
+        completedOrgs,
+        rejectedOrgs,
+      },
       "Completed unresolved referrals via Rewardful webhook"
     );
   }
