@@ -197,7 +197,7 @@ export async function attributeOrganizationToAffiliate(
     }
   }
 
-  // Check if referral has expired
+  // Check if referral has expired (55-day rule)
   const expired = isReferralExpired(userReferral.captured_at);
   let needsAttention = expired || !userReferral.affiliate_id;
   let attentionReason: string | null = null;
@@ -208,20 +208,20 @@ export async function attributeOrganizationToAffiliate(
     attentionReason = "affiliate_unresolved";
   }
 
-  // Script-blocked fallback: if no UUID but we have a valid via token, use it
-  // This handles the case where Rewardful script didn't load but we have the via token from URL
-  const shouldCreateCustomer = userReferral.affiliate_id && (userReferral.rewardful_referral_id || userReferral.via_token);
+  // Only create Stripe Customer if:
+  // 1. Referral has not expired (55-day rule)
+  // 2. Affiliate is resolved
+  // 3. We have a referral source (Rewardful UUID or via token)
+  const shouldCreateCustomer = !expired && userReferral.affiliate_id && (userReferral.rewardful_referral_id || userReferral.via_token);
 
-  // Create Stripe Customer if affiliate is resolved and we have a referral source
+  // Create Stripe Customer if conditions are met
   let customerId: string | null = null;
   if (shouldCreateCustomer && userReferral.affiliate_id) {
     const metadata: {
-      organization_id: string;
       tt_org_id: string;
       tt_affiliate_id: string;
       referral?: string;
     } = {
-      organization_id: input.organizationId,
       tt_org_id: input.organizationId,
       tt_affiliate_id: userReferral.affiliate_id,
     };
