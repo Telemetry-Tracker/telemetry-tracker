@@ -22,7 +22,6 @@ When the feature is disabled:
 AFFILIATES_ENABLED=true
 
 # Rewardful API credentials (from Rewardful dashboard)
-REWARDFUL_API_SECRET=sk_...
 REWARDFUL_WEBHOOK_SECRET=whsec_...
 
 # Founder notification emails for disputes (comma-separated)

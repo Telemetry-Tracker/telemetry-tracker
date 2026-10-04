@@ -39,7 +39,7 @@ async function resolveStripeCustomerIdWithMetadata(
   orgId: string,
   metadata: {
     tt_org_id: string;
-    tt_affiliate_id: string;
+    tt_affiliate_id?: string;
     referral?: string;
   },
   logger?: { warn: (msg: unknown, context: string) => void }
@@ -231,31 +231,41 @@ export async function attributeOrganizationToAffiliate(
     attentionReason = "affiliate_unresolved";
   }
 
-  // Only create Stripe Customer if:
+  // UUID/via conflict check
+  if (userReferral.rewardful_referral_id && userReferral.via_token) {
+    needsAttention = true;
+    attentionReason = attentionReason ? `${attentionReason};uuid_via_conflict` : "uuid_via_conflict";
+  }
+
+  // Create Stripe Customer if:
   // 1. Referral has not expired (55-day rule)
-  // 2. Affiliate is resolved
-  // 3. We have a referral source (Rewardful UUID or via token)
-  const shouldCreateCustomer = !expired && userReferral.affiliate_id && (userReferral.rewardful_referral_id || userReferral.via_token);
+  // 2. We have a UUID (affiliate may be unresolved) OR we have via token + resolved affiliate
+  const hasUuid = !!userReferral.rewardful_referral_id;
+  const hasResolvedViaToken = !!userReferral.via_token && !!userReferral.affiliate_id;
+  const shouldCreateCustomer = !expired && (hasUuid || hasResolvedViaToken);
 
   // Create Stripe Customer if conditions are met
   let customerId: string | null = null;
-  if (shouldCreateCustomer && userReferral.affiliate_id) {
+  if (shouldCreateCustomer) {
     const metadata: {
       organization_id: string;
       tt_org_id: string;
-      tt_affiliate_id: string;
+      tt_affiliate_id?: string;
       referral?: string;
     } = {
       organization_id: input.organizationId,
       tt_org_id: input.organizationId,
-      tt_affiliate_id: userReferral.affiliate_id,
     };
 
-    // Prefer Rewardful UUID, fall back to via token for manual attribution
+    // Add affiliate_id if resolved
+    if (userReferral.affiliate_id) {
+      metadata.tt_affiliate_id = userReferral.affiliate_id;
+    }
+
+    // Always prefer UUID; use via token only when no UUID and affiliate resolved
     if (userReferral.rewardful_referral_id) {
       metadata.referral = userReferral.rewardful_referral_id;
-    } else if (userReferral.via_token) {
-      // Script-blocked fallback: use via token
+    } else if (userReferral.via_token && userReferral.affiliate_id) {
       metadata.referral = userReferral.via_token;
     }
 

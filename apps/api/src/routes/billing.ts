@@ -141,22 +141,35 @@ export async function billingRoutes(
           const isExpiredOrRejected = referral?.needs_attention &&
             (referral.attention_reason?.includes('expired') || referral.attention_reason?.includes('rejected'));
           
-          if (referral && referral.affiliate_id && !isExpiredOrRejected) {
-            const hasReferralSource = referral.rewardful_referral_id || referral.via_token;
-            if (hasReferralSource) {
+          // Update Customer if referral has UUID (even if affiliate unresolved) or resolved via token
+          const hasUuid = !!referral?.rewardful_referral_id;
+          const hasResolvedViaToken = !!referral?.via_token && !!referral?.affiliate_id;
+          
+          if (referral && !isExpiredOrRejected && (hasUuid || hasResolvedViaToken)) {
               // Check if Customer already has affiliate metadata
               const customer = await stripe.customers.retrieve(customerId);
               if (!customer.deleted && !customer.metadata?.tt_affiliate_id) {
-                // Prefer Rewardful UUID, fall back to via token
-                const referralValue = referral.rewardful_referral_id || referral.via_token;
+                // Build metadata
+                const updateMetadata: Record<string, string> = {
+                  ...customer.metadata,
+                  tt_org_id: orgId,
+                };
+                
+                // Add affiliate_id if resolved
+                if (referral.affiliate_id) {
+                  updateMetadata.tt_affiliate_id = referral.affiliate_id;
+                }
+                
+                // Always prefer UUID; use via token only when no UUID and affiliate resolved
+                if (referral.rewardful_referral_id) {
+                  updateMetadata.referral = referral.rewardful_referral_id;
+                } else if (referral.via_token && referral.affiliate_id) {
+                  updateMetadata.referral = referral.via_token;
+                }
+                
                 // Update Customer metadata (preserve organization_id if it exists)
                 await stripe.customers.update(customerId, {
-                  metadata: {
-                    ...customer.metadata,
-                    referral: referralValue,
-                    tt_org_id: orgId,
-                    tt_affiliate_id: referral.affiliate_id,
-                  },
+                  metadata: updateMetadata,
                 });
                 request.log.info(
                   { customerId, orgId },
