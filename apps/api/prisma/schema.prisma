@@ -682,8 +682,8 @@ model Affiliate {
   rewardful_affiliate_id  String    @unique @map("rewardful_affiliate_id")
   /// Link token (e.g. 'alice') from Rewardful affiliate.token, for via= resolution.
   link_token              String?   @map("link_token")
-  /// Email normalized (lowercase, +tag stripped, gmail dots removed) for self-referral checks.
-  email_normalized        String    @map("email_normalized")
+  /// Email normalized (lowercase, +tag stripped, gmail dots removed) for self-referral checks. Null when email is unknown.
+  email_normalized        String?   @map("email_normalized")
   /// Rewardful state: active | disabled | deleted (via webhook).
   state                   String
   created_at              DateTime  @default(now()) @map("created_at")
