@@ -123,27 +123,38 @@ export async function billingRoutes(
         return reply.status(503).send({ error: "Dashboard origin is not configured" });
       }
 
-      // Check if org has affiliate attribution and Customer lacks metadata.referral
-      let clientReferenceId: string | undefined;
+      // Update Customer metadata if org is referred but Customer lacks metadata
       const { isAffiliateFeatureEnabled } = await import("../lib/affiliates-feature-flag.js");
       if (isAffiliateFeatureEnabled()) {
         const referral = await prisma.organizationReferral.findUnique({
           where: { organization_id: orgId },
-          select: { rewardful_referral_id: true },
+          select: {
+            rewardful_referral_id: true,
+            affiliate_id: true,
+          },
         });
-        if (referral?.rewardful_referral_id) {
+        if (referral?.rewardful_referral_id && referral.affiliate_id) {
           // Check if Customer already has metadata.referral
           const customer = await stripe.customers.retrieve(customerId);
-          if (!customer.deleted && customer.metadata?.referral) {
-            // Already has referral metadata, no need for client_reference_id
-          } else {
-            // Fallback: set client_reference_id for Rewardful to pick up
-            clientReferenceId = referral.rewardful_referral_id;
+          if (!customer.deleted && !customer.metadata?.referral) {
+            // Update Customer metadata
+            await stripe.customers.update(customerId, {
+              metadata: {
+                ...customer.metadata,
+                referral: referral.rewardful_referral_id,
+                tt_org_id: orgId,
+                tt_affiliate_id: referral.affiliate_id,
+              },
+            });
+            request.log.info(
+              { customerId, orgId },
+              "Updated Customer metadata with referral info at checkout"
+            );
           }
         }
       }
 
-      const checkoutParams: Stripe.Checkout.SessionCreateParams = {
+      const checkout = await stripe.checkout.sessions.create({
         mode: "subscription",
         customer: customerId,
         line_items: [{ price: priceId, quantity: 1 }],
@@ -159,12 +170,7 @@ export async function billingRoutes(
             plan_tier: tier,
           },
         },
-      };
-      if (clientReferenceId) {
-        checkoutParams.client_reference_id = clientReferenceId;
-      }
-
-      const checkout = await stripe.checkout.sessions.create(checkoutParams);
+      });
 
       if (!checkout.url) {
         return reply.status(500).send({ error: "Could not create checkout session" });

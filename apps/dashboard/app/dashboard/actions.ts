@@ -314,27 +314,10 @@ export async function createOrganizationAction(
     return { ok: false, error: "Name is required" };
   }
   
-  // Capture affiliate referral data (if present)
-  const rewardfulReferralId = String(formData.get("rewardfulReferralId") ?? "").trim();
-  const viaToken = String(formData.get("viaToken") ?? "").trim();
-  
-  const payload: {
-    name: string;
-    rewardfulReferralId?: string;
-    viaToken?: string;
-  } = { name: name.slice(0, 120) };
-  
-  if (rewardfulReferralId) {
-    payload.rewardfulReferralId = rewardfulReferralId;
-  }
-  if (viaToken) {
-    payload.viaToken = viaToken;
-  }
-  
   const res = await dashboardApiFetch("/api/meta/organizations", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ name: name.slice(0, 120) }),
   });
   if (!res.ok) {
     const t = await res.text();

@@ -10,6 +10,8 @@ describe("webhook-dedupe", () => {
     webhookEvent: {
       create: vi.fn(),
       update: vi.fn(),
+      findUnique: vi.fn(),
+      delete: vi.fn(),
     },
   };
 
@@ -19,6 +21,7 @@ describe("webhook-dedupe", () => {
 
   describe("dedupeWebhookEvent", () => {
     it("returns first_delivery for new event", async () => {
+      mockPrisma.webhookEvent.findUnique.mockResolvedValue(null);
       mockPrisma.webhookEvent.create.mockResolvedValue({ id: "evt_123" });
 
       const result = await dedupeWebhookEvent(
@@ -30,6 +33,7 @@ describe("webhook-dedupe", () => {
       );
 
       expect(result).toEqual({ kind: "first_delivery", id: "evt_123" });
+      expect(mockPrisma.webhookEvent.findUnique).toHaveBeenCalled();
       expect(mockPrisma.webhookEvent.create).toHaveBeenCalledWith({
         data: {
           provider: "stripe",
@@ -40,11 +44,12 @@ describe("webhook-dedupe", () => {
       });
     });
 
-    it("returns duplicate for already-seen event", async () => {
-      const uniqueConstraintError = Object.assign(new Error("Unique constraint"), {
-        code: "P2002",
+    it("returns duplicate for successfully processed event", async () => {
+      mockPrisma.webhookEvent.findUnique.mockResolvedValue({
+        id: "evt_existing",
+        processed_at: new Date(),
+        error: null,
       });
-      mockPrisma.webhookEvent.create.mockRejectedValue(uniqueConstraintError);
 
       const result = await dedupeWebhookEvent(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -55,11 +60,35 @@ describe("webhook-dedupe", () => {
       );
 
       expect(result).toEqual({ kind: "duplicate" });
+      expect(mockPrisma.webhookEvent.delete).not.toHaveBeenCalled();
+    });
+
+    it("retries previously failed event", async () => {
+      mockPrisma.webhookEvent.findUnique.mockResolvedValue({
+        id: "evt_failed",
+        processed_at: null,
+        error: "Previous failure",
+      });
+      mockPrisma.webhookEvent.delete.mockResolvedValue({ id: "evt_failed" });
+      mockPrisma.webhookEvent.create.mockResolvedValue({ id: "evt_retry" });
+
+      const result = await dedupeWebhookEvent(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        mockPrisma as any,
+        "stripe",
+        "evt_failed",
+        "invoice.paid"
+      );
+
+      expect(result.kind).toBe("first_delivery");
+      expect(result.id).toBe("evt_retry");
+      expect(mockPrisma.webhookEvent.delete).toHaveBeenCalled();
+      expect(mockPrisma.webhookEvent.create).toHaveBeenCalled();
     });
 
     it("treats DB errors as first_delivery (at-least-once)", async () => {
       const dbError = new Error("DB connection failed");
-      mockPrisma.webhookEvent.create.mockRejectedValue(dbError);
+      mockPrisma.webhookEvent.findUnique.mockRejectedValue(dbError);
 
       const result = await dedupeWebhookEvent(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -72,6 +101,7 @@ describe("webhook-dedupe", () => {
     });
 
     it("handles events without event_type", async () => {
+      mockPrisma.webhookEvent.findUnique.mockResolvedValue(null);
       mockPrisma.webhookEvent.create.mockResolvedValue({ id: "evt_456" });
 
       const result = await dedupeWebhookEvent(
@@ -82,6 +112,7 @@ describe("webhook-dedupe", () => {
       );
 
       expect(result.kind).toBe("first_delivery");
+      expect(mockPrisma.webhookEvent.findUnique).toHaveBeenCalled();
       expect(mockPrisma.webhookEvent.create).toHaveBeenCalledWith({
         data: {
           provider: "rewardful",

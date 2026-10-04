@@ -11,17 +11,25 @@ export type WebhookDedupeResult =
   | { kind: "duplicate" };
 
 /**
- * Check if webhook event has been processed. If first delivery, record it.
- * Returns "first_delivery" with the created WebhookEvent ID, or "duplicate" if already seen.
+ * Check if webhook event has been processed successfully. If first delivery or previous failure, allow processing.
+ * Returns "first_delivery" with the created WebhookEvent ID, or "duplicate" if already successfully processed.
+ *
+ * CRITICAL: Only events with processed_at set are considered duplicates. Failed events (error set but not processed_at)
+ * are deleted so Stripe/Rewardful retry can reprocess them.
  *
  * Usage:
  * ```
  * const result = await dedupeWebhookEvent(prisma, "stripe", event.id, event.type);
  * if (result.kind === "duplicate") {
- *   return reply.send({ received: true }); // Already processed
+ *   return reply.send({ received: true }); // Already successfully processed
  * }
- * // Process event...
- * await markWebhookProcessed(prisma, result.id);
+ * try {
+ *   // Process event...
+ *   await markWebhookProcessed(prisma, result.id);
+ * } catch (err) {
+ *   await markWebhookFailed(prisma, result.id, String(err));
+ *   throw err; // Let provider retry
+ * }
  * ```
  */
 export async function dedupeWebhookEvent(
@@ -31,6 +39,35 @@ export async function dedupeWebhookEvent(
   eventType?: string
 ): Promise<WebhookDedupeResult> {
   try {
+    // Check if event already exists and was successfully processed
+    const existing = await prisma.webhookEvent.findUnique({
+      where: {
+        provider_event_id: {
+          provider,
+          event_id: eventId,
+        },
+      },
+      select: { id: true, processed_at: true, error: true },
+    });
+
+    if (existing) {
+      if (existing.processed_at && !existing.error) {
+        // Successfully processed - this is a duplicate
+        return { kind: "duplicate" };
+      } else {
+        // Previous attempt failed - delete and allow retry
+        await prisma.webhookEvent.delete({
+          where: {
+            provider_event_id: {
+              provider,
+              event_id: eventId,
+            },
+          },
+        });
+      }
+    }
+
+    // Create new record for this delivery attempt
     const created = await prisma.webhookEvent.create({
       data: {
         provider,
@@ -41,16 +78,7 @@ export async function dedupeWebhookEvent(
     });
     return { kind: "first_delivery", id: created.id };
   } catch (err) {
-    // Unique constraint violation on (provider, event_id) means duplicate
-    if (
-      typeof err === "object" &&
-      err !== null &&
-      "code" in err &&
-      (err as { code: string }).code === "P2002"
-    ) {
-      return { kind: "duplicate" };
-    }
-    // Other errors (DB down, etc.) should not block webhook processing
+    // Other errors (DB down, concurrent insert race, etc.)
     // Log and treat as first delivery (at-least-once semantics)
     console.warn(
       { provider, eventId, err },

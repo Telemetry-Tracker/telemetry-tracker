@@ -139,37 +139,30 @@ export async function projectDashboardRoutes(
       select: { id: true, name: true },
     });
 
-    // Affiliate attribution (if applicable)
+    // Affiliate attribution: copy from UserReferral (if user was referred at registration)
     const { isAffiliateFeatureEnabled } = await import("../lib/affiliates-feature-flag.js");
     if (isAffiliateFeatureEnabled()) {
-      const { attributeSignupToAffiliate } = await import("../lib/affiliate-signup-attribution.js");
       const stripeKey = process.env.STRIPE_SECRET_KEY?.trim();
       if (stripeKey) {
+        const { attributeOrganizationToAffiliate } = await import("../lib/organization-attribution.js");
         const Stripe = (await import("stripe")).default;
         const stripe = new Stripe(stripeKey);
-        const attributionResult = await attributeSignupToAffiliate(prisma, stripe, {
-          organizationId: org.id,
-          organizationName: org.name,
-          userEmail: user.email,
-          rewardfulReferralId: typeof body.rewardfulReferralId === "string" ? body.rewardfulReferralId : undefined,
-          viaToken: typeof body.viaToken === "string" ? body.viaToken : undefined,
-        });
         
-        // Log attribution result (for debugging and founder attention flags)
-        if (attributionResult.kind === "rejected_self_referral") {
+        const attributionResult = await attributeOrganizationToAffiliate(
+          prisma,
+          stripe,
+          {
+            organizationId: org.id,
+            organizationName: org.name,
+            userId: session.userId,
+          },
+          request.log
+        );
+        
+        if (attributionResult.kind === "attributed" && attributionResult.needsAttention) {
           request.log.warn(
-            { orgId: org.id, reason: attributionResult.reason },
-            "Affiliate self-referral rejected during organization creation"
-          );
-        } else if (attributionResult.kind === "failed") {
-          request.log.error(
-            { orgId: org.id, error: attributionResult.error },
-            "Affiliate attribution failed during organization creation"
-          );
-        } else if (attributionResult.kind === "attributed") {
-          request.log.info(
-            { orgId: org.id, referralId: attributionResult.referralId, customerId: attributionResult.customerId },
-            "Organization attributed to affiliate"
+            { orgId: org.id, referralId: attributionResult.referralId },
+            "Organization attributed but needs founder attention"
           );
         }
       }
