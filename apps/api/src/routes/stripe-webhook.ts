@@ -273,28 +273,35 @@ async function processStripeEvent(
             const adminEmails = process.env.AFFILIATE_ADMIN_EMAILS?.trim();
             if (adminEmails) {
               const { sendTransactionalEmail } = await import("../lib/email.js");
+              const { escapeHtml } = await import("../lib/notification-email-template.js");
               const emails = adminEmails.split(",").map((e) => e.trim()).filter(Boolean);
               
+              // Include livemode in subject for test disputes
+              const livemodePrefix = dispute.livemode ? "" : "[TEST MODE] ";
+              const subject = `${livemodePrefix}[Affiliate] Dispute on referred organization: ${org.name}`;
+              
               for (const email of emails) {
-                // Respect test-mail protection
-                const canSend = process.env.NODE_ENV === "production" || 
-                               process.env.TELEMETRY_ALLOW_TEST_EMAILS === "true" ||
-                               email.endsWith("@telemetry-tracker.com");
-                
-                if (canSend) {
+                try {
                   await sendTransactionalEmail({
                     to: email,
-                    subject: `[Affiliate] Dispute on referred organization: ${org.name}`,
+                    subject,
                     html: `<p>A Stripe dispute was created for a referred organization:</p>
                       <ul>
-                        <li>Organization: ${org.name} (${org.id})</li>
+                        <li>Organization: ${escapeHtml(org.name)} (${org.id})</li>
                         <li>Dispute ID: ${dispute.id}</li>
                         <li>Charge ID: ${chargeId}</li>
                         <li>Amount: ${dispute.amount / 100} ${dispute.currency.toUpperCase()}</li>
                         <li>Reason: ${dispute.reason}</li>
+                        <li>Livemode: ${dispute.livemode ? "Yes" : "No"}</li>
                       </ul>
                       <p>Review in Stripe Dashboard and Rewardful for commission impact.</p>`,
                   });
+                } catch (mailErr) {
+                  // Log error but don't fail webhook
+                  request.log.warn(
+                    { err: mailErr, email, disputeId: dispute.id },
+                    "Failed to send dispute alert email"
+                  );
                 }
               }
             }
