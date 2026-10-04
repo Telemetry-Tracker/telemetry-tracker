@@ -241,10 +241,12 @@ export async function attributeOrganizationToAffiliate(
   let customerId: string | null = null;
   if (shouldCreateCustomer && userReferral.affiliate_id) {
     const metadata: {
+      organization_id: string;
       tt_org_id: string;
       tt_affiliate_id: string;
       referral?: string;
     } = {
+      organization_id: input.organizationId,
       tt_org_id: input.organizationId,
       tt_affiliate_id: userReferral.affiliate_id,
     };

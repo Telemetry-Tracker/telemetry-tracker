@@ -56,7 +56,7 @@ async function resolveStripeCustomerId(
 
       const customer = await stripe.customers.create({
     name: pendingCreate.orgName,
-    metadata: { tt_org_id: orgId },
+    metadata: { organization_id: orgId },
   });
 
   const savedId = await prisma.$transaction(async (tx) => {
@@ -123,7 +123,7 @@ export async function billingRoutes(
         return reply.status(503).send({ error: "Dashboard origin is not configured" });
       }
 
-      // Update Customer metadata if org is referred but Customer lacks metadata
+      // Update Customer metadata if org is referred but Customer lacks affiliate metadata
       const { isAffiliateFeatureEnabled } = await import("../lib/affiliates-feature-flag.js");
       if (isAffiliateFeatureEnabled()) {
         try {
@@ -134,18 +134,22 @@ export async function billingRoutes(
               affiliate_id: true,
               via_token: true,
               needs_attention: true,
+              attention_reason: true,
             },
           });
           // Only update if referral is valid (not expired or rejected)
-          if (referral && referral.affiliate_id && !referral.needs_attention) {
+          const isExpiredOrRejected = referral?.needs_attention &&
+            referral.attention_reason?.includes('expired' || 'rejected');
+          
+          if (referral && referral.affiliate_id && !isExpiredOrRejected) {
             const hasReferralSource = referral.rewardful_referral_id || referral.via_token;
             if (hasReferralSource) {
-              // Check if Customer already has metadata.referral
+              // Check if Customer already has affiliate metadata
               const customer = await stripe.customers.retrieve(customerId);
-              if (!customer.deleted && !customer.metadata?.referral) {
+              if (!customer.deleted && !customer.metadata?.tt_affiliate_id) {
                 // Prefer Rewardful UUID, fall back to via token
                 const referralValue = referral.rewardful_referral_id || referral.via_token;
-                // Update Customer metadata
+                // Update Customer metadata (preserve organization_id if it exists)
                 await stripe.customers.update(customerId, {
                   metadata: {
                     ...customer.metadata,
@@ -170,7 +174,32 @@ export async function billingRoutes(
         }
       }
 
-      // Enable promotion codes only when affiliate feature is ON (to avoid changing existing billing)
+      // Build metadata (always include organization_id for backward compatibility)
+      const metadata: Record<string, string> = {
+        organization_id: orgId,
+        plan_tier: tier,
+      };
+
+      // Add affiliate metadata only when feature is enabled
+      if (isAffiliateFeatureEnabled()) {
+        try {
+          const referral = await prisma.organizationReferral.findUnique({
+            where: { organization_id: orgId },
+            select: {
+              rewardful_referral_id: true,
+              affiliate_id: true,
+            },
+          });
+          if (referral?.affiliate_id) {
+            metadata.tt_org_id = orgId;
+            metadata.tt_affiliate_id = referral.affiliate_id;
+          }
+        } catch (err) {
+          request.log.warn({ err, orgId }, "Failed to fetch referral at checkout metadata build");
+        }
+      }
+
+      // Enable promotion codes only when affiliate feature is ON
       const sessionParams: Stripe.Checkout.SessionCreateParams = {
         mode: "subscription",
         customer: customerId,
@@ -178,15 +207,9 @@ export async function billingRoutes(
         success_url: `${origin}/dashboard/settings/organization?billing=success`,
         cancel_url: `${origin}/dashboard/settings/organization?billing=canceled`,
         ...(isAffiliateFeatureEnabled() ? { allow_promotion_codes: true } : {}),
-        metadata: {
-          tt_org_id: orgId,
-          plan_tier: tier,
-        },
+        metadata,
         subscription_data: {
-          metadata: {
-            tt_org_id: orgId,
-            plan_tier: tier,
-          },
+          metadata,
         },
       };
 
