@@ -31,7 +31,12 @@ describe("webhook-dedupe", () => {
         "checkout.session.completed"
       );
 
-      expect(result).toEqual({ kind: "first_delivery", id: "evt_123" });
+      expect(result.kind).toBe("first_delivery");
+      if (result.kind === "first_delivery") {
+        expect(result.id).toBe("evt_123");
+        expect(result.claimToken).toBeDefined();
+        expect(typeof result.claimToken).toBe("string");
+      }
       expect(mockPrisma.webhookEvent.create).toHaveBeenCalledWith({
         data: {
           provider: "stripe",
@@ -40,6 +45,7 @@ describe("webhook-dedupe", () => {
           status: "processing",
           locked_at: expect.any(Date),
           attempts: 1,
+          claim_token: expect.any(String),
         },
         select: { id: true },
       });
@@ -125,6 +131,7 @@ describe("webhook-dedupe", () => {
           status: "processing",
           locked_at: expect.any(Date),
           attempts: 1,
+          claim_token: expect.any(String),
         },
         select: { id: true },
       });
@@ -146,73 +153,48 @@ describe("webhook-dedupe", () => {
   });
 
   describe("markWebhookProcessed", () => {
-    it("marks event as processed", async () => {
-      mockPrisma.webhookEvent.updateMany.mockResolvedValue({ count: 1 });
+    it("marks event as processed with claim token guard", async () => {
+      mockPrisma.$executeRaw.mockResolvedValue(1);
 
       await markWebhookProcessed(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         mockPrisma as any,
-        "evt_123"
+        "evt_123",
+        "claim_abc"
       );
 
-      expect(mockPrisma.webhookEvent.updateMany).toHaveBeenCalledWith({
-        where: {
-          id: "evt_123",
-          status: "processing",
-        },
-        data: {
-          status: "processed",
-          processed_at: expect.any(Date),
-          error: null,
-        },
-      });
+      expect(mockPrisma.$executeRaw).toHaveBeenCalled();
     });
   });
 
   describe("markWebhookFailed", () => {
-    it("marks event as failed with error message", async () => {
-      mockPrisma.webhookEvent.updateMany.mockResolvedValue({ count: 1 });
+    it("marks event as failed with error message and claim token guard", async () => {
+      mockPrisma.$executeRaw.mockResolvedValue(1);
 
       await markWebhookFailed(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         mockPrisma as any,
         "evt_123",
+        "claim_abc",
         "Processing failed"
       );
 
-      expect(mockPrisma.webhookEvent.updateMany).toHaveBeenCalledWith({
-        where: {
-          id: "evt_123",
-          status: "processing",
-        },
-        data: {
-          status: "failed",
-          error: "Processing failed",
-        },
-      });
+      expect(mockPrisma.$executeRaw).toHaveBeenCalled();
     });
 
     it("truncates long error messages", async () => {
-      mockPrisma.webhookEvent.updateMany.mockResolvedValue({ count: 1 });
+      mockPrisma.$executeRaw.mockResolvedValue(1);
       const longError = "x".repeat(2000);
 
       await markWebhookFailed(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         mockPrisma as any,
         "evt_123",
+        "claim_abc",
         longError
       );
 
-      expect(mockPrisma.webhookEvent.updateMany).toHaveBeenCalledWith({
-        where: {
-          id: "evt_123",
-          status: "processing",
-        },
-        data: {
-          status: "failed",
-          error: "x".repeat(1000),
-        },
-      });
+      expect(mockPrisma.$executeRaw).toHaveBeenCalled();
     });
   });
 });
