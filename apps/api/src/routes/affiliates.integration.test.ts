@@ -159,8 +159,8 @@ testSuite("Affiliate Integration Tests", () => {
       // Create affiliate
       const affiliate = await prisma.affiliate.create({
         data: {
-          rewardful_affiliate_id: "aff_first_org",
-          link_token: "firstorg",
+          rewardful_affiliate_id: `aff_first_org_${Date.now()}`,
+          link_token: `firstorg${Date.now()}`,
           email_normalized: "aff@example.com",
           state: "active",
         },
@@ -170,13 +170,14 @@ testSuite("Affiliate Integration Tests", () => {
       // Register user with referral
       const regResponse = await app.inject({
         method: "POST",
-        url: "/auth/register",
+        url: "/api/auth/register",
         payload: {
           email: `firstorg${Date.now()}@example.com`,
           password: "Password123!",
-          viaToken: "firstorg",
+          viaToken: affiliate.link_token,
         },
       });
+      expect(regResponse.statusCode).toBe(201);
       const { user, sessionId } = JSON.parse(regResponse.body);
       testUserIds.push(user.id);
 
@@ -184,7 +185,7 @@ testSuite("Affiliate Integration Tests", () => {
       const orgResponse = await app.inject({
         method: "POST",
         url: "/api/meta/organizations",
-        headers: { cookie: `tt-session=${sessionId}` },
+        headers: { cookie: `telemetry_session=${sessionId}` },
         payload: { name: "First Org" },
       });
 
@@ -203,8 +204,8 @@ testSuite("Affiliate Integration Tests", () => {
       // Create affiliate
       const affiliate = await prisma.affiliate.create({
         data: {
-          rewardful_affiliate_id: "aff_second_org",
-          link_token: "secondorg",
+          rewardful_affiliate_id: `aff_second_org_${Date.now()}`,
+          link_token: `secondorg${Date.now()}`,
           email_normalized: "aff2@example.com",
           state: "active",
         },
@@ -214,21 +215,22 @@ testSuite("Affiliate Integration Tests", () => {
       // Register user with referral
       const regResponse = await app.inject({
         method: "POST",
-        url: "/auth/register",
+        url: "/api/auth/register",
         payload: {
           email: `secondorg${Date.now()}@example.com`,
           password: "Password123!",
-          viaToken: "secondorg",
+          viaToken: affiliate.link_token,
         },
       });
+      expect(regResponse.statusCode).toBe(201);
       const { user, sessionId } = JSON.parse(regResponse.body);
       testUserIds.push(user.id);
 
       // Create first org
       const org1Response = await app.inject({
         method: "POST",
-        url: "/meta/organizations",
-        headers: { cookie: `tt-session=${sessionId}` },
+        url: "/api/meta/organizations",
+        headers: { cookie: `telemetry_session=${sessionId}` },
         payload: { name: "First Org" },
       });
       const { id: org1Id } = JSON.parse(org1Response.body);
@@ -237,8 +239,8 @@ testSuite("Affiliate Integration Tests", () => {
       // Create second org
       const org2Response = await app.inject({
         method: "POST",
-        url: "/meta/organizations",
-        headers: { cookie: `tt-session=${sessionId}` },
+        url: "/api/meta/organizations",
+        headers: { cookie: `telemetry_session=${sessionId}` },
         payload: { name: "Second Org" },
       });
       const { id: org2Id } = JSON.parse(org2Response.body);
@@ -261,8 +263,8 @@ testSuite("Affiliate Integration Tests", () => {
       // Create affiliate
       const affiliate = await prisma.affiliate.create({
         data: {
-          rewardful_affiliate_id: "aff_expired",
-          link_token: "expiredtoken",
+          rewardful_affiliate_id: `aff_expired_${Date.now()}`,
+          link_token: `expiredtoken${Date.now()}`,
           email_normalized: "expired@example.com",
           state: "active",
         },
@@ -272,13 +274,14 @@ testSuite("Affiliate Integration Tests", () => {
       // Register user
       const regResponse = await app.inject({
         method: "POST",
-        url: "/auth/register",
+        url: "/api/auth/register",
         payload: {
           email: `expired${Date.now()}@example.com`,
           password: "Password123!",
-          viaToken: "expiredtoken",
+          viaToken: affiliate.link_token,
         },
       });
+      expect(regResponse.statusCode).toBe(201);
       const { user, sessionId } = JSON.parse(regResponse.body);
       testUserIds.push(user.id);
 
@@ -292,7 +295,7 @@ testSuite("Affiliate Integration Tests", () => {
       const orgResponse = await app.inject({
         method: "POST",
         url: "/api/meta/organizations",
-        headers: { cookie: `tt-session=${sessionId}` },
+        headers: { cookie: `telemetry_session=${sessionId}` },
         payload: { name: "Expired Org" },
       });
       const { id: orgId } = JSON.parse(orgResponse.body);
@@ -384,7 +387,7 @@ testSuite("Affiliate Integration Tests", () => {
         const orgResponse = await app.inject({
           method: "POST",
           url: "/api/meta/organizations",
-          headers: { cookie: `tt-session=${sessionId}` },
+          headers: { cookie: `telemetry_session=${sessionId}` },
           payload: { name: "Attribution Error Test Org" },
         });
 
