@@ -4,8 +4,11 @@ CREATE TABLE "WebhookEvent" (
     "provider" TEXT NOT NULL,
     "event_id" TEXT NOT NULL,
     "event_type" TEXT,
+    "status" TEXT NOT NULL DEFAULT 'processing',
     "received_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "locked_at" TIMESTAMP(3),
     "processed_at" TIMESTAMP(3),
+    "attempts" INTEGER NOT NULL DEFAULT 1,
     "error" TEXT,
 
     CONSTRAINT "WebhookEvent_pkey" PRIMARY KEY ("id")
@@ -31,7 +34,7 @@ CREATE TABLE "Affiliate" (
     "id" TEXT NOT NULL,
     "rewardful_affiliate_id" TEXT NOT NULL,
     "link_token" TEXT,
-    "email_normalized" TEXT NOT NULL,
+    "email_normalized" TEXT,
     "state" TEXT NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
@@ -82,6 +85,9 @@ CREATE UNIQUE INDEX "WebhookEvent_provider_event_id_key" ON "WebhookEvent"("prov
 
 -- CreateIndex
 CREATE INDEX "WebhookEvent_provider_received_at_idx" ON "WebhookEvent"("provider", "received_at");
+
+-- CreateIndex
+CREATE INDEX "WebhookEvent_provider_status_locked_at_idx" ON "WebhookEvent"("provider", "status", "locked_at");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "UserReferral_user_id_key" ON "UserReferral"("user_id");

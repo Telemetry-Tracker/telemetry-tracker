@@ -76,6 +76,10 @@ export async function registerStripeWebhookIfConfigured(
           // Already processed; return success to prevent Stripe retries
           return reply.send({ received: true });
         }
+        if (dedupeResult.kind === "processing") {
+          // Another delivery is processing this event
+          return reply.status(409).send({ error: "Event is being processed by another delivery" });
+        }
 
         try {
           await processStripeEvent(event, request, stripe);

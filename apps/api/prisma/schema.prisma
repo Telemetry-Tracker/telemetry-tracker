@@ -663,12 +663,16 @@ model WebhookEvent {
   provider    String   @map("provider")
   event_id    String   @map("event_id")
   event_type  String?  @map("event_type")
+  status      String   @default("processing") @map("status") // 'processing' | 'processed' | 'failed'
   received_at DateTime @default(now()) @map("received_at")
+  locked_at   DateTime? @map("locked_at")
   processed_at DateTime? @map("processed_at")
+  attempts    Int      @default(1) @map("attempts")
   error       String?
 
   @@unique([provider, event_id])
   @@index([provider, received_at])
+  @@index([provider, status, locked_at])
 }
 
 /// Affiliate program: mirror of Rewardful affiliates for self-referral checks and attribution.

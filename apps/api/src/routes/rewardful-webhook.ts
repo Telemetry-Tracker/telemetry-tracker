@@ -290,7 +290,7 @@ export async function registerRewardfulWebhookIfConfigured(
           return reply.status(400).send({ error: "Invalid JSON" });
         }
 
-        // Deduplicate
+        // Deduplicate with claim
         const dedupeResult = await dedupeWebhookEvent(
           prisma,
           "rewardful",
@@ -299,6 +299,9 @@ export async function registerRewardfulWebhookIfConfigured(
         );
         if (dedupeResult.kind === "duplicate") {
           return reply.send({ received: true });
+        }
+        if (dedupeResult.kind === "processing") {
+          return reply.status(409).send({ error: "Event is being processed by another delivery" });
         }
 
         try {

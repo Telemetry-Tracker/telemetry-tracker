@@ -1,36 +1,21 @@
 /**
- * Webhook event deduplication for Stripe and Rewardful.
- * Ensures idempotent processing of webhook events by provider-scoped event IDs.
+ * Webhook deduplication with atomic claim-based design.
+ * Handles concurrent deliveries and retries safely.
  */
 import type { PrismaClient } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 
 export type WebhookProvider = "stripe" | "rewardful";
 
 export type WebhookDedupeResult =
   | { kind: "first_delivery"; id: string }
-  | { kind: "duplicate" };
+  | { kind: "duplicate" }
+  | { kind: "processing"; retryAfterMs: number };
 
 /**
- * Check if webhook event has been processed successfully. If first delivery or previous failure, allow processing.
- * Returns "first_delivery" with the created WebhookEvent ID, or "duplicate" if already successfully processed.
- *
- * CRITICAL: Only events with processed_at set are considered duplicates. Failed events (error set but not processed_at)
- * are deleted so Stripe/Rewardful retry can reprocess them.
- *
- * Usage:
- * ```
- * const result = await dedupeWebhookEvent(prisma, "stripe", event.id, event.type);
- * if (result.kind === "duplicate") {
- *   return reply.send({ received: true }); // Already successfully processed
- * }
- * try {
- *   // Process event...
- *   await markWebhookProcessed(prisma, result.id);
- * } catch (err) {
- *   await markWebhookFailed(prisma, result.id, String(err));
- *   throw err; // Let provider retry
- * }
- * ```
+ * Claim a webhook event for processing.
+ * Returns "first_delivery" with ID if claimed, "duplicate" if already processed successfully,
+ * or "processing" if another delivery is currently processing it.
  */
 export async function dedupeWebhookEvent(
   prisma: PrismaClient,
@@ -39,52 +24,74 @@ export async function dedupeWebhookEvent(
   eventType?: string
 ): Promise<WebhookDedupeResult> {
   try {
-    // Check if event already exists and was successfully processed
-    const existing = await prisma.webhookEvent.findUnique({
-      where: {
-        provider_event_id: {
-          provider,
-          event_id: eventId,
-        },
-      },
-      select: { id: true, processed_at: true, error: true },
-    });
-
-    if (existing) {
-      if (existing.processed_at && !existing.error) {
-        // Successfully processed - this is a duplicate
-        return { kind: "duplicate" };
-      } else {
-        // Previous attempt failed - delete and allow retry
-        await prisma.webhookEvent.delete({
-          where: {
-            provider_event_id: {
-              provider,
-              event_id: eventId,
-            },
-          },
-        });
-      }
-    }
-
-    // Create new record for this delivery attempt
+    // Try to insert as a new event
     const created = await prisma.webhookEvent.create({
       data: {
         provider,
         event_id: eventId,
         event_type: eventType ?? null,
+        status: "processing",
+        locked_at: new Date(),
+        attempts: 1,
       },
       select: { id: true },
     });
     return { kind: "first_delivery", id: created.id };
   } catch (err) {
-    // Other errors (DB down, concurrent insert race, etc.)
-    // Log and treat as first delivery (at-least-once semantics)
-    console.warn(
-      { provider, eventId, err },
-      "Webhook dedupe check failed; treating as first delivery"
-    );
-    return { kind: "first_delivery", id: "unknown" };
+    // Unique constraint violation - event exists
+    if (
+      typeof err === "object" &&
+      err !== null &&
+      "code" in err &&
+      (err as { code: string }).code === "P2002"
+    ) {
+      // Try to reclaim if it's stale or failed
+      const staleThreshold = new Date(Date.now() - 10 * 60 * 1000); // 10 minutes
+
+      try {
+        const reclaimed = await prisma.$executeRaw<number>(
+          Prisma.sql`
+            UPDATE "WebhookEvent"
+            SET status = 'processing',
+                locked_at = NOW(),
+                attempts = attempts + 1,
+                error = NULL
+            WHERE provider = ${provider}
+              AND event_id = ${eventId}
+              AND (status = 'failed' OR (status = 'processing' AND locked_at < ${staleThreshold}))
+            RETURNING id
+          `
+        );
+
+        if (reclaimed > 0) {
+          // Successfully reclaimed - get the ID
+          const event = await prisma.webhookEvent.findUnique({
+            where: { provider_event_id: { provider, event_id: eventId } },
+            select: { id: true },
+          });
+          return { kind: "first_delivery", id: event!.id };
+        }
+
+        // Couldn't reclaim - check current status
+        const existing = await prisma.webhookEvent.findUnique({
+          where: { provider_event_id: { provider, event_id: eventId } },
+          select: { status: true },
+        });
+
+        if (existing?.status === "processed") {
+          return { kind: "duplicate" };
+        }
+
+        // Still processing by another delivery
+        return { kind: "processing", retryAfterMs: 5000 };
+      } catch {
+        // Reclaim failed - treat as processing
+        return { kind: "processing", retryAfterMs: 5000 };
+      }
+    }
+
+    // Other DB errors - fail safe by not processing
+    throw err;
   }
 }
 
@@ -95,32 +102,35 @@ export async function markWebhookProcessed(
   prisma: PrismaClient,
   webhookEventId: string
 ): Promise<void> {
-  if (webhookEventId === "unknown") {
-    // Dedupe check failed; nothing to update
-    return;
-  }
-  await prisma.webhookEvent.update({
-    where: { id: webhookEventId },
-    data: { processed_at: new Date() },
+  await prisma.webhookEvent.updateMany({
+    where: {
+      id: webhookEventId,
+      status: "processing",
+    },
+    data: {
+      status: "processed",
+      processed_at: new Date(),
+      error: null,
+    },
   });
 }
 
 /**
- * Mark webhook event as failed with error message.
+ * Mark webhook event as failed (will be retried by provider).
  */
 export async function markWebhookFailed(
   prisma: PrismaClient,
   webhookEventId: string,
-  error: string
+  errorMessage: string
 ): Promise<void> {
-  if (webhookEventId === "unknown") {
-    return;
-  }
-  await prisma.webhookEvent.update({
-    where: { id: webhookEventId },
+  await prisma.webhookEvent.updateMany({
+    where: {
+      id: webhookEventId,
+      status: "processing",
+    },
     data: {
-      processed_at: new Date(),
-      error: error.slice(0, 1000), // Cap error message length
+      status: "failed",
+      error: errorMessage.slice(0, 1000),
     },
   });
 }
