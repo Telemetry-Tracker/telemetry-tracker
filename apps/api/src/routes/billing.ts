@@ -122,7 +122,28 @@ export async function billingRoutes(
       if (!origin) {
         return reply.status(503).send({ error: "Dashboard origin is not configured" });
       }
-      const checkout = await stripe.checkout.sessions.create({
+
+      // Check if org has affiliate attribution and Customer lacks metadata.referral
+      let clientReferenceId: string | undefined;
+      const { isAffiliateFeatureEnabled } = await import("../lib/affiliates-feature-flag.js");
+      if (isAffiliateFeatureEnabled()) {
+        const referral = await prisma.organizationReferral.findUnique({
+          where: { organization_id: orgId },
+          select: { rewardful_referral_id: true },
+        });
+        if (referral?.rewardful_referral_id) {
+          // Check if Customer already has metadata.referral
+          const customer = await stripe.customers.retrieve(customerId);
+          if (!customer.deleted && customer.metadata?.referral) {
+            // Already has referral metadata, no need for client_reference_id
+          } else {
+            // Fallback: set client_reference_id for Rewardful to pick up
+            clientReferenceId = referral.rewardful_referral_id;
+          }
+        }
+      }
+
+      const checkoutParams: Stripe.Checkout.SessionCreateParams = {
         mode: "subscription",
         customer: customerId,
         line_items: [{ price: priceId, quantity: 1 }],
@@ -138,7 +159,12 @@ export async function billingRoutes(
             plan_tier: tier,
           },
         },
-      });
+      };
+      if (clientReferenceId) {
+        checkoutParams.client_reference_id = clientReferenceId;
+      }
+
+      const checkout = await stripe.checkout.sessions.create(checkoutParams);
 
       if (!checkout.url) {
         return reply.status(500).send({ error: "Could not create checkout session" });

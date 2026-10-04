@@ -1,19 +1,52 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useState, useTransition, type FormEvent } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useState, useTransition, type FormEvent, useEffect } from "react";
 import { createOrganizationAction } from "@/app/dashboard/actions";
 import { SettingsBtn, SettingsInput } from "@/app/components/dashboard/settings/settings-ui";
 
+declare global {
+  interface Window {
+    Rewardful?: {
+      referral?: string;
+    };
+  }
+}
+
 export function CreateOrganizationForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [rewardfulReferralId, setRewardfulReferralId] = useState<string | null>(null);
+  const [viaToken, setViaToken] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Capture Rewardful referral UUID from global object
+    if (typeof window !== "undefined" && window.Rewardful?.referral) {
+      setRewardfulReferralId(window.Rewardful.referral);
+    }
+    
+    // Capture via token from URL query param
+    const via = searchParams.get("via");
+    if (via) {
+      setViaToken(via);
+    }
+  }, [searchParams]);
 
   function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
     const formData = new FormData(e.currentTarget);
+    
+    // Add affiliate referral data if present
+    if (rewardfulReferralId) {
+      formData.set("rewardfulReferralId", rewardfulReferralId);
+    }
+    if (viaToken) {
+      formData.set("viaToken", viaToken);
+    }
+    
     startTransition(async () => {
       const result = await createOrganizationAction(formData);
       if (!result.ok) {
