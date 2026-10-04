@@ -26,7 +26,7 @@ const commissionSchema = z.object({
   sale: z.object({
     stripe_charge_id: z.string().nullable(),
     stripe_customer_id: z.string().nullable(),
-  }).nullable().passthrough(),
+  }).passthrough().nullable(),
 }).passthrough();
 
 export const rewardfulCommissionCreatedSchema = baseEventSchema.extend({
