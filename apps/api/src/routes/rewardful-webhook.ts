@@ -17,55 +17,56 @@ import {
 import { normalizeEmailForSelfReferralCheck } from "../lib/affiliate-email-normalize.js";
 
 // Rewardful webhook payload schemas
-const RewardfulAffiliateSchema = z.object({
-  id: z.string(),
-  state: z.enum(["active", "suspended"]).optional(),
-  email: z.string().optional(),
-  links: z.array(z.object({ token: z.string().optional() })).optional(),
-});
-
-const RewardfulReferralSchema = z.object({
-  id: z.string(),
-  affiliate: z.object({ id: z.string() }).optional(),
-  stripe_customer_id: z.string().optional(),
-  state: z.string().optional(),
-});
-
-const RewardfulCommissionSchema = z.object({
-  id: z.string(),
-  affiliate: z.object({ id: z.string() }).optional(),
-  amount: z.number().optional(), // cents
-  currency: z.string().optional(),
-  state: z.string().optional(),
-  due_at: z.string().optional(),
-  paid_at: z.string().optional(),
-  voided_at: z.string().optional(),
-  sale: z.object({ stripe_charge_id: z.string().optional() }).optional(),
-});
-
-const RewardfulPayoutSchema = z.object({
-  id: z.string(),
-  affiliate: z.object({ id: z.string() }).optional(),
-  amount: z.number().optional(), // cents
-  currency: z.string().optional(),
-  state: z.string().optional(),
-  paid_at: z.string().optional(),
-});
-
+// Base event structure (all events have this)
 const RewardfulWebhookEventSchema = z.object({
   event: z.object({
     id: z.string(),
     type: z.string(),
   }),
-  object: z.union([
-    RewardfulAffiliateSchema,
-    RewardfulReferralSchema,
-    RewardfulCommissionSchema,
-    RewardfulPayoutSchema,
-  ]),
+  object: z.unknown(), // Parse per event type
 });
 
 type RewardfulWebhookEvent = z.infer<typeof RewardfulWebhookEventSchema>;
+
+// Event-specific object schemas with .passthrough() to preserve extra fields
+const RewardfulAffiliateSchema = z.object({
+  id: z.string(),
+  state: z.enum(["active", "suspended"]).nullish(),
+  email: z.string().nullish(),
+  links: z.array(z.object({ token: z.string().nullish() }).passthrough()).nullish(),
+}).passthrough();
+
+const RewardfulReferralSchema = z.object({
+  id: z.string(),
+  conversion_state: z.string().nullish(), // "pending", "converted", "expired"
+  stripe_customer_id: z.string().nullish(),
+  created: z.string().nullish(),
+  // Affiliate can be nested in object or in sale
+  affiliate: z.object({ id: z.string() }).passthrough().nullish(),
+}).passthrough();
+
+const RewardfulCommissionSchema = z.object({
+  id: z.string(),
+  amount: z.number().nullish(), // cents
+  currency: z.string().nullish(),
+  state: z.string().nullish(),
+  due_at: z.string().nullish(),
+  paid_at: z.string().nullish(),
+  voided_at: z.string().nullish(),
+  sale: z.object({
+    stripe_charge_id: z.string().nullish(),
+    affiliate: z.object({ id: z.string() }).passthrough().nullish(),
+  }).passthrough().nullish(),
+}).passthrough();
+
+const RewardfulPayoutSchema = z.object({
+  id: z.string(),
+  amount: z.number().nullish(), // cents
+  currency: z.string().nullish(),
+  state: z.string().nullish(),
+  paid_at: z.string().nullish(),
+  affiliate: z.object({ id: z.string() }).passthrough().nullish(),
+}).passthrough();
 
 /**
  * Upsert Affiliate mirror from Rewardful webhook.
@@ -398,10 +399,11 @@ async function linkReferralToOrganization(
  * Upsert Commission mirror from Rewardful webhook.
  */
 async function upsertCommission(commissionData: z.infer<typeof RewardfulCommissionSchema>) {
-  // Find affiliate by Rewardful ID
-  const affiliate = commissionData.affiliate?.id
+  // Find affiliate by Rewardful ID - check object.affiliate or sale.affiliate
+  const affiliateRewardfulId = commissionData.affiliate?.id ?? commissionData.sale?.affiliate?.id;
+  const affiliate = affiliateRewardfulId
     ? await prisma.affiliate.findFirst({
-        where: { rewardful_affiliate_id: commissionData.affiliate.id },
+        where: { rewardful_affiliate_id: affiliateRewardfulId },
         select: { id: true },
       })
     : null;
@@ -417,7 +419,7 @@ async function upsertCommission(commissionData: z.infer<typeof RewardfulCommissi
       organization_id: organizationId,
       stripe_charge_id: commissionData.sale?.stripe_charge_id ?? null,
       amount_cents: commissionData.amount ?? 0,
-      currency: commissionData.currency ?? "EUR",
+      currency: commissionData.currency ?? "USD",
       state: commissionData.state ?? "pending",
       due_at: commissionData.due_at ? new Date(commissionData.due_at) : null,
       paid_at: commissionData.paid_at ? new Date(commissionData.paid_at) : null,
@@ -426,9 +428,12 @@ async function upsertCommission(commissionData: z.infer<typeof RewardfulCommissi
     update: {
       affiliate_id: affiliate?.id ?? undefined,
       state: commissionData.state ?? undefined,
+      amount_cents: commissionData.amount ?? undefined,
+      currency: commissionData.currency ?? undefined,
+      stripe_charge_id: commissionData.sale?.stripe_charge_id ?? undefined,
       due_at: commissionData.due_at ? new Date(commissionData.due_at) : undefined,
       paid_at: commissionData.paid_at ? new Date(commissionData.paid_at) : undefined,
-      voided_at: commissionData.voided_at ? new Date(commissionData.voided_at) : undefined,
+      voided_at: commissionData.voided_at ? new Date(commissionData.voided_at) : (commissionData.state === "voided" ? new Date() : undefined),
     },
   });
 }
@@ -476,6 +481,7 @@ async function processRewardfulEvent(
       break;
     }
 
+    case "referral.lead":
     case "referral.created":
     case "referral.converted": {
       const parsed = RewardfulReferralSchema.safeParse(event.object);
@@ -483,8 +489,8 @@ async function processRewardfulEvent(
       
       const referralData = parsed.data;
       
-      // Complete unresolved referrals
-      if (referralData.affiliate?.id && referralData.id) {
+      // Complete unresolved referrals (for converted events)
+      if (event.event.type === "referral.converted" && referralData.affiliate?.id && referralData.id) {
         const affiliate = await prisma.affiliate.findFirst({
           where: { rewardful_affiliate_id: referralData.affiliate.id },
           select: { id: true },
@@ -494,9 +500,14 @@ async function processRewardfulEvent(
         }
       }
 
-      // Link to organization if Stripe customer is known
-      if (referralData.stripe_customer_id && referralData.id) {
+      // Link to organization if Stripe customer is known (for converted events)
+      if (event.event.type === "referral.converted" && referralData.stripe_customer_id && referralData.id) {
         await linkReferralToOrganization(referralData.stripe_customer_id, referralData.id, logger);
+      }
+      
+      // Log lead events for audit
+      if (event.event.type === "referral.lead") {
+        logger.info({ referralId: referralData.id }, "Rewardful referral.lead received");
       }
       break;
     }

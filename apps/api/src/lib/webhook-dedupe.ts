@@ -25,6 +25,7 @@ export async function dedupeWebhookEvent(
   eventType?: string
 ): Promise<WebhookDedupeResult> {
   const claimToken = randomBytes(16).toString("hex");
+  const now = new Date();
   
   try {
     // Try to insert as a new event
@@ -34,7 +35,7 @@ export async function dedupeWebhookEvent(
         event_id: eventId,
         event_type: eventType ?? null,
         status: "processing",
-        locked_at: new Date(),
+        locked_at: now,
         attempts: 1,
         claim_token: claimToken,
       },
@@ -50,14 +51,15 @@ export async function dedupeWebhookEvent(
       (err as { code: string }).code === "P2002"
     ) {
       // Try to reclaim if it's stale or failed
-      const staleThreshold = new Date(Date.now() - 10 * 60 * 1000); // 10 minutes
+      const reclaimNow = new Date();
+      const staleThreshold = new Date(reclaimNow.getTime() - 10 * 60 * 1000); // 10 minutes ago
 
       try {
         const reclaimed = await prisma.$executeRaw<number>(
           Prisma.sql`
             UPDATE "WebhookEvent"
             SET status = 'processing',
-                locked_at = NOW(),
+                locked_at = ${reclaimNow},
                 attempts = attempts + 1,
                 error = NULL,
                 claim_token = ${claimToken}
@@ -109,16 +111,17 @@ export async function markWebhookProcessed(
   webhookEventId: string,
   claimToken: string
 ): Promise<void> {
+  const now = new Date();
   await prisma.$executeRaw(
     Prisma.sql`
       UPDATE "WebhookEvent"
       SET status = 'processed',
-          processed_at = NOW(),
+          processed_at = ${now},
           error = NULL
       WHERE id = ${webhookEventId}
         AND status = 'processing'
         AND claim_token = ${claimToken}
-        AND locked_at <= NOW()
+        AND locked_at <= ${now}
     `
   );
 }
@@ -133,6 +136,7 @@ export async function markWebhookFailed(
   claimToken: string,
   errorMessage: string
 ): Promise<void> {
+  const now = new Date();
   await prisma.$executeRaw(
     Prisma.sql`
       UPDATE "WebhookEvent"
@@ -141,7 +145,7 @@ export async function markWebhookFailed(
       WHERE id = ${webhookEventId}
         AND status = 'processing'
         AND claim_token = ${claimToken}
-        AND locked_at <= NOW()
+        AND locked_at <= ${now}
     `
   );
 }
