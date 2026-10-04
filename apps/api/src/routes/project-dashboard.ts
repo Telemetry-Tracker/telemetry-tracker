@@ -136,25 +136,33 @@ export async function projectDashboardRoutes(
     if (isAffiliateFeatureEnabled()) {
       const stripeKey = process.env.STRIPE_SECRET_KEY?.trim();
       if (stripeKey) {
-        const { attributeOrganizationToAffiliate } = await import("../lib/organization-attribution.js");
-        const Stripe = (await import("stripe")).default;
-        const stripe = new Stripe(stripeKey);
-        
-        const attributionResult = await attributeOrganizationToAffiliate(
-          prisma,
-          stripe,
-          {
-            organizationId: org.id,
-            organizationName: org.name,
-            userId: session.userId,
-          },
-          request.log
-        );
-        
-        if (attributionResult.kind === "attributed" && attributionResult.needsAttention) {
-          request.log.warn(
-            { orgId: org.id, referralId: attributionResult.referralId },
-            "Organization attributed but needs founder attention"
+        try {
+          const { attributeOrganizationToAffiliate } = await import("../lib/organization-attribution.js");
+          const Stripe = (await import("stripe")).default;
+          const stripe = new Stripe(stripeKey);
+          
+          const attributionResult = await attributeOrganizationToAffiliate(
+            prisma,
+            stripe,
+            {
+              organizationId: org.id,
+              organizationName: org.name,
+              userId: session.userId,
+            },
+            request.log
+          );
+          
+          if (attributionResult.kind === "attributed" && attributionResult.needsAttention) {
+            request.log.warn(
+              { orgId: org.id, referralId: attributionResult.referralId },
+              "Organization attributed but needs founder attention"
+            );
+          }
+        } catch (error) {
+          // Log attribution failure but don't block org creation
+          request.log.error(
+            { orgId: org.id, userId: session.userId, error },
+            "Failed to attribute organization to affiliate"
           );
         }
       }

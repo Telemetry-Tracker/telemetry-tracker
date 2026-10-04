@@ -359,4 +359,51 @@ testSuite("Affiliate Integration Tests", () => {
 
   // Webhook deduplication is tested in webhook-dedupe.test.ts at the unit level
   // Route-level integration testing of Stripe webhooks would require mocking Stripe SDK
+
+  describe("Organization Attribution Error Handling", () => {
+    it("creates org successfully even if attribution fails", async () => {
+      // Register user with referral
+      const regResponse = await app.inject({
+        method: "POST",
+        url: "/api/auth/register",
+        payload: {
+          email: `attrerr${Date.now()}@example.com`,
+          password: "Password123!",
+          rewardfulReferralId: "00000000-0000-4000-8000-999999999999", // Non-existent
+        },
+      });
+      expect(regResponse.statusCode).toBe(201);
+      const { user, sessionId } = JSON.parse(regResponse.body);
+      testUserIds.push(user.id);
+
+      // Force attribution failure by corrupting Stripe env temporarily
+      const originalKey = process.env.STRIPE_SECRET_KEY;
+      process.env.STRIPE_SECRET_KEY = "sk_test_invalid_will_cause_error";
+
+      try {
+        // Create org - should succeed despite attribution failure
+        const orgResponse = await app.inject({
+          method: "POST",
+          url: "/api/meta/organizations",
+          headers: { cookie: `tt-session=${sessionId}` },
+          payload: { name: "Attribution Error Test Org" },
+        });
+
+        // Assert org created successfully
+        expect(orgResponse.statusCode).toBe(201);
+        const { id: orgId } = JSON.parse(orgResponse.body);
+        testOrgIds.push(orgId);
+
+        // Verify org exists in database
+        const org = await prisma.organization.findUnique({
+          where: { id: orgId },
+        });
+        expect(org).not.toBeNull();
+        expect(org?.name).toBe("Attribution Error Test Org");
+      } finally {
+        // Restore original key
+        process.env.STRIPE_SECRET_KEY = originalKey;
+      }
+    });
+  });
 });
