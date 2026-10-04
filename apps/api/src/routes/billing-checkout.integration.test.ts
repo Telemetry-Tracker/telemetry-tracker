@@ -52,6 +52,7 @@ testSuite("Billing Checkout Integration", () => {
   const testUserIds: string[] = [];
   const testOrgIds: string[] = [];
   const testAffiliateIds: string[] = [];
+  const testWebhookEventIds: string[] = [];
   const webhookSecret = "whsec_test_billing";
 
   beforeAll(async () => {
@@ -106,12 +107,17 @@ testSuite("Billing Checkout Integration", () => {
   });
 
   afterAll(async () => {
-    if (testOrgIds.length > 0) {
+    if (testWebhookEventIds.length > 0) {
       await prisma.webhookEvent.deleteMany({
-        where: { event_type: "checkout.session.completed" },
+        where: { id: { in: testWebhookEventIds } },
       }).catch(() => undefined);
+    }
+    if (testOrgIds.length > 0) {
       await prisma.organizationReferral.deleteMany({
         where: { organization_id: { in: testOrgIds } },
+      });
+      await prisma.userReferral.deleteMany({
+        where: { attributed_organization_id: { in: testOrgIds } },
       });
       await prisma.organization.deleteMany({
         where: { id: { in: testOrgIds } },
