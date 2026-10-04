@@ -51,20 +51,12 @@ export function RegisterPageForm({ serverChoice }: RegisterPageFormProps) {
   const [errors, setErrors] = useState<Partial<Record<keyof RegisterPageValues, string>>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  const [rewardfulReferralId, setRewardfulReferralId] = useState<string | null>(null);
 
   function update<K extends keyof RegisterPageValues>(key: K, val: RegisterPageValues[K]) {
     setValues((v) => ({ ...v, [key]: val }));
     if (errors[key]) setErrors((e) => ({ ...e, [key]: undefined }));
     if (formError) setFormError(null);
   }
-
-  // Capture Rewardful referral UUID from global object on mount
-  React.useEffect(() => {
-    if (typeof window !== "undefined" && window.Rewardful?.referral) {
-      setRewardfulReferralId(window.Rewardful.referral);
-    }
-  }, []);
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -76,6 +68,13 @@ export function RegisterPageForm({ serverChoice }: RegisterPageFormProps) {
 
     setErrors({});
     setFormError(null);
+
+    // Read Rewardful referral at submit time
+    const rewardfulReferralId =
+      typeof window !== "undefined" && window.Rewardful?.referral
+        ? window.Rewardful.referral
+        : null;
+
     const formData = new FormData();
     formData.set("email", parsed.data.email);
     formData.set("password", parsed.data.password);
