@@ -156,6 +156,29 @@ export async function attributeOrganizationToAffiliate(
     return { kind: "not_referred" };
   }
 
+  // Only first org as OWNER is attributed
+  // Check if user already owns any organizations
+  const existingOwnershipCount = await prisma.organizationMembership.count({
+    where: {
+      user_id: input.userId,
+      role: "OWNER",
+      organization: {
+        deleted_at: null,
+      },
+    },
+  });
+
+  if (existingOwnershipCount > 1) {
+    // User already owns another org - don't attribute
+    if (logger) {
+      logger.info(
+        { userId: input.userId, orgId: input.organizationId, existingOwnershipCount },
+        "User already owns an organization - not attributing second org"
+      );
+    }
+    return { kind: "not_referred" };
+  }
+
   // Self-referral check: verify at org attribution time (catch late resolutions)
   if (userReferral.affiliate_id) {
     const affiliate = await prisma.affiliate.findUnique({
