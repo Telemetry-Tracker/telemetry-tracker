@@ -6,7 +6,6 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { createApp } from "../app.js";
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../lib/db.js";
-import crypto from "node:crypto";
 
 const shouldRun = process.env.RUN_DB_INTEGRATION_TESTS === "true";
 const testSuite = shouldRun ? describe : describe.skip;
