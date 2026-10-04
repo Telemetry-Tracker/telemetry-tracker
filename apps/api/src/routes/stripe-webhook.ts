@@ -65,29 +65,35 @@ export async function registerStripeWebhookIfConfigured(
           return reply.status(400).send({ error: "Invalid signature" });
         }
 
-        // Deduplicate webhook events (idempotency)
-        const dedupeResult = await dedupeWebhookEvent(
-          prisma,
-          "stripe",
-          event.id,
-          event.type
-        );
-        if (dedupeResult.kind === "duplicate") {
-          // Already processed; return success to prevent Stripe retries
-          return reply.send({ received: true });
-        }
-        if (dedupeResult.kind === "processing") {
-          // Another delivery is processing this event
-          return reply.status(409).send({ error: "Event is being processed by another delivery" });
-        }
+        // Deduplicate webhook events (idempotency) - only when affiliates enabled
+        const { isAffiliateFeatureEnabled } = await import("../lib/affiliates-feature-flag.js");
+        if (isAffiliateFeatureEnabled()) {
+          const dedupeResult = await dedupeWebhookEvent(
+            prisma,
+            "stripe",
+            event.id,
+            event.type
+          );
+          if (dedupeResult.kind === "duplicate") {
+            // Already processed; return success to prevent Stripe retries
+            return reply.send({ received: true });
+          }
+          if (dedupeResult.kind === "processing") {
+            // Another delivery is processing this event
+            return reply.status(409).send({ error: "Event is being processed by another delivery" });
+          }
 
-        try {
+          try {
+            await processStripeEvent(event, request, stripe);
+            await markWebhookProcessed(prisma, dedupeResult.id, dedupeResult.claimToken);
+          } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : String(err);
+            await markWebhookFailed(prisma, dedupeResult.id, dedupeResult.claimToken, errorMessage);
+            throw err; // Re-throw to let Fastify handle error response
+          }
+        } else {
+          // Flag off: process without dedupe (identical to develop)
           await processStripeEvent(event, request, stripe);
-          await markWebhookProcessed(prisma, dedupeResult.id, dedupeResult.claimToken);
-        } catch (err) {
-          const errorMessage = err instanceof Error ? err.message : String(err);
-          await markWebhookFailed(prisma, dedupeResult.id, dedupeResult.claimToken, errorMessage);
-          throw err; // Re-throw to let Fastify handle error response
         }
 
         return reply.send({ received: true });
