@@ -139,6 +139,7 @@ export async function attributeOrganizationToAffiliate(
   const userReferral = await prisma.userReferral.findUnique({
     where: { user_id: input.userId },
     select: {
+      id: true,
       affiliate_id: true,
       rewardful_referral_id: true,
       via_token: true,
@@ -156,36 +157,31 @@ export async function attributeOrganizationToAffiliate(
     return { kind: "not_referred" };
   }
 
-  // Only first org as OWNER is attributed
-  // Check if user already has an attributed org (even if deleted) to enforce first-org-only rule
-  const existingAttribution = await prisma.organizationReferral.findFirst({
+  // Atomically claim this organization for this user's referral
+  // Only the first org created by a referred user gets attributed
+  const claimed = await prisma.userReferral.updateMany({
     where: {
-      affiliate_id: { not: null }, // Only count attributed referrals
-      organization: {
-        // Note: we check ALL orgs (including soft-deleted) to enforce first-org-only rule
-        // so delete-and-recreate can't re-attribute
-        memberships: {
-          some: {
-            user_id: input.userId,
-            role: "OWNER",
-          },
-        },
-      },
+      id: userReferral.id,
+      user_id: input.userId,
+      attributed_organization_id: null, // Only claim if not yet attributed
     },
-    select: { id: true, organization_id: true },
+    data: {
+      attributed_organization_id: input.organizationId,
+    },
   });
 
-  if (existingAttribution) {
-    // User already has an attributed org (even if deleted) - don't attribute
+  if (claimed.count === 0) {
+    // User already has an attributed org - don't attribute this one
     if (logger) {
       logger.info(
-        { userId: input.userId, orgId: input.organizationId, existingOrgId: existingAttribution.organization_id },
+        { userId: input.userId, orgId: input.organizationId },
         "User already has an attributed organization - not attributing second org"
       );
     }
     return { kind: "not_referred" };
   }
 
+  // Successfully claimed! Now proceed with attribution
   // Initialize needs_attention tracking
   let needsAttention = false;
   let attentionReason: string | null = null;

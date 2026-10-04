@@ -24,6 +24,7 @@ CREATE TABLE "UserReferral" (
     "via_token" TEXT,
     "source" TEXT NOT NULL DEFAULT 'link',
     "captured_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "attributed_organization_id" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
@@ -94,6 +95,9 @@ CREATE INDEX "WebhookEvent_provider_status_locked_at_idx" ON "WebhookEvent"("pro
 CREATE UNIQUE INDEX "UserReferral_user_id_key" ON "UserReferral"("user_id");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "UserReferral_attributed_organization_id_key" ON "UserReferral"("attributed_organization_id");
+
+-- CreateIndex
 CREATE INDEX "UserReferral_affiliate_id_idx" ON "UserReferral"("affiliate_id");
 
 -- CreateIndex
@@ -149,6 +153,9 @@ ALTER TABLE "UserReferral" ADD CONSTRAINT "UserReferral_user_id_fkey" FOREIGN KE
 
 -- AddForeignKey
 ALTER TABLE "UserReferral" ADD CONSTRAINT "UserReferral_affiliate_id_fkey" FOREIGN KEY ("affiliate_id") REFERENCES "Affiliate"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "UserReferral" ADD CONSTRAINT "UserReferral_attributed_organization_id_fkey" FOREIGN KEY ("attributed_organization_id") REFERENCES "Organization"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "OrganizationReferral" ADD CONSTRAINT "OrganizationReferral_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "Organization"("id") ON DELETE CASCADE ON UPDATE CASCADE;

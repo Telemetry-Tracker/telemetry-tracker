@@ -33,6 +33,7 @@ model Organization {
   brief_generation_jobs BriefGenerationJob[]
   organization_referral OrganizationReferral?
   affiliate_commissions AffiliateCommission[]
+  user_referral_attribution UserReferral? @relation("UserReferralAttribution")
 
   @@index([deleted_at])
 }
@@ -650,6 +651,9 @@ model UserReferral {
   source                String    @default("link")
   /// When the referral was captured (registration timestamp)
   captured_at           DateTime  @default(now()) @map("captured_at")
+  /// Organization that claimed this referral (nullable, unique)
+  attributed_organization_id String? @unique @map("attributed_organization_id")
+  attributed_organization    Organization? @relation("UserReferralAttribution", fields: [attributed_organization_id], references: [id], onDelete: SetNull)
   created_at            DateTime  @default(now()) @map("created_at")
   updated_at            DateTime  @updatedAt @map("updated_at")
 
