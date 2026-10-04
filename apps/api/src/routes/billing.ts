@@ -133,19 +133,17 @@ export async function billingRoutes(
               rewardful_referral_id: true,
               affiliate_id: true,
               via_token: true,
-              needs_attention: true,
-              attention_reason: true,
+              status: true,
             },
           });
-          // Only update if referral is valid (not expired or rejected)
-          const isExpiredOrRejected = referral?.needs_attention &&
-            (referral.attention_reason?.includes('expired') || referral.attention_reason?.includes('rejected'));
+          // Only update if referral is active
+          const isActive = referral?.status === "ACTIVE";
           
           // Update Customer if referral has UUID (even if affiliate unresolved) or resolved via token
           const hasUuid = !!referral?.rewardful_referral_id;
           const hasResolvedViaToken = !!referral?.via_token && !!referral?.affiliate_id;
           
-          if (referral && !isExpiredOrRejected && (hasUuid || hasResolvedViaToken)) {
+          if (referral && isActive && (hasUuid || hasResolvedViaToken)) {
               // Check if Customer already has affiliate metadata
               const customer = await stripe.customers.retrieve(customerId);
               if (!customer.deleted && !customer.metadata?.tt_affiliate_id) {
@@ -195,30 +193,31 @@ export async function billingRoutes(
       // Add affiliate metadata only when feature is enabled
       if (isAffiliateFeatureEnabled()) {
         try {
-          const referral = await prisma.organizationReferral.findUnique({
-            where: { organization_id: orgId },
+          // Check if this org has an active attribution
+          const userReferral = await prisma.userReferral.findUnique({
+            where: { attributed_organization_id: orgId },
             select: {
-              rewardful_referral_id: true,
+              status: true,
               affiliate_id: true,
             },
           });
-          if (referral?.affiliate_id) {
+          
+          // Only add metadata for active attributions owned by this org
+          if (userReferral?.status === "ACTIVE" && userReferral.affiliate_id) {
             metadata.tt_org_id = orgId;
-            metadata.tt_affiliate_id = referral.affiliate_id;
+            metadata.tt_affiliate_id = userReferral.affiliate_id;
           }
         } catch (err) {
           request.log.warn({ err, orgId }, "Failed to fetch referral at checkout metadata build");
         }
       }
 
-      // Enable promotion codes only when affiliate feature is ON
       const sessionParams: Stripe.Checkout.SessionCreateParams = {
         mode: "subscription",
         customer: customerId,
         line_items: [{ price: priceId, quantity: 1 }],
         success_url: `${origin}/dashboard/settings/organization?billing=success`,
         cancel_url: `${origin}/dashboard/settings/organization?billing=canceled`,
-        ...(isAffiliateFeatureEnabled() ? { allow_promotion_codes: true } : {}),
         metadata,
         subscription_data: {
           metadata,

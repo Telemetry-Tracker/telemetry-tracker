@@ -636,6 +636,18 @@ model ScheduledJobHeartbeat {
 
 /// User-level referral record, captured at registration and locked permanently.
 /// Copied to OrganizationReferral when user creates their first (and any subsequent) org.
+/// Referral status for attribution lifecycle
+enum ReferralStatus {
+  /// Initial state: referral captured, not yet active
+  UNRESOLVED
+  /// Referral is active and eligible for commission
+  ACTIVE
+  /// Referral expired (outside attribution window)
+  EXPIRED
+  /// Referral rejected (self-referral, policy violation, etc)
+  REJECTED
+}
+
 model UserReferral {
   id                    String    @id @default(uuid())
   user_id               String    @unique @map("user_id")
@@ -649,6 +661,8 @@ model UserReferral {
   via_token             String?   @map("via_token")
   /// Source: link (default)
   source                String    @default("link")
+  /// Referral attribution status
+  status                ReferralStatus @default(UNRESOLVED) @map("status")
   /// When the referral was captured (registration timestamp)
   captured_at           DateTime  @default(now()) @map("captured_at")
   /// Organization that claimed this referral (nullable, unique)
@@ -717,6 +731,8 @@ model OrganizationReferral {
   via_token                String?      @map("via_token")
   /// Source: link | promo_code | manual
   source                   String
+  /// Referral attribution status
+  status                   ReferralStatus @default(UNRESOLVED) @map("status")
   /// When the affiliate link was first seen (click timestamp if available).
   first_seen_at            DateTime?    @map("first_seen_at")
   /// When attribution was locked to this org (signup timestamp).

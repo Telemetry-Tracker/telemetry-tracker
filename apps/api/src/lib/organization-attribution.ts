@@ -226,6 +226,7 @@ export async function attributeOrganizationToAffiliate(
               source: userReferral.source,
               first_seen_at: userReferral.captured_at,
               attributed_at: new Date(),
+              status: "REJECTED",
               needs_attention: true,
               attention_reason: "rejected_self_referral",
             },
@@ -243,12 +244,19 @@ export async function attributeOrganizationToAffiliate(
 
   // Check if referral has expired (55-day rule)
   const expired = isReferralExpired(userReferral.captured_at);
+  let referralStatus: "UNRESOLVED" | "ACTIVE" | "EXPIRED" = "UNRESOLVED";
+  
   if (expired) {
     needsAttention = true;
     attentionReason = "referral_expired_55_days";
+    referralStatus = "EXPIRED";
   } else if (!userReferral.affiliate_id) {
     needsAttention = true;
     attentionReason = "affiliate_unresolved";
+    referralStatus = "UNRESOLVED";
+  } else {
+    // Affiliate is resolved and not expired
+    referralStatus = "ACTIVE";
   }
 
   // UUID/via conflict check
@@ -316,6 +324,7 @@ export async function attributeOrganizationToAffiliate(
       source: userReferral.source,
       first_seen_at: userReferral.captured_at,
       attributed_at: new Date(),
+      status: referralStatus,
       needs_attention: needsAttention,
       attention_reason: attentionReason,
     },

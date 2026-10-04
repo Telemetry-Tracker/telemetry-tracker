@@ -118,33 +118,15 @@ export async function captureUserReferral(
       ? await resolveAffiliate(prisma, { rewardfulReferralId: validRewardfulId })
       : null;
 
-    // Conflict detection: both present and resolve to different affiliates
+    // UUID preferred, via token stored as fallback
     let affiliateId: string | null = null;
-
-    if (viaResolution?.kind === "resolved" && rewardfulResolution?.kind === "resolved") {
-      if (viaResolution.affiliateId !== rewardfulResolution.affiliateId) {
-        // Conflict: prefer Rewardful UUID (last-click priority)
-        affiliateId = viaResolution.affiliateId; // Use UUID affiliate
-        if (logger) {
-          logger.warn(
-            {
-              userId: input.userId,
-              uuidAffiliateId: viaResolution.affiliateId,
-              viaAffiliateId: rewardfulResolution.affiliateId,
-            },
-            "Referral conflict: UUID and via token point to different affiliates"
-          );
-        }
-      } else {
-        // Both resolve to same affiliate - no conflict
-        affiliateId = viaResolution.affiliateId;
-      }
-    } else if (viaResolution?.kind === "resolved") {
-      // Only via token resolved
-      affiliateId = viaResolution.affiliateId;
-    } else if (rewardfulResolution?.kind === "resolved") {
-      // Only Rewardful UUID resolved
+    
+    if (rewardfulResolution?.kind === "resolved") {
+      // Prefer UUID if resolved
       affiliateId = rewardfulResolution.affiliateId;
+    } else if (viaResolution?.kind === "resolved") {
+      // Fallback to via token if UUID not resolved
+      affiliateId = viaResolution.affiliateId;
     }
 
     // Check self-referral if we resolved an affiliate

@@ -15,6 +15,9 @@ CREATE TABLE "WebhookEvent" (
     CONSTRAINT "WebhookEvent_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateEnum
+CREATE TYPE "ReferralStatus" AS ENUM ('UNRESOLVED', 'ACTIVE', 'EXPIRED', 'REJECTED');
+
 -- CreateTable
 CREATE TABLE "UserReferral" (
     "id" TEXT NOT NULL,
@@ -23,6 +26,7 @@ CREATE TABLE "UserReferral" (
     "rewardful_referral_id" TEXT,
     "via_token" TEXT,
     "source" TEXT NOT NULL DEFAULT 'link',
+    "status" "ReferralStatus" NOT NULL DEFAULT 'UNRESOLVED',
     "captured_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "attributed_organization_id" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -52,6 +56,7 @@ CREATE TABLE "OrganizationReferral" (
     "rewardful_referral_id" TEXT,
     "via_token" TEXT,
     "source" TEXT NOT NULL,
+    "status" "ReferralStatus" NOT NULL DEFAULT 'UNRESOLVED',
     "first_seen_at" TIMESTAMP(3),
     "attributed_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "needs_attention" BOOLEAN NOT NULL DEFAULT false,

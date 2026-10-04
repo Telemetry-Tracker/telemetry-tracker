@@ -120,31 +120,90 @@ async function completeUnresolvedReferrals(
 
   // Check if affiliate email is null (needs attention for self-referral check)
   if (!affiliate.email_normalized) {
-    // Can't check self-referral without email - flag for attention
-    const updatedUsers = await prisma.userReferral.updateMany({
+    // Can't check self-referral without email, but still check expired and rejected status
+    
+    // Get all unresolved referrals
+    const unresolvedUsers = await prisma.userReferral.findMany({
       where: {
         rewardful_referral_id: rewardfulReferralId,
         affiliate_id: null,
       },
-      data: { affiliate_id: affiliateId },
+      select: { id: true, status: true },
     });
 
-    // For orgs, set needs_attention since we can't verify self-referral
-    const updatedOrgs = await prisma.organizationReferral.updateMany({
+    const unresolvedOrgs = await prisma.organizationReferral.findMany({
       where: {
         rewardful_referral_id: rewardfulReferralId,
         affiliate_id: null,
       },
-      data: {
-        affiliate_id: affiliateId,
+      select: {
+        id: true,
+        status: true,
         needs_attention: true,
-        attention_reason: "affiliate_email_unknown_cannot_verify_self_referral",
+        attention_reason: true,
+        first_seen_at: true,
       },
     });
 
-    if ((updatedUsers.count > 0 || updatedOrgs.count > 0) && logger) {
+    // Update users (mark as needs attention since we can't verify)
+    for (const userRef of unresolvedUsers) {
+      // Skip if already rejected or expired
+      if (userRef.status === "REJECTED" || userRef.status === "EXPIRED") continue;
+      
+      await prisma.userReferral.updateMany({
+        where: { id: userRef.id, affiliate_id: null },
+        data: {
+          affiliate_id: affiliateId,
+          status: "ACTIVE",
+        },
+      });
+    }
+
+    // Update orgs (check expiry, append attention reason)
+    for (const orgRef of unresolvedOrgs) {
+      // Skip if already rejected
+      if (orgRef.status === "REJECTED") continue;
+      
+      // Check if expired
+      let newStatus = orgRef.status;
+      let needsAttention = orgRef.needs_attention;
+      let attentionReason = orgRef.attention_reason || "";
+      
+      if (orgRef.first_seen_at) {
+        const daysSinceCapture = (Date.now() - orgRef.first_seen_at.getTime()) / (1000 * 60 * 60 * 24);
+        if (daysSinceCapture > 55) {
+          newStatus = "EXPIRED";
+          needsAttention = true;
+          attentionReason = attentionReason
+            ? `${attentionReason};referral_expired_55_days`
+            : "referral_expired_55_days";
+          continue; // Don't complete expired referrals
+        }
+      }
+      
+      // Mark as active but needs attention for self-referral check
+      if (newStatus !== "EXPIRED") {
+        newStatus = "ACTIVE";
+        needsAttention = true;
+        attentionReason = attentionReason
+          ? `${attentionReason};affiliate_email_unknown_cannot_verify_self_referral`
+          : "affiliate_email_unknown_cannot_verify_self_referral";
+      }
+      
+      await prisma.organizationReferral.updateMany({
+        where: { id: orgRef.id, affiliate_id: null },
+        data: {
+          affiliate_id: affiliateId,
+          status: newStatus,
+          needs_attention: needsAttention,
+          attention_reason: attentionReason,
+        },
+      });
+    }
+
+    if ((unresolvedUsers.length > 0 || unresolvedOrgs.length > 0) && logger) {
       logger.warn(
-        { affiliateId, rewardfulReferralId, userCount: updatedUsers.count, orgCount: updatedOrgs.count },
+        { affiliateId, rewardfulReferralId, userCount: unresolvedUsers.length, orgCount: unresolvedOrgs.length },
         "Completed unresolved referrals but affiliate email is unknown (needs attention for self-referral check)"
       );
     }
@@ -176,7 +235,17 @@ async function completeUnresolvedReferrals(
     const userNormalized = normalizeEmailForSelfReferralCheck(userReferral.user.email);
 
     if (affiliate.email_normalized === userNormalized) {
-      // Self-referral - don't complete
+      // Self-referral - mark as rejected
+      await prisma.userReferral.updateMany({
+        where: {
+          id: userReferral.id,
+          affiliate_id: null,
+        },
+        data: {
+          affiliate_id: null,
+          status: "REJECTED",
+        },
+      });
       rejectedUsers++;
       if (logger) {
         logger.warn(
@@ -191,7 +260,10 @@ async function completeUnresolvedReferrals(
           id: userReferral.id,
           affiliate_id: null,
         },
-        data: { affiliate_id: affiliateId },
+        data: {
+          affiliate_id: affiliateId,
+          status: "ACTIVE",
+        },
       });
       completedUsers++;
     }
@@ -205,12 +277,13 @@ async function completeUnresolvedReferrals(
       affiliate_id: null,
       OR: [
         { needs_attention: false },
-        { needs_attention: true, NOT: { attention_reason: { contains: "expired" } } },
+        { needs_attention: true, status: { not: "EXPIRED" } },
       ],
     },
     select: {
       id: true,
       organization_id: true,
+      status: true,
       needs_attention: true,
       attention_reason: true,
       first_seen_at: true,
@@ -256,7 +329,7 @@ async function completeUnresolvedReferrals(
     }
 
     // Skip already-rejected referrals
-    if (orgReferral.needs_attention && orgReferral.attention_reason?.includes("rejected")) {
+    if (orgReferral.status === "REJECTED") {
       skippedRejected++;
       if (logger) {
         logger.warn(
@@ -297,6 +370,7 @@ async function completeUnresolvedReferrals(
         },
         data: {
           affiliate_id: null, // Don't set affiliate_id for self-referral
+          status: "REJECTED",
           needs_attention: true,
           attention_reason: "rejected_self_referral",
         },
@@ -317,6 +391,7 @@ async function completeUnresolvedReferrals(
         },
         data: {
           affiliate_id: affiliateId,
+          status: "ACTIVE",
           needs_attention: false,
           attention_reason: null,
         },
