@@ -157,24 +157,26 @@ export async function attributeOrganizationToAffiliate(
   }
 
   // Only first org as OWNER is attributed
-  // Check if user already has an attributed org (not by count, to allow delete-and-recreate)
+  // Check if user already has an attributed org (even if deleted) to enforce first-org-only rule
   const existingAttribution = await prisma.organizationReferral.findFirst({
     where: {
+      affiliate_id: { not: null }, // Only count attributed referrals
       organization: {
+        // Note: we check ALL orgs (including soft-deleted) to enforce first-org-only rule
+        // so delete-and-recreate can't re-attribute
         memberships: {
           some: {
             user_id: input.userId,
             role: "OWNER",
           },
         },
-        deleted_at: null,
       },
     },
     select: { id: true, organization_id: true },
   });
 
   if (existingAttribution) {
-    // User already has an attributed org - don't attribute
+    // User already has an attributed org (even if deleted) - don't attribute
     if (logger) {
       logger.info(
         { userId: input.userId, orgId: input.organizationId, existingOrgId: existingAttribution.organization_id },
