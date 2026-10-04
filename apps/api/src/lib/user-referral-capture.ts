@@ -113,15 +113,11 @@ export async function captureUserReferral(
       : null;
 
     // Conflict detection: both present and resolve to different affiliates
-    let needsAttention = false;
-    let attentionReason: string | null = null;
     let affiliateId: string | null = null;
 
     if (viaResolution?.kind === "resolved" && rewardfulResolution?.kind === "resolved") {
       if (viaResolution.affiliateId !== rewardfulResolution.affiliateId) {
         // Conflict: prefer Rewardful UUID (last-click priority)
-        needsAttention = true;
-        attentionReason = "conflict_uuid_via_different_affiliates";
         affiliateId = viaResolution.affiliateId; // Use UUID affiliate
         if (logger) {
           logger.warn(

@@ -6,7 +6,6 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { build } from "../app.js";
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../lib/db.js";
-import Stripe from "stripe";
 
 const shouldRun = process.env.RUN_DB_INTEGRATION_TESTS === "true";
 const testSuite = shouldRun ? describe : describe.skip;
