@@ -18,6 +18,8 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ### Fixed
 
+- **Transactional email** — brand header stays readable in Gmail dark mode. The header used a CSS gradient, which Gmail iOS does not recolor, so the light “Telemetry / Tracker” wordmark sat on a light bar. Notification and release emails now share a solid header fill with explicit text colors.
+
 ### Changed
 
 ### Database
