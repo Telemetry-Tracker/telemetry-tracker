@@ -122,12 +122,48 @@ export async function billingRoutes(
       if (!origin) {
         return reply.status(503).send({ error: "Dashboard origin is not configured" });
       }
+
+      // Update Customer metadata if org is referred but Customer lacks metadata
+      const { isAffiliateFeatureEnabled } = await import("../lib/affiliates-feature-flag.js");
+      if (isAffiliateFeatureEnabled()) {
+        const referral = await prisma.organizationReferral.findUnique({
+          where: { organization_id: orgId },
+          select: {
+            rewardful_referral_id: true,
+            affiliate_id: true,
+          },
+        });
+        if (referral?.rewardful_referral_id && referral.affiliate_id) {
+          // Check if Customer already has metadata.referral
+          const customer = await stripe.customers.retrieve(customerId);
+          if (!customer.deleted && !customer.metadata?.referral) {
+            // Update Customer metadata
+            await stripe.customers.update(customerId, {
+              metadata: {
+                ...customer.metadata,
+                referral: referral.rewardful_referral_id,
+                tt_org_id: orgId,
+                tt_affiliate_id: referral.affiliate_id,
+              },
+            });
+            request.log.info(
+              { customerId, orgId },
+              "Updated Customer metadata with referral info at checkout"
+            );
+          }
+        }
+      }
+
+      // Enable promotion codes only when affiliate feature is ON (to avoid changing existing billing)
+      const allowPromotionCodes = isAffiliateFeatureEnabled();
+
       const checkout = await stripe.checkout.sessions.create({
         mode: "subscription",
         customer: customerId,
         line_items: [{ price: priceId, quantity: 1 }],
         success_url: `${origin}/dashboard/settings/organization?billing=success`,
         cancel_url: `${origin}/dashboard/settings/organization?billing=canceled`,
+        allow_promotion_codes: allowPromotionCodes,
         metadata: {
           organization_id: orgId,
           plan_tier: tier,

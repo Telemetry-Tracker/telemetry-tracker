@@ -79,6 +79,8 @@ export async function authRoutes(
       displayName?: string;
       inviteToken?: string;
       marketingOptIn?: boolean;
+      rewardfulReferralId?: string;
+      viaToken?: string;
     };
     const email = typeof body.email === "string" ? normalizeEmail(body.email) : "";
     const password = typeof body.password === "string" ? body.password : "";
@@ -89,6 +91,10 @@ export async function authRoutes(
     const inviteToken =
       typeof body.inviteToken === "string" ? body.inviteToken.trim() : "";
     const marketingOptIn = body.marketingOptIn !== false;
+    const rewardfulReferralId =
+      typeof body.rewardfulReferralId === "string" ? body.rewardfulReferralId.trim() : "";
+    const viaToken =
+      typeof body.viaToken === "string" ? body.viaToken.trim() : "";
 
     if (!email.includes("@")) {
       return reply.status(400).send({ error: "Invalid email" });
@@ -238,6 +244,33 @@ export async function authRoutes(
       },
       select: { id: true, email: true, display_name: true },
     });
+
+    // Capture affiliate referral at registration (if applicable)
+    if (rewardfulReferralId || viaToken) {
+      const { captureUserReferral } = await import("../lib/user-referral-capture.js");
+      const captureResult = await captureUserReferral(
+        prisma,
+        {
+          userId: user.id,
+          userEmail: user.email,
+          rewardfulReferralId: rewardfulReferralId || undefined,
+          viaToken: viaToken || undefined,
+        },
+        request.log
+      );
+      
+      if (captureResult.kind === "rejected_self_referral") {
+        request.log.warn(
+          { userId: user.id, reason: captureResult.reason },
+          "Self-referral rejected at registration"
+        );
+      } else if (captureResult.kind === "captured") {
+        request.log.info(
+          { userId: user.id, userReferralId: captureResult.userReferralId },
+          "User referral captured at registration"
+        );
+      }
+    }
 
     const { sessionId, expiresAt } = await createUserSession(user.id, request);
 
