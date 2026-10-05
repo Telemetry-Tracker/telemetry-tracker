@@ -27,25 +27,42 @@ export const REFERRAL_ATTRIBUTION_WINDOW_DAYS = 60;
 export type ReferralStripeMetadataGate = {
   status: string;
   affiliate_id?: string | null;
-  needs_attention: boolean;
+  needs_attention?: boolean;
+  attention_reason?: string | null;
 };
 
 /**
+ * Payout hold: withhold Rewardful `metadata.referral` / `tt_*` only for
+ * self-referral-risk reasons (`affiliate_email_unknown*`, owner missing,
+ * rejected self-referral). Not for `affiliate_unresolved` or
+ * `customer_creation_failed` — those must still allow the UUID so Rewardful
+ * can convert, and checkout backfill can repair a failed create.
+ */
+export function isPayoutHold(referral: {
+  attention_reason?: string | null;
+}): boolean {
+  const reason = referral.attention_reason ?? "";
+  return /(?:^|;)(affiliate_email_unknown|no_owner_found_for_self_referral_check|rejected_self_referral)/.test(
+    reason
+  );
+}
+
+/**
  * Rewardful commission token (`Customer.metadata.referral`).
- * ACTIVE|UNRESOLVED and not flagged — never when `needs_attention`.
+ * ACTIVE|UNRESOLVED and not a payout hold.
  */
 export function canWriteStripeReferralMetadata(
   referral: ReferralStripeMetadataGate
 ): boolean {
   return (
-    !referral.needs_attention &&
+    !isPayoutHold(referral) &&
     (referral.status === "ACTIVE" || referral.status === "UNRESOLVED")
   );
 }
 
 /**
  * Checkout session / Customer `tt_org_id` + `tt_affiliate_id`.
- * ACTIVE with a resolved affiliate and not flagged.
+ * ACTIVE with a resolved affiliate and not a payout hold.
  */
 export function canWriteAffiliateTtMetadata(
   referral: ReferralStripeMetadataGate
@@ -53,7 +70,7 @@ export function canWriteAffiliateTtMetadata(
   return (
     referral.status === "ACTIVE" &&
     !!referral.affiliate_id &&
-    !referral.needs_attention
+    !isPayoutHold(referral)
   );
 }
 
@@ -300,8 +317,8 @@ export async function attributeOrganizationToAffiliate(
     attentionReason = `referral_expired_${REFERRAL_ATTRIBUTION_WINDOW_DAYS}_days`;
     referralStatus = "EXPIRED";
   } else if (!userReferral.affiliate_id) {
-    needsAttention = true;
-    attentionReason = "affiliate_unresolved";
+    // Plain unresolved is not a payout hold — Rewardful needs metadata.referral
+    // (the UUID) on the Customer in order to send referral.converted.
     referralStatus = "UNRESOLVED";
   } else {
     // Affiliate is resolved and not expired
@@ -322,7 +339,7 @@ export async function attributeOrganizationToAffiliate(
   // Create Stripe Customer if:
   // 1. Referral has not expired (60-day last-click window)
   // 2. We have a UUID (affiliate may be unresolved) OR we have via token + resolved affiliate
-  // Referral / tt_* metadata is omitted when needs_attention so Rewardful cannot pay.
+  // Referral metadata is omitted only on a payout hold (self-referral risk).
   const hasUuid = !!userReferral.rewardful_referral_id;
   const hasResolvedViaToken = !!userReferral.via_token && !!userReferral.affiliate_id;
   const shouldCreateCustomer = !expired && (hasUuid || hasResolvedViaToken);
@@ -330,6 +347,7 @@ export async function attributeOrganizationToAffiliate(
     status: referralStatus,
     affiliate_id: userReferral.affiliate_id,
     needs_attention: needsAttention,
+    attention_reason: attentionReason,
   };
 
   // Create Stripe Customer if conditions are met

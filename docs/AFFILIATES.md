@@ -95,7 +95,11 @@ When the affiliate has **no email**:
 - A `referral.converted` webhook for an affiliate with no email can complete `UNRESOLVED` rows to `ACTIVE` and set `needs_attention` (`affiliate_email_unknown_cannot_verify_self_referral`).
 - A `referral.converted` that supplies an affiliate email completes `UNRESOLVED` to `ACTIVE` and **clears** `needs_attention`. The next checkout may then backfill Customer `metadata.referral` and session `tt_*`.
 
-**`needs_attention` blocks Rewardful commission.** While the flag is set, Stripe Customer `metadata.referral` (and `tt_affiliate_id`) must not be written, so Rewardful cannot pay. There is no separate admin-clear UI yet; conversion that sets `ACTIVE` and clears the flag is the path that re-enables metadata.
+**Payout hold vs `needs_attention`.** Stripe referral metadata is withheld only for a **payout hold** — self-referral-risk reasons (`affiliate_email_unknown*`, `no_owner_found_for_self_referral_check`, `rejected_self_referral`). Helper: `isPayoutHold(referral)`.
+
+- Plain `UNRESOLVED` (UUID stored, affiliate not mapped yet) is **not** a payout hold. `needs_attention` stays false. Customer `metadata.referral` **is** written so Rewardful can convert.
+- `customer_creation_failed` may set `needs_attention` as an internal flag but is **not** a payout hold. Checkout backfill still writes `metadata.referral` (and `tt_*` when ACTIVE).
+- A payout hold blocks `metadata.referral` and `tt_*` until a `referral.converted` that supplies an affiliate email, or a founder **resolve** (below).
 
 ## Organization Attribution
 
@@ -116,29 +120,45 @@ Subsequent orgs — including after archiving/deleting the first — are **not**
 ```
 OrganizationReferral.status === "ACTIVE"
 && OrganizationReferral.affiliate_id
-&& !OrganizationReferral.needs_attention
+&& !isPayoutHold(OrganizationReferral)
 ```
 
-Expired, rejected, unresolved, or `needs_attention` orgs get `organization_id` + `plan_tier` only (same shape as develop / flag OFF).
+Expired, rejected, unresolved, or payout-hold orgs get `organization_id` + `plan_tier` only (same shape as develop / flag OFF).
 
 Checkout always reuses `Organization.stripe_customer_id` when present (`customers.create` is not called again).
 
 ### Customer `metadata.referral` (Rewardful payout token)
 
-`needs_attention` **blocks** Stripe referral metadata and thus Rewardful commission until it is cleared.
+`isPayoutHold` **blocks** Stripe referral metadata (and thus Rewardful commission) until the hold is cleared. `UNRESOLVED` without a payout hold **does** get `metadata.referral` (the Rewardful UUID) — otherwise `referral.converted` never arrives.
 
 **Org-creation Customer create** (when not expired and a UUID or resolved via token exists):
 
-- Always create the Customer so billing works (`organization_id` only when flagged).
-- Write `metadata.referral` only when `(status === "ACTIVE" || status === "UNRESOLVED") && !needs_attention`.
-- Write `tt_org_id` / `tt_affiliate_id` only when `status === "ACTIVE" && affiliate_id && !needs_attention`.
+- Always create the Customer so billing works (`organization_id` only when on payout hold).
+- Write `metadata.referral` when `(status === "ACTIVE" || status === "UNRESOLVED") && !isPayoutHold`.
+- Write `tt_org_id` / `tt_affiliate_id` only when `status === "ACTIVE" && affiliate_id && !isPayoutHold`.
 
 **Checkout backfill** (same predicates; also skips `EXPIRED` / `REJECTED`):
 
-- `tt_*` → `ACTIVE && affiliate_id && !needs_attention`
-- `metadata.referral` → `(ACTIVE || UNRESOLVED) && !needs_attention`
+- `tt_*` → `ACTIVE && affiliate_id && !isPayoutHold`
+- `metadata.referral` → `(ACTIVE || UNRESOLVED) && !isPayoutHold`
 - Prefers the stored Rewardful UUID; via token is used only when there is no UUID and the affiliate is resolved.
-- If a later conversion clears `needs_attention` and sets `ACTIVE`, the next checkout may write the missing `metadata.referral` / `tt_*`.
+- `customer_creation_failed` does **not** block backfill. If a later conversion or founder resolve clears a payout hold, the next checkout may write the missing fields.
+
+### Founder resolve (payout hold)
+
+`POST /api/meta/affiliates/organizations/:orgId/resolve-needs-attention`
+
+Allowlist: session email must be in `AFFILIATE_ADMIN_EMAILS`. Feature flag must be ON.
+
+Body: `{ "reason": "...", "affiliateId": "<optional confirmation>" }`
+
+- Loads `OrganizationReferral` by org id.
+- Refuses `REJECTED` / `EXPIRED` (409). Rejected referrals never get Rewardful metadata.
+- Refuses if `affiliateId` is sent and would change the canonical `affiliate_id` (never rewritten after signup).
+- Clears `needs_attention` / `attention_reason`; sets `ACTIVE` when `affiliate_id` is already known.
+- `customers.update` on the **existing** `stripe_customer_id` only (never `customers.create`). If there is no Customer yet, the flag is still cleared and checkout backfill attaches metadata later.
+- Writes `OrganizationAuditEvent` (`affiliate.needs_attention.resolve`) with actor, from→to status, reason, customer id, and Stripe outcome.
+- Duplicate resolve is idempotent (same result, no extra Stripe write or audit when already clear).
 
 ## Commission eligibility
 

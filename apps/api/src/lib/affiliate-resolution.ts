@@ -39,7 +39,7 @@ async function resolveAffiliateFromViaToken(
  * 
  * IMPORTANT: Rewardful referral UUIDs are NOT affiliate IDs. They identify referrals, not affiliates.
  * The UUID is stored in UserReferral.rewardful_referral_id and written to Stripe Customer metadata.referral
- * only when needs_attention is clear,
+ * unless a self-referral-risk payout hold is set,
  * but it does NOT resolve to an affiliate locally. Only the link token resolves locally via Affiliate.link_token.
  * The referral UUID stays UNRESOLVED until a referral.converted webhook arrives with the affiliate mapping.
  */

@@ -9,10 +9,8 @@ import {
 } from "../lib/org-permissions.js";
 import { dashboardOriginOrNull } from "../lib/dashboard-origin.js";
 import { stripePriceIdForTier } from "../lib/stripe-price-config.js";
-import {
-  canWriteAffiliateTtMetadata,
-  canWriteStripeReferralMetadata,
-} from "../lib/organization-attribution.js";
+import { canWriteAffiliateTtMetadata } from "../lib/organization-attribution.js";
+import { updateExistingCustomerReferralMetadata } from "../lib/affiliate-customer-metadata.js";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -139,52 +137,22 @@ export async function billingRoutes(
               via_token: true,
               status: true,
               needs_attention: true,
+              attention_reason: true,
             },
           });
-          // Backfill only when needs_attention is clear:
-          //   tt_*     → ACTIVE && affiliate_id && !needs_attention
-          //   referral → (ACTIVE|UNRESOLVED) && !needs_attention
-          // Never write payout metadata for EXPIRED/REJECTED or flagged orgs.
+          // Backfill only when needs_attention is clear (shared Customer update helper).
           if (referral) {
-            const hasUuid = !!referral.rewardful_referral_id;
-            const hasResolvedViaToken = !!referral.via_token && !!referral.affiliate_id;
-            const canWriteReferral =
-              canWriteStripeReferralMetadata(referral) &&
-              (hasUuid || hasResolvedViaToken);
-            const canWriteTt = canWriteAffiliateTtMetadata(referral);
-
-            if (canWriteReferral || canWriteTt) {
-              const customer = await stripe.customers.retrieve(customerId);
-              if (!customer.deleted) {
-                const missingReferral = canWriteReferral && !customer.metadata?.referral;
-                const missingTt = canWriteTt && !customer.metadata?.tt_affiliate_id;
-                if (missingReferral || missingTt) {
-                  const updateMetadata: Record<string, string> = {
-                    ...customer.metadata,
-                  };
-
-                  if (canWriteTt && referral.affiliate_id) {
-                    updateMetadata.tt_org_id = orgId;
-                    updateMetadata.tt_affiliate_id = referral.affiliate_id;
-                  }
-
-                  if (canWriteReferral) {
-                    if (referral.rewardful_referral_id) {
-                      updateMetadata.referral = referral.rewardful_referral_id;
-                    } else if (referral.via_token && referral.affiliate_id) {
-                      updateMetadata.referral = referral.via_token;
-                    }
-                  }
-
-                  await stripe.customers.update(customerId, {
-                    metadata: updateMetadata,
-                  });
-                  request.log.info(
-                    { customerId, orgId },
-                    "Updated Customer metadata with referral info at checkout"
-                  );
-                }
-              }
+            const synced = await updateExistingCustomerReferralMetadata(
+              stripe,
+              orgId,
+              customerId,
+              referral
+            );
+            if (synced === "updated") {
+              request.log.info(
+                { customerId, orgId },
+                "Updated Customer metadata with referral info at checkout"
+              );
             }
           }
         } catch (err) {
@@ -211,6 +179,7 @@ export async function billingRoutes(
               status: true,
               affiliate_id: true,
               needs_attention: true,
+              attention_reason: true,
             },
           });
 
