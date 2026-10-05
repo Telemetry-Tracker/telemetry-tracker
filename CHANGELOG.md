@@ -13,8 +13,24 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ### Added
 
+### Fixed
+
+### Changed
+
+### Database
+
+---
+
+## [1.17.26] - 2026-10-05
+
+### Added
+
 - **`@telemetry-tracker/core` 1.5.1** — sanitized browser `Script error.` handling: no fabricated SDK stacks, bounded per-window dedupe, and `context.sanitized` / `browser_error` metadata so one quirky session cannot flood App Health
 - **Dashboard** — error detail distinguishes sanitized browser Script errors from normal exceptions (badge + stack panel copy)
+- **Server Components digest guide** — `/error-tracking/nextjs/server-components-render-error` explains the production digest, `onRequestError`, and server stack mapping
+- **Digest search** — global search and Issues search match `ErrorOccurrence.context.digest`
+- **Analytics** — sanitized `app_startup` view for `analytics_ro`
+- **Docs** — Sentry migration guide, and verified alert channel names
 
 ### Fixed
 
