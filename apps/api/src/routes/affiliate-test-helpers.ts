@@ -22,7 +22,6 @@ export function referralCapturedAtDaysAgo(days: number, insideWindowMs = 0): Dat
 export const AFFILIATE_TEST_ENV_KEYS = [
   "AFFILIATES_ENABLED",
   "STRIPE_SECRET_KEY",
-  "REWARDFUL_WEBHOOK_SECRET",
   "STRIPE_WEBHOOK_SECRET",
   "STRIPE_PRICE_PRO",
   "STRIPE_PRICE_BUSINESS",
@@ -31,7 +30,6 @@ export const AFFILIATE_TEST_ENV_KEYS = [
   "AFFILIATE_ADMIN_EMAILS",
 ] as const;
 
-export const REWARDFUL_TEST_SECRET = "test_secret";
 export const STRIPE_TEST_WEBHOOK_SECRET = "whsec_affiliate_tests";
 export const STRIPE_PRICE_PRO_TEST = "price_test_pro";
 export const STRIPE_PRICE_BUSINESS_TEST = "price_test_business";
@@ -54,7 +52,6 @@ export function restoreEnv(snap: Record<string, string | undefined>): void {
 export function applyAffiliateTestEnv(overrides: Record<string, string> = {}): void {
   process.env.AFFILIATES_ENABLED = "true";
   process.env.STRIPE_SECRET_KEY = "sk_test_affiliate_mock";
-  process.env.REWARDFUL_WEBHOOK_SECRET = REWARDFUL_TEST_SECRET;
   process.env.STRIPE_WEBHOOK_SECRET = STRIPE_TEST_WEBHOOK_SECRET;
   process.env.STRIPE_PRICE_PRO = STRIPE_PRICE_PRO_TEST;
   process.env.STRIPE_PRICE_BUSINESS = STRIPE_PRICE_BUSINESS_TEST;
@@ -62,13 +59,6 @@ export function applyAffiliateTestEnv(overrides: Record<string, string> = {}): v
   process.env.TELEMETRY_ALLOW_REGISTRATION = "true";
   process.env.AFFILIATE_ADMIN_EMAILS = "founder@example.com";
   Object.assign(process.env, overrides);
-}
-
-export function signRewardfulPayload(
-  payload: unknown,
-  secret: string = REWARDFUL_TEST_SECRET
-): string {
-  return crypto.createHmac("sha256", secret).update(JSON.stringify(payload)).digest("hex");
 }
 
 export function signStripeEvent(
@@ -82,10 +72,6 @@ export function signStripeEvent(
     .update(`${timestamp}.${payload}`)
     .digest("hex");
   return { payload, header: `t=${timestamp},v1=${signature}` };
-}
-
-export function uniqueReferralUuid(): string {
-  return crypto.randomUUID();
 }
 
 export function normalizeCheckoutArgs(
@@ -135,22 +121,23 @@ export async function cleanupAffiliateFixtures(
   const commissionIds = ids.commissionIds ?? [];
   const emails = ids.emails ?? [];
 
-  if (commissionIds.length > 0) {
-    await prisma.affiliateCommission.deleteMany({
-      where: {
-        OR: [
-          { id: { in: commissionIds } },
-          { rewardful_commission_id: { in: commissionIds } },
-        ],
-      },
-    });
-  }
   if (affiliateIds.length > 0) {
+    await prisma.affiliateAdjustment.deleteMany({ where: { affiliate_id: { in: affiliateIds } } });
+    await prisma.affiliateCommission.deleteMany({ where: { affiliate_id: { in: affiliateIds } } });
+    await prisma.affiliatePayout.deleteMany({ where: { affiliate_id: { in: affiliateIds } } });
+  }
+  if (commissionIds.length > 0) {
+    await prisma.affiliateAdjustment.deleteMany({
+      where: { commission_id: { in: commissionIds } },
+    });
     await prisma.affiliateCommission.deleteMany({
-      where: { affiliate_id: { in: affiliateIds } },
+      where: { id: { in: commissionIds } },
     });
   }
   if (orgIds.length > 0) {
+    await prisma.affiliateAdjustment.deleteMany({
+      where: { organization_id: { in: orgIds } },
+    });
     await prisma.affiliateCommission.deleteMany({
       where: { organization_id: { in: orgIds } },
     });

@@ -17,7 +17,11 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ### Changed
 
+- **Affiliates (native)** — Telemetry Tracker now owns referral attribution and 30% recurring commissions. Rewardful is fully removed (no account, JS, API, webhooks, or secrets). Visitor links use `?ref=<code>` with last-touch, a 60-day window, signup lock, and first-party sessionStorage plus an optional consent cookie. Stripe `invoice.paid` writes an idempotent commission; refunds/disputes adjust the ledger; founder admin marks payouts paid at ≥ €50 after a 30-day hold. Feature flags stay **OFF** by default. Historical Rewardful notes in 1.17.26 described the previous integration that this replaces.
+
 ### Database
+
+- `20261004180000_add_affiliate_tables` — native affiliate tables (`Affiliate`, `UserReferral`, `OrganizationReferral`, `AffiliateCommission`, `AffiliateAdjustment`, `AffiliatePayout`, `WebhookEvent`). Edited in place on `develop` before production apply; do not run against production until the program is enabled.
 
 ---
 

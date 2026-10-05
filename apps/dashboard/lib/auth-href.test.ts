@@ -127,4 +127,12 @@ describe("crossAuthHref", () => {
       })
     ).toBe("/login");
   });
+
+  it("preserves ref and via when switching auth pages", () => {
+    expect(
+      crossAuthHref("/register", {
+        get: (key) => (key === "ref" ? "alice" : key === "via" ? "legacy" : null),
+      })
+    ).toBe("/register?ref=alice&via=legacy");
+  });
 });

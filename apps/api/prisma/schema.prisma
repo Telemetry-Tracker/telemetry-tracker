@@ -33,6 +33,7 @@ model Organization {
   brief_generation_jobs BriefGenerationJob[]
   organization_referral OrganizationReferral?
   affiliate_commissions AffiliateCommission[]
+  affiliate_adjustments AffiliateAdjustment[]
   user_referral_attribution UserReferral? @relation("UserReferralAttribution")
 
   @@index([deleted_at])
@@ -638,11 +639,11 @@ model ScheduledJobHeartbeat {
 /// Copied to OrganizationReferral when the user creates their first org only.
 /// Referral status for attribution lifecycle
 enum ReferralStatus {
-  /// Initial state: referral captured, not yet active
+  /// Captured but affiliate not bound (rare; founder resolve may activate)
   UNRESOLVED
   /// Referral is active and eligible for commission
   ACTIVE
-  /// Referral expired (outside attribution window)
+  /// Referral expired (outside attribution window at signup)
   EXPIRED
   /// Referral rejected (self-referral, policy violation, etc)
   REJECTED
@@ -652,18 +653,16 @@ model UserReferral {
   id                    String    @id @default(uuid())
   user_id               String    @unique @map("user_id")
   user                  User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  /// Affiliate ID (nullable when affiliate cannot be resolved at registration)
+  /// Affiliate ID (nullable when the code could not be bound, e.g. unknown affiliate email)
   affiliate_id          String?   @map("affiliate_id")
   affiliate             Affiliate? @relation(fields: [affiliate_id], references: [id], onDelete: Restrict)
-  /// Rewardful referral UUID from Rewardful.referral
-  rewardful_referral_id String?   @map("rewardful_referral_id")
-  /// Via token from URL query param
-  via_token             String?   @map("via_token")
+  /// Public affiliate code used at last-touch (lowercase)
+  referral_code         String?   @map("referral_code")
   /// Source: link (default)
   source                String    @default("link")
   /// Referral attribution status
   status                ReferralStatus @default(UNRESOLVED) @map("status")
-  /// When the referral was captured (registration timestamp)
+  /// When the last-touch referral was captured (not necessarily registration time)
   captured_at           DateTime  @default(now()) @map("captured_at")
   /// Organization that claimed this referral (nullable, unique)
   attributed_organization_id String? @unique @map("attributed_organization_id")
@@ -672,10 +671,10 @@ model UserReferral {
   updated_at            DateTime  @updatedAt @map("updated_at")
 
   @@index([affiliate_id])
-  @@index([rewardful_referral_id])
+  @@index([referral_code])
 }
 
-/// Webhook event deduplication (Stripe + Rewardful). Provider-scoped event IDs.
+/// Webhook event deduplication (Stripe). Provider-scoped event IDs.
 model WebhookEvent {
   id          String   @id @default(uuid())
   provider    String   @map("provider")
@@ -694,24 +693,27 @@ model WebhookEvent {
   @@index([provider, status, locked_at])
 }
 
-/// Affiliate program: mirror of Rewardful affiliates for self-referral checks and attribution.
-/// Only affiliates created by the founder in Rewardful dashboard are synced via webhook.
+/// Native affiliate (founder-created). Public `code` is the only visitor-facing identifier.
 model Affiliate {
   id                      String    @id @default(uuid())
-  rewardful_affiliate_id  String    @unique @map("rewardful_affiliate_id")
-  /// Link token (e.g. 'alice') from Rewardful affiliate.token, for via= resolution.
-  link_token              String?   @map("link_token")
-  /// Email normalized (lowercase, +tag stripped, gmail dots removed) for self-referral checks. Null when email is unknown.
+  /// Case-insensitive unique public code (stored lowercase). Never an internal UUID.
+  code                    String    @unique @map("code")
+  name                    String
+  email                   String?
+  /// Email normalized (lowercase, +tag stripped, gmail dots removed) for self-referral checks.
   email_normalized        String?   @map("email_normalized")
-  /// Rewardful state: active | disabled | deleted (via webhook).
+  /// active | disabled
   state                   String
+  /// Fixed V1 rate: 3000 = 30%.
+  commission_rate_bps     Int       @default(3000) @map("commission_rate_bps")
   created_at              DateTime  @default(now()) @map("created_at")
   updated_at              DateTime  @updatedAt @map("updated_at")
   user_referrals          UserReferral[]
   organization_referrals  OrganizationReferral[]
   commissions             AffiliateCommission[]
+  adjustments             AffiliateAdjustment[]
+  payouts                 AffiliatePayout[]
 
-  @@index([link_token])
   @@index([email_normalized])
   @@index([state])
 }
@@ -722,60 +724,112 @@ model OrganizationReferral {
   id                       String       @id @default(uuid())
   organization_id          String       @unique @map("organization_id")
   organization             Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
-  /// Affiliate ID (nullable when affiliate cannot be resolved yet; Rewardful webhook completes it)
   affiliate_id             String?      @map("affiliate_id")
   affiliate                Affiliate?   @relation(fields: [affiliate_id], references: [id], onDelete: Restrict)
-  /// Rewardful referral UUID (from Rewardful.referral or webhook), nullable for token-only fallback.
-  rewardful_referral_id    String?      @map("rewardful_referral_id")
-  /// The via token used (if any), for audit trail.
-  via_token                String?      @map("via_token")
-  /// Source: link | promo_code | manual
+  /// Public code used at last-touch (audit).
+  referral_code            String?      @map("referral_code")
+  /// Source: link | manual
   source                   String
   /// Referral attribution status
   status                   ReferralStatus @default(UNRESOLVED) @map("status")
-  /// When the affiliate link was first seen (click timestamp if available).
+  /// When the affiliate link was first seen (last-touch captured_at).
   first_seen_at            DateTime?    @map("first_seen_at")
-  /// When attribution was locked to this org (signup timestamp).
+  /// When attribution was locked to this org (first-org claim).
   attributed_at            DateTime     @default(now()) @map("attributed_at")
-  /// Flag: true if affiliate cannot be resolved or Customer creation failed
+  /// Flag: true if affiliate email unknown, Customer creation failed, etc.
   needs_attention          Boolean      @default(false) @map("needs_attention")
-  /// Reason for needs_attention flag (e.g., 'affiliate_unresolved', 'customer_creation_failed', 'referral_expired')
+  /// Reason for needs_attention flag
   attention_reason         String?      @map("attention_reason")
-  /// For manual attribution/correction: User ID who performed the action.
+  /// Founder who last resolved/corrected this row.
   created_by               String?      @map("created_by")
   created_at               DateTime     @default(now()) @map("created_at")
   updated_at               DateTime     @updatedAt @map("updated_at")
 
   @@index([affiliate_id])
-  @@index([rewardful_referral_id])
+  @@index([referral_code])
   @@index([source])
   @@index([attributed_at])
   @@index([needs_attention])
 }
 
-/// Mirror of Rewardful commissions for accounting, reconciliation, and migration readiness.
-/// Rewardful remains the commission engine; this is read-only sync via webhook.
+/// Native commission ledger: one row per Stripe invoice (idempotent on stripe_invoice_id).
 model AffiliateCommission {
   id                       String    @id @default(uuid())
-  rewardful_commission_id  String    @unique @map("rewardful_commission_id")
-  affiliate_id             String?   @map("affiliate_id")
-  affiliate                Affiliate? @relation(fields: [affiliate_id], references: [id], onDelete: SetNull)
-  /// Organization if resolvable from Stripe customer ID.
-  organization_id          String?   @map("organization_id")
-  organization             Organization? @relation(fields: [organization_id], references: [id], onDelete: SetNull)
+  affiliate_id             String    @map("affiliate_id")
+  affiliate                Affiliate @relation(fields: [affiliate_id], references: [id], onDelete: Restrict)
+  organization_id          String    @map("organization_id")
+  organization             Organization @relation(fields: [organization_id], references: [id], onDelete: Restrict)
+  stripe_invoice_id        String    @unique @map("stripe_invoice_id")
   stripe_charge_id         String?   @map("stripe_charge_id")
+  /// Eligible net paid used for the 30% calc (tax/discounts/credits excluded).
+  eligible_base_cents      Int       @map("eligible_base_cents")
+  /// Original commission (30% of eligible base). Immutable historical amount.
   amount_cents             Int       @map("amount_cents")
+  /// Amount still owed on this commission before payout (reduced by refunds).
+  remaining_cents          Int       @map("remaining_cents")
   currency                 String
-  /// Rewardful commission state: pending | due | paid | voided
+  /// pending | paid | voided  (payable is derived: pending && now >= payable_at && !open dispute)
   state                    String
-  due_at                   DateTime? @map("due_at")
+  invoice_paid_at          DateTime  @map("invoice_paid_at")
+  payable_at               DateTime  @map("payable_at")
   paid_at                  DateTime? @map("paid_at")
   voided_at                DateTime? @map("voided_at")
+  payout_id                String?   @map("payout_id")
+  payout                   AffiliatePayout? @relation(fields: [payout_id], references: [id], onDelete: SetNull)
+  /// null | open | won | lost
+  dispute_status           String?   @map("dispute_status")
   created_at               DateTime  @default(now()) @map("created_at")
   updated_at               DateTime  @updatedAt @map("updated_at")
+  adjustments              AffiliateAdjustment[]
 
   @@index([affiliate_id, state])
   @@index([organization_id])
   @@index([stripe_charge_id])
-  @@index([state, due_at])
+  @@index([state, payable_at])
+  @@index([payout_id])
+}
+
+/// Ledger adjustments (refunds/disputes after payout, and auditable pre-payout reductions).
+model AffiliateAdjustment {
+  id                  String    @id @default(uuid())
+  affiliate_id        String    @map("affiliate_id")
+  affiliate           Affiliate @relation(fields: [affiliate_id], references: [id], onDelete: Restrict)
+  organization_id     String?   @map("organization_id")
+  organization        Organization? @relation(fields: [organization_id], references: [id], onDelete: SetNull)
+  commission_id       String?   @map("commission_id")
+  commission          AffiliateCommission? @relation(fields: [commission_id], references: [id], onDelete: SetNull)
+  /// Typically negative (clawback). Counts toward payable balance until included in a payout.
+  amount_cents        Int       @map("amount_cents")
+  currency            String
+  /// refund | dispute_lost | manual
+  reason              String
+  note                String?
+  stripe_refund_id    String?   @map("stripe_refund_id")
+  stripe_invoice_id   String?   @map("stripe_invoice_id")
+  payout_id           String?   @map("payout_id")
+  payout              AffiliatePayout? @relation(fields: [payout_id], references: [id], onDelete: SetNull)
+  created_at          DateTime  @default(now()) @map("created_at")
+
+  @@index([affiliate_id])
+  @@index([commission_id])
+  @@index([payout_id])
+  @@index([stripe_invoice_id])
+}
+
+/// Manual founder payout record. No automated money movement.
+model AffiliatePayout {
+  id                String    @id @default(uuid())
+  affiliate_id      String    @map("affiliate_id")
+  affiliate         Affiliate @relation(fields: [affiliate_id], references: [id], onDelete: Restrict)
+  amount_cents      Int       @map("amount_cents")
+  currency          String
+  paid_at           DateTime  @map("paid_at")
+  reference_note    String?   @map("reference_note")
+  created_by        String    @map("created_by")
+  idempotency_key   String?   @unique @map("idempotency_key")
+  created_at        DateTime  @default(now()) @map("created_at")
+  commissions       AffiliateCommission[]
+  adjustments       AffiliateAdjustment[]
+
+  @@index([affiliate_id, paid_at])
 }

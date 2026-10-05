@@ -6,7 +6,7 @@ import type { PrismaClient } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 import { randomBytes } from "node:crypto";
 
-export type WebhookProvider = "stripe" | "rewardful";
+export type WebhookProvider = "stripe";
 
 export type WebhookDedupeResult =
   | { kind: "first_delivery"; id: string; claimToken: string }
