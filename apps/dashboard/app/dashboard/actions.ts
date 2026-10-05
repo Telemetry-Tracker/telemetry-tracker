@@ -313,6 +313,7 @@ export async function createOrganizationAction(
   if (!name) {
     return { ok: false, error: "Name is required" };
   }
+  
   const res = await dashboardApiFetch("/api/meta/organizations", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

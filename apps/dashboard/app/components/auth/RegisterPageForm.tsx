@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useTransition, type FormEvent } from "react";
+import * as React from "react";
 import { register } from "@/app/auth/actions";
 import { LegalExternalLink } from "@/app/components/legal/LegalPageShell";
 import {
@@ -25,10 +26,19 @@ type RegisterPageFormProps = {
   serverChoice: CookieConsentChoice | null;
 };
 
+declare global {
+  interface Window {
+    Rewardful?: {
+      referral?: string;
+    };
+  }
+}
+
 export function RegisterPageForm({ serverChoice }: RegisterPageFormProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const inviteToken = searchParams.get("invite")?.trim() ?? "";
+  const viaToken = searchParams.get("via")?.trim() ?? "";
 
   const [values, setValues] = useState<RegisterPageValues>({
     name: "",
@@ -58,6 +68,13 @@ export function RegisterPageForm({ serverChoice }: RegisterPageFormProps) {
 
     setErrors({});
     setFormError(null);
+
+    // Read Rewardful referral at submit time
+    const rewardfulReferralId =
+      typeof window !== "undefined" && window.Rewardful?.referral
+        ? window.Rewardful.referral
+        : null;
+
     const formData = new FormData();
     formData.set("email", parsed.data.email);
     formData.set("password", parsed.data.password);
@@ -65,6 +82,8 @@ export function RegisterPageForm({ serverChoice }: RegisterPageFormProps) {
     formData.set("termsAccepted", "yes");
     if (parsed.data.marketingOptIn) formData.set("marketingOptIn", "yes");
     if (inviteToken) formData.set("inviteToken", inviteToken);
+    if (rewardfulReferralId) formData.set("rewardfulReferralId", rewardfulReferralId);
+    if (viaToken) formData.set("viaToken", viaToken);
     appendCookieConsentToFormData(formData, serverChoice);
 
     startTransition(async () => {
