@@ -14,6 +14,10 @@ describe("public SEO paths", () => {
     expect(PUBLIC_SEO_PATHS).toContain("/docs/self-hosting");
     expect(PUBLIC_SEO_PATHS).toContain("/docs/alerts");
     expect(PUBLIC_SEO_PATHS).toContain("/docs/migrate-from-sentry");
+    expect(PUBLIC_SEO_PATHS).toContain(
+      "/error-tracking/nextjs/server-components-render-error"
+    );
+    expect(PUBLIC_SEO_PATHS).not.toContain("/error-tracking/nextjs/source-maps");
   });
 
   it("ranks home, docs, and guides above generic public pages", () => {

@@ -61,6 +61,49 @@ describe("findOrCreateErrorGroup", () => {
     );
   });
 
+  it("returns isNew only for the first fingerprint (NEW_ERROR_GROUP fires once per group)", async () => {
+    prisma.errorGroup.findUnique.mockResolvedValueOnce(null);
+    prisma.errorGroup.create.mockResolvedValueOnce({
+      id: "eg-1",
+      message: "Profile query failed",
+      app: "web",
+      environment: "production",
+    });
+
+    const created = await findOrCreateErrorGroup(prisma as never, {
+      projectId: "p1",
+      fingerprint: "Profile query failed\nError: Profile query failed",
+      message: "Profile query failed",
+      top_stack: "Error: Profile query failed",
+      app: "web",
+      environment: "production",
+    });
+    expect(created.isNew).toBe(true);
+
+    prisma.errorGroup.findUnique.mockResolvedValueOnce({
+      id: "eg-1",
+      message: "Profile query failed",
+      app: "web",
+      environment: "production",
+    });
+    prisma.errorGroup.update.mockResolvedValueOnce({});
+
+    const repeat = await findOrCreateErrorGroup(prisma as never, {
+      projectId: "p1",
+      fingerprint: "Profile query failed\nError: Profile query failed",
+      message: "Profile query failed",
+      top_stack: "Error: Profile query failed",
+      app: "web",
+      environment: "production",
+    });
+    expect(repeat.isNew).toBe(false);
+    expect(prisma.errorGroup.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ occurrences: { increment: 1 } }),
+      })
+    );
+  });
+
   it("on create race (P2002), re-fetches existing group and returns isNew false", async () => {
     prisma.errorGroup.findUnique
       .mockResolvedValueOnce(null)

@@ -6,7 +6,7 @@
  */
 
 import { Prisma, PrismaClient } from "@prisma/client";
-import { freeTextAndMatchSql } from "./list-query-helpers.js";
+import { errorGroupFreeTextMatchSql } from "./list-query-helpers.js";
 import { parseTimeRangeQuery } from "./time-range.js";
 import { parseErrorTypeFromMessage } from "./error-type.js";
 import {
@@ -45,7 +45,7 @@ export type ErrorListFilterInput = {
   environment?: string;
   release?: string;
   platform?: string;
-  /** Free text: each term matches message OR fingerprint (AND across terms). */
+  /** Free text: each term matches message, fingerprint, or occurrence context.digest. */
   q?: string;
   range: { gte?: Date; lte?: Date };
   /** When list range is all-time, counts use this window (aligned with summary KPIs). */
@@ -177,6 +177,16 @@ export function buildErrorGroupWhereInput(
       OR: [
         { message: { contains: term, mode: "insensitive" as const } },
         { fingerprint: { contains: term, mode: "insensitive" as const } },
+        {
+          occurrences_list: {
+            some: {
+              context: {
+                path: ["digest"],
+                string_contains: term,
+              },
+            },
+          },
+        },
       ],
     }));
   }
@@ -298,10 +308,12 @@ function buildWhereSql(f: ErrorListFilterInput, projectId: string): Prisma.Sql {
   const parts: Prisma.Sql[] = [Prisma.sql`eg.project_id = ${projectId}`];
   if (f.appId) parts.push(Prisma.sql`eg.app = ${f.appId}`);
   if (f.environment) parts.push(Prisma.sql`eg.environment = ${f.environment}`);
-  const textSql = freeTextAndMatchSql(f.q, [
+  const textSql = errorGroupFreeTextMatchSql(
+    f.q,
     Prisma.sql`eg.message`,
     Prisma.sql`eg.fingerprint`,
-  ]);
+    Prisma.sql`eg.id`
+  );
   if (textSql) parts.push(textSql);
   if (f.status === "unresolved") parts.push(Prisma.sql`eg.resolved_at IS NULL`);
   if (f.status === "resolved") parts.push(Prisma.sql`eg.resolved_at IS NOT NULL`);

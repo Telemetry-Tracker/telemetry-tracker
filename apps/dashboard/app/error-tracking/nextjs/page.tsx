@@ -151,9 +151,17 @@ export default function NextJsErrorTrackingPage() {
           Skip this section for browser-only setup. The provider above does not capture uncaught
           errors in Server Components, Route Handlers, or Server Actions. Add{" "}
           <code>instrumentation.ts</code> with <code>createOnRequestError</code> from{" "}
-          <code>@telemetry-tracker/next/server</code> and the server-only variables below. Use{" "}
-          <code>TELEMETRY_API_KEY</code> — do not expose a server-only secret via{" "}
-          <code>NEXT_PUBLIC_*</code>. Limits of that hook are on{" "}
+          <code>@telemetry-tracker/next/server</code> and the server-only variables below. That hook
+          requires <strong>Next.js 15+</strong>. Use <code>TELEMETRY_API_KEY</code> — do not expose
+          a server-only secret via <code>NEXT_PUBLIC_*</code>. Seeing{" "}
+          <q>An error occurred in the Server Components render</q>?{" "}
+          <Link
+            href="/error-tracking/nextjs/server-components-render-error"
+            className="text-brand hover:underline"
+          >
+            Find the real error behind the digest
+          </Link>
+          . Limits of the hook are on{" "}
           <Link href="/docs/nextjs" className="text-brand hover:underline">
             the Next.js docs
           </Link>

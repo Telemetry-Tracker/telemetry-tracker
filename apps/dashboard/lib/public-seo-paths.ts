@@ -27,6 +27,7 @@ export const PUBLIC_SEO_PATHS = [
   "/sentry-alternative",
   "/self-hosted-error-tracking",
   "/error-tracking/nextjs",
+  "/error-tracking/nextjs/server-components-render-error",
   "/error-tracking/react",
   "/error-tracking/nodejs",
   "/error-tracking/react-native",
@@ -38,13 +39,14 @@ export const MARKETING_GUIDE_PATHS = [
   "/sentry-alternative",
   "/self-hosted-error-tracking",
   "/error-tracking/nextjs",
+  "/error-tracking/nextjs/server-components-render-error",
   "/error-tracking/react",
   "/error-tracking/nodejs",
   "/error-tracking/react-native",
 ] as const;
 
 /** Content date for sitemap lastmod. Bump when public pages change. */
-export const SITEMAP_LAST_MODIFIED = new Date("2026-10-02T00:00:00.000Z");
+export const SITEMAP_LAST_MODIFIED = new Date("2026-10-05T00:00:00.000Z");
 
 export function sitemapPriority(path: PublicSeoPath): number {
   if (path === "") return 1;

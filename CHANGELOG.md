@@ -19,6 +19,7 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 ### Fixed
 
 - **Transactional email** — brand header stays readable in Gmail dark mode. The header used a CSS gradient, which Gmail iOS does not recolor, so the light “Telemetry / Tracker” wordmark sat on a light bar. Notification and release emails now share a solid header fill with explicit text colors.
+- **`@telemetry-tracker/next` 1.3.3** — `createOnRequestError` no longer keeps a Next.js digest for the life of the process. The same Error object is still reported once, and a second callback in the same turn with that digest is skipped. A later request is reported again, so occurrence counts and alert rules are not stuck at one. Cross-realm Edge errors keep `message` and `stack` when `instanceof Error` fails. Server `onRequestError` requires Next.js 15+.
 
 ### Changed
 

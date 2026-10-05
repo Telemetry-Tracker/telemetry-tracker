@@ -121,9 +121,17 @@ export default function DocsMigrateFromSentryPage() {
       <CodeBlock code={nextTrackPageView} lang="tsx" caption="app/track-page-view.tsx" />
       <p>
         <code>createOnRequestError</code> from <code>@telemetry-tracker/next/server</code> reports
-        uncaught App Router errors in Server Components, Route Handlers, and Server Actions. It does
-        not report errors you catch, browser errors, or build failures. Skip it for a browser-only
-        app.
+        uncaught App Router errors in Server Components, Route Handlers, and Server Actions. It
+        requires Next.js 15 or newer (<code>onRequestError</code>). It does not report errors you
+        catch, browser errors, or build failures. Skip it for a browser-only app. If production
+        only shows a digest, see{" "}
+        <Link
+          href="/error-tracking/nextjs/server-components-render-error"
+          className="text-brand hover:underline"
+        >
+          Server Components render errors
+        </Link>
+        .
       </p>
       <CodeBlock code={nextEnvLocalServer} lang="bash" caption=".env.local (server)" />
       <CodeBlock code={nextInstrumentation} lang="ts" caption="instrumentation.ts" />
