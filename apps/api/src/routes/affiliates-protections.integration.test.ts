@@ -1,10 +1,103 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from "vitest";
 import { prisma } from "../lib/db.js";
 import { createApp } from "../app.js";
 import type { FastifyInstance } from "fastify";
 import crypto from "node:crypto";
+import type Stripe from "stripe";
+import {
+  applyAffiliateTestEnv,
+  cleanupAffiliateFixtures,
+  restoreEnv,
+  signRewardfulPayload,
+  signStripeEvent,
+  snapshotEnv,
+  uniqueReferralUuid,
+} from "./affiliate-test-helpers.js";
 
 const RUN_DB_TESTS = process.env.RUN_DB_INTEGRATION_TESTS === "true";
+
+let capturedCheckoutArgs: Stripe.Checkout.SessionCreateParams | null = null;
+let mockCheckoutSessionsCreate: ReturnType<typeof vi.fn>;
+let mockCustomersCreate: ReturnType<typeof vi.fn>;
+let mockCustomersRetrieve: ReturnType<typeof vi.fn>;
+let mockCustomersUpdate: ReturnType<typeof vi.fn>;
+let mockSubscriptionsRetrieve: ReturnType<typeof vi.fn>;
+let mockChargesRetrieve: ReturnType<typeof vi.fn>;
+const mockSendTransactionalEmail = vi.fn();
+
+function resetStripeMocks() {
+  capturedCheckoutArgs = null;
+  mockCheckoutSessionsCreate = vi.fn().mockImplementation(async (params) => {
+    capturedCheckoutArgs = params;
+    return {
+      id: `cs_${Date.now()}`,
+      url: "https://checkout.stripe.com/test",
+      customer: params.customer || `cus_${Date.now()}`,
+      subscription: `sub_${Date.now()}`,
+      metadata: params.metadata,
+    };
+  });
+  mockCustomersCreate = vi.fn().mockImplementation(async (params) => ({
+    id: `cus_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+    metadata: params?.metadata ?? {},
+  }));
+  mockCustomersRetrieve = vi.fn().mockImplementation(async (id) => ({
+    id,
+    deleted: false,
+    metadata: {},
+  }));
+  mockCustomersUpdate = vi.fn().mockImplementation(async (id, params) => ({
+    id,
+    ...params,
+  }));
+  mockSubscriptionsRetrieve = vi.fn().mockResolvedValue({
+    id: "sub_test",
+    status: "active",
+    current_period_end: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
+  });
+  mockChargesRetrieve = vi.fn().mockResolvedValue({
+    id: "ch_test",
+    customer: "cus_test",
+  });
+}
+
+resetStripeMocks();
+
+vi.mock("stripe", () => {
+  const mockStripe = vi.fn().mockImplementation(() => ({
+    checkout: {
+      sessions: {
+        create: (...args: unknown[]) => mockCheckoutSessionsCreate(...args),
+      },
+    },
+    customers: {
+      create: (...args: unknown[]) => mockCustomersCreate(...args),
+      retrieve: (...args: unknown[]) => mockCustomersRetrieve(...args),
+      update: (...args: unknown[]) => mockCustomersUpdate(...args),
+    },
+    subscriptions: {
+      retrieve: (...args: unknown[]) => mockSubscriptionsRetrieve(...args),
+    },
+    charges: {
+      retrieve: (...args: unknown[]) => mockChargesRetrieve(...args),
+    },
+    webhooks: {
+      constructEvent: (payload: Buffer | string) => {
+        const payloadStr = typeof payload === "string" ? payload : payload.toString();
+        return JSON.parse(payloadStr);
+      },
+    },
+  }));
+  return { default: mockStripe };
+});
+
+vi.mock("../lib/email.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lib/email.js")>();
+  return {
+    ...actual,
+    sendTransactionalEmail: (...args: unknown[]) => mockSendTransactionalEmail(...args),
+  };
+});
 
 (RUN_DB_TESTS ? describe : describe.skip)("Affiliates protections (integration)", () => {
   let app: FastifyInstance;
@@ -13,54 +106,43 @@ const RUN_DB_TESTS = process.env.RUN_DB_INTEGRATION_TESTS === "true";
   const createdAffiliateIds: string[] = [];
   const createdReferralIds: string[] = [];
   const createdWebhookEventIds: string[] = [];
+  const createdWebhookEventKeys: string[] = [];
   let originalEnv: Record<string, string | undefined> = {};
 
   beforeAll(() => {
-    // Save original env
-    originalEnv = {
-      AFFILIATES_ENABLED: process.env.AFFILIATES_ENABLED,
-      STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
-      REWARDFUL_WEBHOOK_SECRET: process.env.REWARDFUL_WEBHOOK_SECRET,
-      TELEMETRY_ALLOW_REGISTRATION: process.env.TELEMETRY_ALLOW_REGISTRATION,
-    };
-    
-    // Set test env
-    process.env.AFFILIATES_ENABLED = "true";
-    process.env.STRIPE_SECRET_KEY = "sk_test_fake_key_for_tests";
-    process.env.REWARDFUL_WEBHOOK_SECRET = "test_secret";
-    process.env.TELEMETRY_ALLOW_REGISTRATION = "true";
+    originalEnv = snapshotEnv();
+    applyAffiliateTestEnv();
   });
 
-  afterAll(() => {
-    // Restore original env
-    for (const [key, value] of Object.entries(originalEnv)) {
-      if (value === undefined) {
-        delete process.env[key];
-      } else {
-        process.env[key] = value;
-      }
-    }
+  afterAll(async () => {
+    await cleanupAffiliateFixtures(prisma, {
+      userIds: createdUserIds,
+      orgIds: createdOrgIds,
+      affiliateIds: createdAffiliateIds,
+      referralIds: createdReferralIds,
+      webhookEventIds: createdWebhookEventIds,
+      webhookEventKeys: createdWebhookEventKeys,
+    });
+    restoreEnv(originalEnv);
   });
 
   beforeEach(async () => {
+    resetStripeMocks();
+    mockSendTransactionalEmail.mockReset();
     app = await createApp();
     await app.ready();
   });
 
   afterEach(async () => {
     await app.close();
-    await prisma.organizationReferral.deleteMany({ where: { id: { in: createdReferralIds } } });
-    await prisma.userReferral.deleteMany({ where: { user_id: { in: createdUserIds } } });
-    await prisma.webhookEvent.deleteMany({ where: { id: { in: createdWebhookEventIds } } });
-    await prisma.organizationMembership.deleteMany({ where: { organization_id: { in: createdOrgIds } } });
-    await prisma.organization.deleteMany({ where: { id: { in: createdOrgIds } } });
-    await prisma.user.deleteMany({ where: { id: { in: createdUserIds } } });
-    await prisma.affiliate.deleteMany({ where: { id: { in: createdAffiliateIds } } });
-    createdUserIds.length = 0;
-    createdOrgIds.length = 0;
-    createdAffiliateIds.length = 0;
-    createdReferralIds.length = 0;
-    createdWebhookEventIds.length = 0;
+    await cleanupAffiliateFixtures(prisma, {
+      userIds: createdUserIds,
+      orgIds: createdOrgIds,
+      affiliateIds: createdAffiliateIds,
+      referralIds: createdReferralIds,
+      webhookEventIds: createdWebhookEventIds,
+      webhookEventKeys: createdWebhookEventKeys,
+    });
   });
 
   it("completeUnresolvedReferrals: expired referral stays expired after webhook", async () => {
@@ -113,9 +195,11 @@ const RUN_DB_TESTS = process.env.RUN_DB_INTEGRATION_TESTS === "true";
     createdReferralIds.push(referral.id);
 
     // Simulate Rewardful webhook (referral.converted)
+    const expiredEventId = `evt_expired_${Date.now()}`;
+    createdWebhookEventKeys.push(expiredEventId);
     const rewardfulPayload = {
       event: {
-        id: `evt_expired_${Date.now()}`,
+        id: expiredEventId,
         type: "referral.converted",
       },
       object: {
@@ -153,75 +237,237 @@ const RUN_DB_TESTS = process.env.RUN_DB_INTEGRATION_TESTS === "true";
   });
 
   it("checkout: expired referral gives no tt_* or referral metadata", async () => {
-    // Create user and org with expired referral
-    const expiredDate = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000); // 60 days ago
-    const user = await prisma.user.create({
-      data: {
-        email: `exp-checkout-${Date.now()}@example.com`,
-        password_hash: "dummy",
-      },
-    });
-    createdUserIds.push(user.id);
-
     const affiliate = await prisma.affiliate.create({
       data: {
         rewardful_affiliate_id: `aff_exp_checkout_${Date.now()}`,
+        link_token: `exp_token_${Date.now()}`,
         email_normalized: "affiliate2@example.com",
         state: "active",
       },
     });
     createdAffiliateIds.push(affiliate.id);
 
-    const org = await prisma.organization.create({
-      data: {
-        name: "Expired Checkout Org",
-        stripe_customer_id: `cus_expired_${Date.now()}`,
-        memberships: {
-          create: {
-            user_id: user.id,
-            role: "OWNER",
-          },
-        },
+    const regResponse = await app.inject({
+      method: "POST",
+      url: "/api/auth/register",
+      payload: {
+        email: `exp-checkout-${Date.now()}@example.com`,
+        password: "Password123!",
+        viaToken: affiliate.link_token,
       },
     });
-    createdOrgIds.push(org.id);
+    expect(regResponse.statusCode).toBe(201);
+    const { user, sessionId } = JSON.parse(regResponse.body);
+    createdUserIds.push(user.id);
 
-    await prisma.userReferral.create({
+    await prisma.userReferral.update({
+      where: { user_id: user.id },
+      data: { captured_at: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000) },
+    });
+
+    const orgResponse = await app.inject({
+      method: "POST",
+      url: "/api/meta/organizations",
+      headers: { cookie: `telemetry_session=${sessionId}` },
+      payload: { name: "Expired Checkout Org" },
+    });
+    expect(orgResponse.statusCode).toBe(201);
+    const { id: orgId } = JSON.parse(orgResponse.body);
+    createdOrgIds.push(orgId);
+
+    const orgRef = await prisma.organizationReferral.findUnique({
+      where: { organization_id: orgId },
+    });
+    expect(orgRef?.status).toBe("EXPIRED");
+    if (orgRef) createdReferralIds.push(orgRef.id);
+
+    const existingCustomerId = `cus_expired_${Date.now()}`;
+    await prisma.organization.update({
+      where: { id: orgId },
+      data: { stripe_customer_id: existingCustomerId },
+    });
+    mockCustomersUpdate.mockClear();
+    mockCustomersCreate.mockClear();
+
+    const checkoutResponse = await app.inject({
+      method: "POST",
+      url: `/api/meta/organizations/${orgId}/billing/checkout`,
+      headers: { cookie: `telemetry_session=${sessionId}` },
+      payload: { planTier: "PRO" },
+    });
+    expect(checkoutResponse.statusCode).toBe(200);
+    expect(capturedCheckoutArgs?.customer).toBe(existingCustomerId);
+    expect(capturedCheckoutArgs?.metadata?.tt_org_id).toBeUndefined();
+    expect(capturedCheckoutArgs?.metadata?.tt_affiliate_id).toBeUndefined();
+    expect(capturedCheckoutArgs?.metadata?.organization_id).toBe(orgId);
+    expect(mockCustomersUpdate).not.toHaveBeenCalled();
+    expect(mockCustomersCreate).not.toHaveBeenCalled();
+  });
+
+  it("checkout: REJECTED referral gives no tt_* or referral backfill", async () => {
+    const email = `rej-checkout-${Date.now()}@example.com`;
+    const affiliate = await prisma.affiliate.create({
       data: {
-        user_id: user.id,
-        affiliate_id: affiliate.id,
-        rewardful_referral_id: `ref_exp_checkout_${Date.now()}`,
-        source: "link",
-        status: "EXPIRED",
-        captured_at: expiredDate,
-        attributed_organization_id: org.id,
+        rewardful_affiliate_id: `aff_rej_checkout_${Date.now()}`,
+        email_normalized: email.toLowerCase(),
+        state: "active",
       },
     });
+    createdAffiliateIds.push(affiliate.id);
 
-    const referral = await prisma.organizationReferral.create({
-      data: {
-        organization_id: org.id,
-        affiliate_id: affiliate.id,
-        rewardful_referral_id: `ref_exp_checkout_${Date.now()}`,
-        source: "link",
-        status: "EXPIRED",
-        first_seen_at: expiredDate,
-        needs_attention: true,
-        attention_reason: "referral_expired_55_days",
+    const referralUuid = uniqueReferralUuid();
+    const regResponse = await app.inject({
+      method: "POST",
+      url: "/api/auth/register",
+      payload: {
+        email,
+        password: "Password123!",
+        rewardfulReferralId: referralUuid,
       },
     });
-    createdReferralIds.push(referral.id);
+    expect(regResponse.statusCode).toBe(201);
+    const { user, sessionId } = JSON.parse(regResponse.body);
+    createdUserIds.push(user.id);
 
-    // Verify the billing.ts:205 logic would skip tt_* metadata
-    // by checking the UserReferral query that billing.ts uses
-    const userRef = await prisma.userReferral.findUnique({
-      where: { attributed_organization_id: org.id },
-      select: { status: true, affiliate_id: true },
+    const orgResponse = await app.inject({
+      method: "POST",
+      url: "/api/meta/organizations",
+      headers: { cookie: `telemetry_session=${sessionId}` },
+      payload: { name: "Rejected Checkout Org" },
     });
-    
-    // This is what billing.ts checks: status must be ACTIVE and attributed to this org
-    const shouldAddMetadata = userRef?.status === "ACTIVE" && userRef.affiliate_id;
-    expect(shouldAddMetadata).toBe(false); // Expired referral should NOT get metadata
+    expect(orgResponse.statusCode).toBe(201);
+    const { id: orgId } = JSON.parse(orgResponse.body);
+    createdOrgIds.push(orgId);
+
+    const eventId = `evt_rej_checkout_${Date.now()}`;
+    createdWebhookEventKeys.push(eventId);
+    const payload = {
+      event: { id: eventId, type: "referral.converted" },
+      object: {
+        id: referralUuid,
+        conversion_state: "converted",
+        affiliate: { id: affiliate.rewardful_affiliate_id, email },
+      },
+    };
+    const webhookResp = await app.inject({
+      method: "POST",
+      url: "/webhooks/rewardful",
+      headers: {
+        "x-rewardful-signature": signRewardfulPayload(payload),
+        "content-type": "application/json",
+      },
+      payload,
+    });
+    expect(webhookResp.statusCode).toBe(200);
+
+    const orgRef = await prisma.organizationReferral.findUnique({
+      where: { organization_id: orgId },
+    });
+    expect(orgRef?.status).toBe("REJECTED");
+    if (orgRef) createdReferralIds.push(orgRef.id);
+
+    const existingCustomerId = `cus_rejected_${Date.now()}`;
+    await prisma.organization.update({
+      where: { id: orgId },
+      data: { stripe_customer_id: existingCustomerId },
+    });
+    mockCustomersUpdate.mockClear();
+    mockCustomersCreate.mockClear();
+
+    const checkoutResponse = await app.inject({
+      method: "POST",
+      url: `/api/meta/organizations/${orgId}/billing/checkout`,
+      headers: { cookie: `telemetry_session=${sessionId}` },
+      payload: { planTier: "PRO" },
+    });
+    expect(checkoutResponse.statusCode).toBe(200);
+    expect(capturedCheckoutArgs?.customer).toBe(existingCustomerId);
+    expect(capturedCheckoutArgs?.metadata?.tt_org_id).toBeUndefined();
+    expect(capturedCheckoutArgs?.metadata?.tt_affiliate_id).toBeUndefined();
+    expect(mockCustomersUpdate).not.toHaveBeenCalled();
+    expect(mockCustomersCreate).not.toHaveBeenCalled();
+  });
+
+  it("checkout: ACTIVE with needs_attention (affiliate has no email) gets no tt_*", async () => {
+    const affiliate = await prisma.affiliate.create({
+      data: {
+        rewardful_affiliate_id: `aff_noemail_${Date.now()}`,
+        email_normalized: null,
+        state: "active",
+      },
+    });
+    createdAffiliateIds.push(affiliate.id);
+
+    const referralUuid = uniqueReferralUuid();
+    const regResponse = await app.inject({
+      method: "POST",
+      url: "/api/auth/register",
+      payload: {
+        email: `noemail-checkout-${Date.now()}@example.com`,
+        password: "Password123!",
+        rewardfulReferralId: referralUuid,
+      },
+    });
+    expect(regResponse.statusCode).toBe(201);
+    const { user, sessionId } = JSON.parse(regResponse.body);
+    createdUserIds.push(user.id);
+
+    const orgResponse = await app.inject({
+      method: "POST",
+      url: "/api/meta/organizations",
+      headers: { cookie: `telemetry_session=${sessionId}` },
+      payload: { name: "No Email Checkout Org" },
+    });
+    expect(orgResponse.statusCode).toBe(201);
+    const { id: orgId } = JSON.parse(orgResponse.body);
+    createdOrgIds.push(orgId);
+
+    const eventId = `evt_noemail_checkout_${Date.now()}`;
+    createdWebhookEventKeys.push(eventId);
+    const payload = {
+      event: { id: eventId, type: "referral.converted" },
+      object: {
+        id: referralUuid,
+        conversion_state: "converted",
+        affiliate: { id: affiliate.rewardful_affiliate_id },
+      },
+    };
+    const webhookResp = await app.inject({
+      method: "POST",
+      url: "/webhooks/rewardful",
+      headers: {
+        "x-rewardful-signature": signRewardfulPayload(payload),
+        "content-type": "application/json",
+      },
+      payload,
+    });
+    expect(webhookResp.statusCode).toBe(200);
+
+    const orgRef = await prisma.organizationReferral.findUnique({
+      where: { organization_id: orgId },
+    });
+    expect(orgRef?.status).toBe("ACTIVE");
+    expect(orgRef?.needs_attention).toBe(true);
+    expect(orgRef?.affiliate_id).toBe(affiliate.id);
+    if (orgRef) createdReferralIds.push(orgRef.id);
+
+    const existingCustomerId = `cus_noemail_${Date.now()}`;
+    await prisma.organization.update({
+      where: { id: orgId },
+      data: { stripe_customer_id: existingCustomerId },
+    });
+
+    const checkoutResponse = await app.inject({
+      method: "POST",
+      url: `/api/meta/organizations/${orgId}/billing/checkout`,
+      headers: { cookie: `telemetry_session=${sessionId}` },
+      payload: { planTier: "PRO" },
+    });
+    expect(checkoutResponse.statusCode).toBe(200);
+    expect(capturedCheckoutArgs?.customer).toBe(existingCustomerId);
+    expect(capturedCheckoutArgs?.metadata?.tt_org_id).toBeUndefined();
+    expect(capturedCheckoutArgs?.metadata?.tt_affiliate_id).toBeUndefined();
+    expect(capturedCheckoutArgs?.metadata?.organization_id).toBe(orgId);
   });
 
   it("dedupe claim_token: stale first owner can't mark reclaimer's row", async () => {
@@ -273,15 +519,87 @@ const RUN_DB_TESTS = process.env.RUN_DB_INTEGRATION_TESTS === "true";
     }
   });
 
-  it("dispute alert: test mode disputes (livemode=false) log only, no email", async () => {
-    // Verify the stripe-webhook.ts logic by reading the livemode check
-    // Full webhook testing would require complex Stripe SDK mocking
-    const fs = await import("node:fs/promises");
-    const webhookCode = await fs.readFile("src/routes/stripe-webhook.ts", "utf-8");
-    
-    // Verify the livemode check exists before sending emails
-    expect(webhookCode).toContain("if (!dispute.livemode)");
-    expect(webhookCode).toContain("Skipping dispute alert email for test-mode dispute");
+  it("dispute alert: livemode false sends 0 emails then livemode true sends 1", async () => {
+    const affiliate = await prisma.affiliate.create({
+      data: {
+        rewardful_affiliate_id: `aff_dispute_${Date.now()}`,
+        link_token: `dispute_token_${Date.now()}`,
+        email_normalized: "dispute-aff@example.com",
+        state: "active",
+      },
+    });
+    createdAffiliateIds.push(affiliate.id);
+
+    const regResponse = await app.inject({
+      method: "POST",
+      url: "/api/auth/register",
+      payload: {
+        email: `dispute-${Date.now()}@example.com`,
+        password: "Password123!",
+        viaToken: affiliate.link_token,
+      },
+    });
+    expect(regResponse.statusCode).toBe(201);
+    const { user } = JSON.parse(regResponse.body);
+    createdUserIds.push(user.id);
+
+    const sessionId = JSON.parse(regResponse.body).sessionId;
+    const orgResponse = await app.inject({
+      method: "POST",
+      url: "/api/meta/organizations",
+      headers: { cookie: `telemetry_session=${sessionId}` },
+      payload: { name: "Dispute Org" },
+    });
+    expect(orgResponse.statusCode).toBe(201);
+    const { id: orgId } = JSON.parse(orgResponse.body);
+    createdOrgIds.push(orgId);
+
+    const customerId = `cus_dispute_${Date.now()}`;
+    const chargeId = `ch_dispute_${Date.now()}`;
+    await prisma.organization.update({
+      where: { id: orgId },
+      data: { stripe_customer_id: customerId },
+    });
+    mockChargesRetrieve.mockResolvedValue({
+      id: chargeId,
+      customer: customerId,
+    });
+
+    async function postDispute(livemode: boolean, eventId: string) {
+      createdWebhookEventKeys.push(eventId);
+      const event = {
+        id: eventId,
+        type: "charge.dispute.created",
+        data: {
+          object: {
+            id: `dp_${eventId}`,
+            charge: chargeId,
+            amount: 1500,
+            currency: "usd",
+            reason: "fraudulent",
+            livemode,
+          },
+        },
+      };
+      const { payload, header } = signStripeEvent(event);
+      return app.inject({
+        method: "POST",
+        url: "/webhooks/stripe",
+        headers: {
+          "content-type": "application/json",
+          "stripe-signature": header,
+        },
+        payload,
+      });
+    }
+
+    const testMode = await postDispute(false, `evt_dispute_test_${Date.now()}`);
+    expect(testMode.statusCode).toBe(200);
+    expect(mockSendTransactionalEmail).not.toHaveBeenCalled();
+
+    const liveMode = await postDispute(true, `evt_dispute_live_${Date.now()}`);
+    expect(liveMode.statusCode).toBe(200);
+    expect(mockSendTransactionalEmail).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -291,52 +609,40 @@ const RUN_DB_TESTS = process.env.RUN_DB_INTEGRATION_TESTS === "true";
   const createdOrgIds: string[] = [];
   const createdAffiliateIds: string[] = [];
   const createdReferralIds: string[] = [];
+  const createdWebhookEventKeys: string[] = [];
   let originalEnv: Record<string, string | undefined> = {};
 
   beforeAll(() => {
-    // Save original env
-    originalEnv = {
-      AFFILIATES_ENABLED: process.env.AFFILIATES_ENABLED,
-      STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
-      REWARDFUL_WEBHOOK_SECRET: process.env.REWARDFUL_WEBHOOK_SECRET,
-      TELEMETRY_ALLOW_REGISTRATION: process.env.TELEMETRY_ALLOW_REGISTRATION,
-    };
-    
-    // Set test env
-    process.env.AFFILIATES_ENABLED = "true";
-    process.env.STRIPE_SECRET_KEY = "sk_test_fake_key_for_tests";
-    process.env.REWARDFUL_WEBHOOK_SECRET = "test_secret";
-    process.env.TELEMETRY_ALLOW_REGISTRATION = "true";
+    originalEnv = snapshotEnv();
+    applyAffiliateTestEnv();
   });
 
-  afterAll(() => {
-    // Restore original env
-    for (const [key, value] of Object.entries(originalEnv)) {
-      if (value === undefined) {
-        delete process.env[key];
-      } else {
-        process.env[key] = value;
-      }
-    }
+  afterAll(async () => {
+    await cleanupAffiliateFixtures(prisma, {
+      userIds: createdUserIds,
+      orgIds: createdOrgIds,
+      affiliateIds: createdAffiliateIds,
+      referralIds: createdReferralIds,
+      webhookEventKeys: createdWebhookEventKeys,
+    });
+    restoreEnv(originalEnv);
   });
 
   beforeEach(async () => {
+    resetStripeMocks();
     app = await createApp();
     await app.ready();
   });
 
   afterEach(async () => {
     await app.close();
-    await prisma.organizationReferral.deleteMany({ where: { id: { in: createdReferralIds } } });
-    await prisma.userReferral.deleteMany({ where: { user_id: { in: createdUserIds } } });
-    await prisma.organizationMembership.deleteMany({ where: { organization_id: { in: createdOrgIds } } });
-    await prisma.organization.deleteMany({ where: { id: { in: createdOrgIds } } });
-    await prisma.user.deleteMany({ where: { id: { in: createdUserIds } } });
-    await prisma.affiliate.deleteMany({ where: { id: { in: createdAffiliateIds } } });
-    createdUserIds.length = 0;
-    createdOrgIds.length = 0;
-    createdAffiliateIds.length = 0;
-    createdReferralIds.length = 0;
+    await cleanupAffiliateFixtures(prisma, {
+      userIds: createdUserIds,
+      orgIds: createdOrgIds,
+      affiliateIds: createdAffiliateIds,
+      referralIds: createdReferralIds,
+      webhookEventKeys: createdWebhookEventKeys,
+    });
   });
 
   it("register: self-referral via token is rejected", async () => {
@@ -544,9 +850,11 @@ const RUN_DB_TESTS = process.env.RUN_DB_INTEGRATION_TESTS === "true";
     createdReferralIds.push(referral.id);
 
     // Simulate Rewardful webhook (referral.converted)
+    const selfWebhookEventId = `evt_self_webhook_${Date.now()}`;
+    createdWebhookEventKeys.push(selfWebhookEventId);
     const rewardfulPayload = {
       event: {
-        id: `evt_self_webhook_${Date.now()}`,
+        id: selfWebhookEventId,
         type: "referral.converted",
       },
       object: {
@@ -665,49 +973,34 @@ const RUN_DB_TESTS = process.env.RUN_DB_INTEGRATION_TESTS === "true";
   let originalEnv: Record<string, string | undefined> = {};
 
   beforeAll(() => {
-    // Save original env
-    originalEnv = {
-      AFFILIATES_ENABLED: process.env.AFFILIATES_ENABLED,
-      STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
-      REWARDFUL_WEBHOOK_SECRET: process.env.REWARDFUL_WEBHOOK_SECRET,
-      TELEMETRY_ALLOW_REGISTRATION: process.env.TELEMETRY_ALLOW_REGISTRATION,
-    };
-    
-    // Set test env
-    process.env.AFFILIATES_ENABLED = "true";
-    process.env.STRIPE_SECRET_KEY = "sk_test_fake_key_for_tests";
-    process.env.REWARDFUL_WEBHOOK_SECRET = "test_secret";
-    process.env.TELEMETRY_ALLOW_REGISTRATION = "true";
+    originalEnv = snapshotEnv();
+    applyAffiliateTestEnv();
   });
 
-  afterAll(() => {
-    // Restore original env
-    for (const [key, value] of Object.entries(originalEnv)) {
-      if (value === undefined) {
-        delete process.env[key];
-      } else {
-        process.env[key] = value;
-      }
-    }
+  afterAll(async () => {
+    await cleanupAffiliateFixtures(prisma, {
+      userIds: createdUserIds,
+      orgIds: createdOrgIds,
+      affiliateIds: createdAffiliateIds,
+      referralIds: createdReferralIds,
+    });
+    restoreEnv(originalEnv);
   });
 
   beforeEach(async () => {
+    resetStripeMocks();
     app = await createApp();
     await app.ready();
   });
 
   afterEach(async () => {
     await app.close();
-    await prisma.organizationReferral.deleteMany({ where: { id: { in: createdReferralIds } } });
-    await prisma.userReferral.deleteMany({ where: { user_id: { in: createdUserIds } } });
-    await prisma.organizationMembership.deleteMany({ where: { organization_id: { in: createdOrgIds } } });
-    await prisma.organization.deleteMany({ where: { id: { in: createdOrgIds } } });
-    await prisma.user.deleteMany({ where: { id: { in: createdUserIds } } });
-    await prisma.affiliate.deleteMany({ where: { id: { in: createdAffiliateIds } } });
-    createdUserIds.length = 0;
-    createdOrgIds.length = 0;
-    createdAffiliateIds.length = 0;
-    createdReferralIds.length = 0;
+    await cleanupAffiliateFixtures(prisma, {
+      userIds: createdUserIds,
+      orgIds: createdOrgIds,
+      affiliateIds: createdAffiliateIds,
+      referralIds: createdReferralIds,
+    });
   });
 
   it("delete-and-recreate: doesn't re-attribute after first org is deleted", async () => {

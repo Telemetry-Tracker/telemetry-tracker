@@ -282,6 +282,13 @@ testSuite("Billing Checkout Integration", () => {
       const { id: orgId } = JSON.parse(orgResponse.body);
       testOrgIds.push(orgId);
 
+      const org = await prisma.organization.findUnique({
+        where: { id: orgId },
+        select: { stripe_customer_id: true },
+      });
+      expect(org?.stripe_customer_id).toBeTruthy();
+      const createCallsBeforeCheckout = mockCustomersCreate.mock.calls.length;
+
       // Call real checkout route
       const checkoutResponse = await app.inject({
         method: "POST",
@@ -298,7 +305,8 @@ testSuite("Billing Checkout Integration", () => {
       expect(capturedCheckoutArgs?.metadata?.organization_id).toBe(orgId);
       expect(capturedCheckoutArgs?.metadata?.tt_org_id).toBe(orgId);
       expect(capturedCheckoutArgs?.metadata?.tt_affiliate_id).toBe(affiliate.id);
-      expect(capturedCheckoutArgs?.customer).toBeTruthy(); // Reuses existing customer
+      expect(capturedCheckoutArgs?.customer).toBe(org!.stripe_customer_id);
+      expect(mockCustomersCreate.mock.calls.length).toBe(createCallsBeforeCheckout);
 
       // Build and send webhook from captured args
       const session = await mockCheckoutSessionsCreate.mock.results[0]?.value;
