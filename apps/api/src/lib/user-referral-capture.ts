@@ -96,7 +96,7 @@ export async function captureUserReferral(
       return { kind: "no_referral" };
     }
 
-    let affiliateId: string | null = resolution.affiliateId;
+    const affiliateId: string | null = resolution.affiliateId;
     const capturedAt = parseCapturedAt(input.capturedAt);
     const expired = isReferralExpired(capturedAt);
 

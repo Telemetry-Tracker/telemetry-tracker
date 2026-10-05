@@ -636,7 +636,7 @@ testSuite("Native affiliate integration", () => {
     });
 
     it("creates a negative adjustment for a refund after payout", async () => {
-      const { affiliate, commission } = await pendingCommission(2900);
+      const { affiliate, commission } = await pendingCommission(16667);
       await prisma.affiliateCommission.update({
         where: { id: commission.id },
         data: { payable_at: new Date(Date.now() - 1000) },
@@ -662,8 +662,8 @@ testSuite("Native affiliate integration", () => {
           object: {
             id: commission.stripe_charge_id,
             invoice: commission.stripe_invoice_id,
-            amount: 2900,
-            amount_refunded: 2900,
+            amount: 16667,
+            amount_refunded: 16667,
             currency: "eur",
             refunds: { data: [{ id: "re_after" }] },
           },
