@@ -7,6 +7,8 @@ import type Stripe from "stripe";
 import {
   applyAffiliateTestEnv,
   cleanupAffiliateFixtures,
+  referralCapturedAtDaysAgo,
+  REFERRAL_ATTRIBUTION_WINDOW_DAYS,
   restoreEnv,
   signRewardfulPayload,
   signStripeEvent,
@@ -146,8 +148,8 @@ vi.mock("../lib/email.js", async (importOriginal) => {
   });
 
   it("completeUnresolvedReferrals: expired referral stays expired after webhook", async () => {
-    // Create user with expired referral (>55 days old)
-    const expiredDate = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000); // 60 days ago
+    // Create user with expired referral (outside the 60-day window)
+    const expiredDate = referralCapturedAtDaysAgo(REFERRAL_ATTRIBUTION_WINDOW_DAYS + 1);
     const user = await prisma.user.create({
       data: {
         email: `expired-test-${Date.now()}@example.com`,
@@ -166,7 +168,7 @@ vi.mock("../lib/email.js", async (importOriginal) => {
     });
     createdAffiliateIds.push(affiliate.id);
 
-    // Create org with expired referral (affiliate_id null, first_seen_at > 55 days ago)
+    // Create org with expired referral (affiliate_id null, first_seen_at outside 60-day window)
     const org = await prisma.organization.create({
       data: {
         name: "Expired Org",
@@ -262,7 +264,7 @@ vi.mock("../lib/email.js", async (importOriginal) => {
 
     await prisma.userReferral.update({
       where: { user_id: user.id },
-      data: { captured_at: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000) },
+      data: { captured_at: referralCapturedAtDaysAgo(REFERRAL_ATTRIBUTION_WINDOW_DAYS + 1) },
     });
 
     const orgResponse = await app.inject({

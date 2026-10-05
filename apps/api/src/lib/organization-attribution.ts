@@ -21,12 +21,15 @@ export type OrganizationAttributionResult =
   | { kind: "invitee_not_attributed" }
   | { kind: "rejected_self_referral"; reason: string };
 
+/** Last-click window (days) from capture to org creation. */
+export const REFERRAL_ATTRIBUTION_WINDOW_DAYS = 60;
+
 /**
- * Check if referral has expired (>55 days since capture).
+ * Expired only after the window elapses (`>` not `>=`): captured_at exactly 60 days ago is still attributed.
  */
 function isReferralExpired(capturedAt: Date): boolean {
   const daysSinceCapture = (Date.now() - capturedAt.getTime()) / (1000 * 60 * 60 * 24);
-  return daysSinceCapture > 55;
+  return daysSinceCapture > REFERRAL_ATTRIBUTION_WINDOW_DAYS;
 }
 
 /**
@@ -254,13 +257,13 @@ export async function attributeOrganizationToAffiliate(
     }
   }
 
-  // Check if referral has expired (55-day rule)
+  // Check if referral has expired (60-day last-click window)
   const expired = isReferralExpired(userReferral.captured_at);
   let referralStatus: "UNRESOLVED" | "ACTIVE" | "EXPIRED" = "UNRESOLVED";
   
   if (expired) {
     needsAttention = true;
-    attentionReason = "referral_expired_55_days";
+    attentionReason = `referral_expired_${REFERRAL_ATTRIBUTION_WINDOW_DAYS}_days`;
     referralStatus = "EXPIRED";
   } else if (!userReferral.affiliate_id) {
     needsAttention = true;
@@ -283,7 +286,7 @@ export async function attributeOrganizationToAffiliate(
   });
 
   // Create Stripe Customer if:
-  // 1. Referral has not expired (55-day rule)
+  // 1. Referral has not expired (60-day last-click window)
   // 2. We have a UUID (affiliate may be unresolved) OR we have via token + resolved affiliate
   const hasUuid = !!userReferral.rewardful_referral_id;
   const hasResolvedViaToken = !!userReferral.via_token && !!userReferral.affiliate_id;

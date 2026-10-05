@@ -12,6 +12,8 @@ import {
   applyAffiliateTestEnv,
   cleanupAffiliateFixtures,
   normalizeCheckoutArgs,
+  referralCapturedAtDaysAgo,
+  REFERRAL_ATTRIBUTION_WINDOW_DAYS,
   restoreEnv,
   signRewardfulPayload,
   signStripeEvent,
@@ -338,8 +340,72 @@ testSuite("Affiliate Integration Tests", () => {
       expect(org2Referral).toBeNull();
     });
 
-    it("handles 55-day expiry", async () => {
-      // Create affiliate
+    it("captured_at exactly 60 days ago remains ACTIVE / attributed", async () => {
+      const affiliate = await prisma.affiliate.create({
+        data: {
+          rewardful_affiliate_id: `aff_window_${Date.now()}`,
+          link_token: `windowtoken${Date.now()}`,
+          email_normalized: "window@example.com",
+          state: "active",
+        },
+      });
+      testAffiliateIds.push(affiliate.id);
+
+      const regResponse = await app.inject({
+        method: "POST",
+        url: "/api/auth/register",
+        payload: {
+          email: `window${Date.now()}@example.com`,
+          password: "Password123!",
+          viaToken: affiliate.link_token,
+        },
+      });
+      expect(regResponse.statusCode).toBe(201);
+      const { user, sessionId } = JSON.parse(regResponse.body);
+      testUserIds.push(user.id);
+
+      // Inclusive boundary (`>` not `>=`): +1s so org-create latency cannot cross expiry.
+      await prisma.userReferral.update({
+        where: { user_id: user.id },
+        data: { captured_at: referralCapturedAtDaysAgo(REFERRAL_ATTRIBUTION_WINDOW_DAYS, 1000) },
+      });
+
+      const orgResponse = await app.inject({
+        method: "POST",
+        url: "/api/meta/organizations",
+        headers: { cookie: `telemetry_session=${sessionId}` },
+        payload: { name: "Window Boundary Org" },
+      });
+      expect(orgResponse.statusCode).toBe(201);
+      const { id: orgId } = JSON.parse(orgResponse.body);
+      testOrgIds.push(orgId);
+
+      const orgReferral = await prisma.organizationReferral.findUnique({
+        where: { organization_id: orgId },
+      });
+      expect(orgReferral).toBeTruthy();
+      expect(orgReferral?.status).toBe("ACTIVE");
+      expect(orgReferral?.affiliate_id).toBe(affiliate.id);
+      expect(orgReferral?.needs_attention).toBe(false);
+
+      const org = await prisma.organization.findUnique({
+        where: { id: orgId },
+        select: { stripe_customer_id: true },
+      });
+      expect(org?.stripe_customer_id).toBeTruthy();
+
+      const checkoutResponse = await app.inject({
+        method: "POST",
+        url: `/api/meta/organizations/${orgId}/billing/checkout`,
+        headers: { cookie: `telemetry_session=${sessionId}` },
+        payload: { planTier: "PRO" },
+      });
+      expect(checkoutResponse.statusCode).toBe(200);
+      expect(capturedCheckoutArgs?.metadata?.tt_affiliate_id).toBe(affiliate.id);
+      expect(capturedCheckoutArgs?.metadata?.tt_org_id).toBe(orgId);
+    });
+
+    it("captured_at 61 days ago is EXPIRED with no tt_* at checkout", async () => {
       const affiliate = await prisma.affiliate.create({
         data: {
           rewardful_affiliate_id: `aff_expired_${Date.now()}`,
@@ -350,7 +416,6 @@ testSuite("Affiliate Integration Tests", () => {
       });
       testAffiliateIds.push(affiliate.id);
 
-      // Register user
       const regResponse = await app.inject({
         method: "POST",
         url: "/api/auth/register",
@@ -364,19 +429,18 @@ testSuite("Affiliate Integration Tests", () => {
       const { user, sessionId } = JSON.parse(regResponse.body);
       testUserIds.push(user.id);
 
-      // Manually update captured_at to 56 days ago
       await prisma.userReferral.update({
         where: { user_id: user.id },
-        data: { captured_at: new Date(Date.now() - 56 * 24 * 60 * 60 * 1000) },
+        data: { captured_at: referralCapturedAtDaysAgo(REFERRAL_ATTRIBUTION_WINDOW_DAYS + 1) },
       });
 
-      // Create org
       const orgResponse = await app.inject({
         method: "POST",
         url: "/api/meta/organizations",
         headers: { cookie: `telemetry_session=${sessionId}` },
         payload: { name: "Expired Org" },
       });
+      expect(orgResponse.statusCode).toBe(201);
       const { id: orgId } = JSON.parse(orgResponse.body);
       testOrgIds.push(orgId);
 
@@ -384,8 +448,33 @@ testSuite("Affiliate Integration Tests", () => {
         where: { organization_id: orgId },
       });
       expect(orgReferral).toBeTruthy();
+      expect(orgReferral?.status).toBe("EXPIRED");
       expect(orgReferral?.needs_attention).toBe(true);
-      expect(orgReferral?.attention_reason).toContain("expired");
+      expect(orgReferral?.attention_reason).toBe(
+        `referral_expired_${REFERRAL_ATTRIBUTION_WINDOW_DAYS}_days`
+      );
+
+      const existingCustomerId = `cus_expired_boundary_${Date.now()}`;
+      await prisma.organization.update({
+        where: { id: orgId },
+        data: { stripe_customer_id: existingCustomerId },
+      });
+      mockCustomersUpdate.mockClear();
+      mockCustomersCreate.mockClear();
+
+      const checkoutResponse = await app.inject({
+        method: "POST",
+        url: `/api/meta/organizations/${orgId}/billing/checkout`,
+        headers: { cookie: `telemetry_session=${sessionId}` },
+        payload: { planTier: "PRO" },
+      });
+      expect(checkoutResponse.statusCode).toBe(200);
+      expect(capturedCheckoutArgs?.customer).toBe(existingCustomerId);
+      expect(capturedCheckoutArgs?.metadata?.tt_org_id).toBeUndefined();
+      expect(capturedCheckoutArgs?.metadata?.tt_affiliate_id).toBeUndefined();
+      expect(capturedCheckoutArgs?.metadata?.organization_id).toBe(orgId);
+      expect(mockCustomersUpdate).not.toHaveBeenCalled();
+      expect(mockCustomersCreate).not.toHaveBeenCalled();
     });
   });
 
@@ -520,48 +609,44 @@ testSuite("Affiliate Integration Tests", () => {
 
   describe("Organization Attribution Error Handling", () => {
     it("creates org successfully even if attribution fails", async () => {
-      // Register user with referral
       const regResponse = await app.inject({
         method: "POST",
         url: "/api/auth/register",
         payload: {
           email: `attrerr${Date.now()}@example.com`,
           password: "Password123!",
-          rewardfulReferralId: "00000000-0000-4000-8000-999999999999", // Non-existent
+          rewardfulReferralId: uniqueReferralUuid(),
         },
       });
       expect(regResponse.statusCode).toBe(201);
       const { user, sessionId } = JSON.parse(regResponse.body);
       testUserIds.push(user.id);
 
-      // Force attribution failure by corrupting Stripe env temporarily
-      const originalKey = process.env.STRIPE_SECRET_KEY;
-      process.env.STRIPE_SECRET_KEY = "sk_test_invalid_will_cause_error";
+      mockCustomersCreate.mockRejectedValueOnce(new Error("stripe customers.create failed"));
 
-      try {
-        // Create org - should succeed despite attribution failure
-        const orgResponse = await app.inject({
-          method: "POST",
-          url: "/api/meta/organizations",
-          headers: { cookie: `telemetry_session=${sessionId}` },
-          payload: { name: "Attribution Error Test Org" },
-        });
+      const orgResponse = await app.inject({
+        method: "POST",
+        url: "/api/meta/organizations",
+        headers: { cookie: `telemetry_session=${sessionId}` },
+        payload: { name: "Attribution Error Test Org" },
+      });
 
-        // Assert org created successfully
-        expect(orgResponse.statusCode).toBe(201);
-        const { id: orgId } = JSON.parse(orgResponse.body);
-        testOrgIds.push(orgId);
+      expect(orgResponse.statusCode).toBe(201);
+      const { id: orgId } = JSON.parse(orgResponse.body);
+      testOrgIds.push(orgId);
 
-        // Verify org exists in database
-        const org = await prisma.organization.findUnique({
-          where: { id: orgId },
-        });
-        expect(org).not.toBeNull();
-        expect(org?.name).toBe("Attribution Error Test Org");
-      } finally {
-        // Restore original key
-        process.env.STRIPE_SECRET_KEY = originalKey;
-      }
+      const org = await prisma.organization.findUnique({
+        where: { id: orgId },
+      });
+      expect(org).not.toBeNull();
+      expect(org?.name).toBe("Attribution Error Test Org");
+      expect(org?.stripe_customer_id).toBeNull();
+
+      const orgReferral = await prisma.organizationReferral.findUnique({
+        where: { organization_id: orgId },
+      });
+      expect(orgReferral).toBeTruthy();
+      expect(orgReferral?.attention_reason).toContain("customer_creation_failed");
     });
   });
 
@@ -702,8 +787,7 @@ testSuite("Affiliate Integration Tests", () => {
 
   describe("Attribution locked at signup", () => {
     it("later referral.converted for different affiliate doesn't change attribution", async () => {
-      // Create two affiliates
-      const affiliate1 = await prisma.affiliate.create({
+      const affiliateA = await prisma.affiliate.create({
         data: {
           rewardful_affiliate_id: `aff_first_${Date.now()}`,
           link_token: `token1_${Date.now()}`,
@@ -711,32 +795,32 @@ testSuite("Affiliate Integration Tests", () => {
           state: "active",
         },
       });
-      testAffiliateIds.push(affiliate1.id);
+      testAffiliateIds.push(affiliateA.id);
 
-      const affiliate2 = await prisma.affiliate.create({
+      const affiliateB = await prisma.affiliate.create({
         data: {
           rewardful_affiliate_id: `aff_second_${Date.now()}`,
           email_normalized: "aff2@example.com",
           state: "active",
         },
       });
-      testAffiliateIds.push(affiliate2.id);
+      testAffiliateIds.push(affiliateB.id);
 
-      // Register with affiliate1
+      const referralUuid = uniqueReferralUuid();
       const regResponse = await app.inject({
         method: "POST",
         url: "/api/auth/register",
         payload: {
           email: `locked${Date.now()}@example.com`,
           password: "Password123!",
-          viaToken: affiliate1.link_token,
+          viaToken: affiliateA.link_token,
+          rewardfulReferralId: referralUuid,
         },
       });
       expect(regResponse.statusCode).toBe(201);
       const { user, sessionId } = JSON.parse(regResponse.body);
       testUserIds.push(user.id);
 
-      // Create org
       const orgResponse = await app.inject({
         method: "POST",
         url: "/api/meta/organizations",
@@ -746,13 +830,12 @@ testSuite("Affiliate Integration Tests", () => {
       const { id: orgId } = JSON.parse(orgResponse.body);
       testOrgIds.push(orgId);
 
-      // Verify attributed to affiliate1
       const orgRef1 = await prisma.organizationReferral.findUnique({
         where: { organization_id: orgId },
       });
-      expect(orgRef1?.affiliate_id).toBe(affiliate1.id);
+      expect(orgRef1?.affiliate_id).toBe(affiliateA.id);
+      expect(orgRef1?.rewardful_referral_id).toBe(referralUuid);
 
-      // Send webhook for different affiliate (affiliate2)
       const eventId = `evt_switch_${Date.now()}`;
       testWebhookEventKeys.push(eventId);
       const payload = {
@@ -761,32 +844,27 @@ testSuite("Affiliate Integration Tests", () => {
           type: "referral.converted",
         },
         object: {
-          id: `ref_locked_${Date.now()}`,
-          affiliate: { id: affiliate2.rewardful_affiliate_id },
-          state: "converted",
+          id: referralUuid,
+          conversion_state: "converted",
+          affiliate: { id: affiliateB.rewardful_affiliate_id, email: "aff2@example.com" },
         },
       };
 
-      const signature = crypto
-        .createHmac("sha256", process.env.REWARDFUL_WEBHOOK_SECRET || "test_secret")
-        .update(JSON.stringify(payload))
-        .digest("hex");
-
-      await app.inject({
+      const webhookResponse = await app.inject({
         method: "POST",
         url: "/webhooks/rewardful",
         headers: {
-          "x-rewardful-signature": signature,
+          "x-rewardful-signature": signRewardfulPayload(payload),
           "content-type": "application/json",
         },
         payload,
       });
+      expect(webhookResponse.statusCode).toBe(200);
 
-      // Verify still attributed to affiliate1, not changed
       const orgRef2 = await prisma.organizationReferral.findUnique({
         where: { organization_id: orgId },
       });
-      expect(orgRef2?.affiliate_id).toBe(affiliate1.id);
+      expect(orgRef2?.affiliate_id).toBe(affiliateA.id);
     });
   });
 
@@ -1854,7 +1932,7 @@ testSuite("Affiliate Integration Tests", () => {
 
       await prisma.userReferral.update({
         where: { user_id: user.id },
-        data: { captured_at: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000) },
+        data: { captured_at: referralCapturedAtDaysAgo(REFERRAL_ATTRIBUTION_WINDOW_DAYS + 1) },
       });
 
       const orgResponse = await app.inject({

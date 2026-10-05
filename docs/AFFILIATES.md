@@ -68,18 +68,18 @@ The register page reads a first-party `?via=` query param and sends it to the AP
 enum ReferralStatus {
   UNRESOLVED  // UUID stored; affiliate not resolved yet
   ACTIVE      // Affiliate resolved (via token at signup, or referral.converted)
-  EXPIRED     // Outside the 55-day window — decided at org creation
+  EXPIRED     // Outside the 60-day window — decided at org creation
   REJECTED    // Self-referral
 }
 ```
 
 Status is stored on both `UserReferral` and `OrganizationReferral`.
 
-### 55-day attribution window
+### 60-day attribution window
 
-Expiry is decided **once, at organization creation**, from `UserReferral.captured_at` (registration time). A late `referral.converted` webhook does **not** re-evaluate expiry.
+Expiry is decided **once, at organization creation**, from `UserReferral.captured_at` (registration time). A late `referral.converted` webhook does **not** re-evaluate expiry. Source of truth: `REFERRAL_ATTRIBUTION_WINDOW_DAYS` in `organization-attribution.ts`. Comparison is `>` not `>=` (captured exactly 60 days ago is still in-window; day 61 is `EXPIRED`).
 
-- Org created while still inside 55 days: status is `UNRESOLVED` or `ACTIVE`. A webhook arriving on day 70 can still complete an `UNRESOLVED` row to `ACTIVE`.
+- Org created while still inside 60 days: status is `UNRESOLVED` or `ACTIVE`. A webhook arriving on day 70 can still complete an `UNRESOLVED` row to `ACTIVE`.
 - Org created after the window: status is `EXPIRED`. Later `referral.converted` is a no-op for that row.
 
 Webhook completion (`completeUnresolvedReferrals`) updates **only** rows with `status === "UNRESOLVED"` (and `affiliate_id: null`).

@@ -5,6 +5,19 @@
 import crypto from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
 import type Stripe from "stripe";
+import { REFERRAL_ATTRIBUTION_WINDOW_DAYS } from "../lib/organization-attribution.js";
+
+export { REFERRAL_ATTRIBUTION_WINDOW_DAYS };
+
+export const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+/**
+ * `captured_at` `days` ago. `insideWindowMs` shifts later (more recent) so a `>` expiry
+ * check cannot flake when the request takes a few milliseconds.
+ */
+export function referralCapturedAtDaysAgo(days: number, insideWindowMs = 0): Date {
+  return new Date(Date.now() - days * MS_PER_DAY + insideWindowMs);
+}
 
 export const AFFILIATE_TEST_ENV_KEYS = [
   "AFFILIATES_ENABLED",
