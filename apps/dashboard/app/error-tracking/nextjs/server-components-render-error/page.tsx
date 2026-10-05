@@ -327,8 +327,8 @@ export default function ServerComponentsRenderErrorPage() {
               <tr>
                 <td className="px-4 py-3 align-top font-mono text-xs">DYNAMIC_SERVER_USAGE</td>
                 <td className="px-4 py-3 align-top">
-                  A Next.js error code. A dynamic API (<code>cookies()</code>, <code>headers()</code>
-                  , <code>searchParams</code>) ran on a route Next tried to render statically.
+                  A Next.js error code. Calling <code>cookies</code>, <code>headers</code>, or
+                  reading <code>searchParams</code> on a route Next tried to render statically.
                 </td>
                 <td className="px-4 py-3 align-top">
                   Render that route dynamically. See{" "}
