@@ -635,7 +635,7 @@ model ScheduledJobHeartbeat {
 }
 
 /// User-level referral record, captured at registration and locked permanently.
-/// Copied to OrganizationReferral when user creates their first (and any subsequent) org.
+/// Copied to OrganizationReferral when the user creates their first org only.
 /// Referral status for attribution lifecycle
 enum ReferralStatus {
   /// Initial state: referral captured, not yet active

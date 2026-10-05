@@ -140,7 +140,7 @@ export async function billingRoutes(
               attention_reason: true,
             },
           });
-          // Backfill only when needs_attention is clear (shared Customer update helper).
+          // Backfill only when !isPayoutHold (shared Customer update helper).
           if (referral) {
             const synced = await updateExistingCustomerReferralMetadata(
               stripe,

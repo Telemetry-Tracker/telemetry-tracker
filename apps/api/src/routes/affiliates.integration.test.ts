@@ -552,6 +552,15 @@ testSuite("Affiliate Integration Tests", () => {
       expect(userReferral).toBeNull();
     });
 
+    it("returns 404 for resolve-needs-attention when flag is OFF", async () => {
+      const response = await flagOffApp.inject({
+        method: "POST",
+        url: "/api/meta/affiliates/organizations/00000000-0000-4000-8000-000000000099/resolve-needs-attention",
+        payload: { reason: "Should not be reachable" },
+      });
+      expect(response.statusCode).toBe(404);
+    });
+
     it("returns 404 for Rewardful webhook when flag is OFF", async () => {
       const payload = {
         event: {
@@ -2342,6 +2351,36 @@ testSuite("Affiliate Integration Tests", () => {
     afterEach(() => {
       if (adminEmailsSnap === undefined) delete process.env.AFFILIATE_ADMIN_EMAILS;
       else process.env.AFFILIATE_ADMIN_EMAILS = adminEmailsSnap;
+    });
+
+    it("returns 401 without an admin session", async () => {
+      const response = await app.inject({
+        method: "POST",
+        url: resolvePath("00000000-0000-4000-8000-000000000099"),
+        payload: { reason: "No session" },
+      });
+      expect(response.statusCode).toBe(401);
+    });
+
+    it("returns 403 when the session email is not allowlisted", async () => {
+      const email = `not-admin-resolve-${Date.now()}@example.com`;
+      process.env.AFFILIATE_ADMIN_EMAILS = "founder-only@example.com";
+      const res = await app.inject({
+        method: "POST",
+        url: "/api/auth/register",
+        payload: { email, password: "Password123!" },
+      });
+      expect(res.statusCode).toBe(201);
+      const body = JSON.parse(res.body) as { user: { id: string }; sessionId: string };
+      testUserIds.push(body.user.id);
+
+      const response = await app.inject({
+        method: "POST",
+        url: resolvePath("00000000-0000-4000-8000-000000000099"),
+        headers: { cookie: `telemetry_session=${body.sessionId}` },
+        payload: { reason: "Not allowlisted" },
+      });
+      expect(response.statusCode).toBe(403);
     });
 
     async function registerAdmin() {

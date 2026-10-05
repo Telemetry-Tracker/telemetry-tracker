@@ -54,7 +54,7 @@ Invalid formats are ignored. At least one valid source is required to create a `
 
 There is **no local UUID → affiliate resolution** and **no conflict detection**.
 
-- The Rewardful referral UUID from the client is stored on `UserReferral.rewardful_referral_id`. It is written to Stripe Customer `metadata.referral` only when `needs_attention` is clear. It stays `UNRESOLVED` until a `referral.converted` webhook maps it to an affiliate.
+- The Rewardful referral UUID from the client is stored on `UserReferral.rewardful_referral_id`. It is written to Stripe Customer `metadata.referral` only when `!isPayoutHold` (self-referral-risk hold), not merely when `needs_attention` is clear. It stays `UNRESOLVED` until a `referral.converted` webhook maps it to an affiliate.
 - The link token (`viaToken`) is the only value that resolves locally, via `Affiliate.link_token`.
 - When both are present: the token may resolve `affiliate_id` immediately (`ACTIVE`); the UUID is still stored as-is for Rewardful / Customer metadata. A UUID that happens to equal some other affiliate's `rewardful_affiliate_id` is **not** treated as that affiliate.
 
