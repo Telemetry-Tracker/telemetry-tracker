@@ -68,6 +68,8 @@
 | Alert rules (conditions & destinations) | ✅ |
 | Source maps | ✅ |
 
+Alert delivery is in-app notifications, email, HTTPS webhooks, Slack, Discord and Telegram. Slack and Discord take incoming webhook URLs. Telegram takes a Bot API `sendMessage` URL plus a chat id. These are not OAuth app installs. The dashboard rule editor currently authors error-count conditions.
+
 Self-host setup: [DEPLOYMENT.md](DEPLOYMENT.md)
 
 ---

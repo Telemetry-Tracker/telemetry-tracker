@@ -17,19 +17,46 @@
  *   documents App Router behavior)
  *
  * Safety: the hook never throws, never copies request headers, strips query
- * strings from the path, skips an Error already marked with the shared
- * `telemetry.reported` symbol (and recent Next.js digests), and aborts a hung
- * ingest after a few seconds so Next.js error handling is not blocked.
+ * strings from the path, reports a given Error object only once, collapses a
+ * second same-digest callback in the same turn, and aborts a hung ingest after
+ * a few seconds so Next.js error handling is not blocked.
+ *
+ * Next.js 15+ calls `onRequestError` (the hook does not exist on Next.js 14).
+ * The browser package still supports Next.js 14.
  */
 
-/** Shared with `@telemetry-tracker/core` so the same Error is not reported twice. */
+/**
+ * Marks an Error this process has already sent. `@telemetry-tracker/core` uses
+ * its own WeakSet in the browser bundle; this symbol is only for server hooks
+ * that see the same object again.
+ */
 const REPORTED = Symbol.for("telemetry.reported");
 
-const MAX_RECENT_DIGESTS = 256;
 const INGEST_TIMEOUT_MS = 3000;
 
-/** Process-local Next.js error digests already sent (best-effort duplicate skip). */
-const recentDigests = new Set<string>();
+/**
+ * Identity dedupe. A WeakSet does not mutate the Error, so frozen objects are
+ * covered when assigning `REPORTED` throws.
+ */
+const reportedErrors = new WeakSet<object>();
+
+/**
+ * Digests already passed to this hook during the current synchronous turn.
+ *
+ * Next.js awaits `onRequestError`, but React's `onError` does not await that
+ * promise. A second callback for the same throw can therefore start before the
+ * first yield, with a different object that still carries the same digest
+ * (React does not preserve the original instance). Next 15.5 already skips the
+ * SSR callback when the RSC handler stored the digest; this guard covers a
+ * re-entrant second call in that same turn.
+ *
+ * The set is cleared on a microtask, before Node dequeues another request, so
+ * a later request with the same digest is reported again. A process-wide set
+ * is not used: Next's digest is a stable hash of the error, and keeping it
+ * would drop occurrence counts, affected users, and spike alerts.
+ */
+const digestsThisTurn = new Set<string>();
+let digestTurnEpoch = 0;
 
 export type ServerTelemetryConfig = {
   ingestUrl: string;
@@ -60,7 +87,7 @@ export type RequestErrorContext = {
     | "server-rendering";
 };
 
-export const SERVER_SDK_VERSION = "1.3.2";
+export const SERVER_SDK_VERSION = "1.3.3";
 
 export type ServerErrorPayload = {
   app: string;
@@ -104,27 +131,70 @@ function errorDigest(error: unknown): string | undefined {
 
 export function wasAlreadyReported(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
-  if ((error as Record<symbol, boolean>)[REPORTED]) return true;
-  const digest = errorDigest(error);
-  return digest != null && recentDigests.has(digest);
+  if (reportedErrors.has(error)) return true;
+  try {
+    return Boolean((error as Record<symbol, boolean>)[REPORTED]);
+  } catch {
+    return false;
+  }
 }
 
 export function markReported(error: unknown): void {
   if (!error || typeof error !== "object") return;
+  reportedErrors.add(error);
   try {
     (error as Record<symbol, boolean>)[REPORTED] = true;
   } catch {
-    // Error object may be frozen; digest set still helps.
+    // Frozen or sealed. The WeakSet still records the object.
   }
-  const digest = errorDigest(error);
-  if (!digest) return;
-  if (recentDigests.size >= MAX_RECENT_DIGESTS) recentDigests.clear();
-  recentDigests.add(digest);
+}
+
+/**
+ * @returns true when this digest was already seen in the current turn.
+ * The first sighting is recorded and expires on the next microtask.
+ */
+function claimDigestThisTurn(digest: string): boolean {
+  if (digestsThisTurn.has(digest)) return true;
+  digestsThisTurn.add(digest);
+  const epoch = digestTurnEpoch;
+  const clear = () => {
+    if (epoch !== digestTurnEpoch) return;
+    digestsThisTurn.delete(digest);
+  };
+  if (typeof queueMicrotask === "function") queueMicrotask(clear);
+  else Promise.resolve().then(clear);
+  return false;
 }
 
 /** @internal test helper */
 export function clearReportedDigestsForTests(): void {
-  recentDigests.clear();
+  digestTurnEpoch += 1;
+  digestsThisTurn.clear();
+}
+
+/**
+ * Read message and stack without relying on `instanceof Error`.
+ * Edge isolates can hand the hook an Error from another realm, where
+ * `instanceof` is false and `String(error)` becomes `"Error: <message>"`.
+ */
+export function readServerError(error: unknown): { message: string; stack?: string } {
+  if (error instanceof Error) {
+    return {
+      message: error.message || "Unknown server error",
+      stack: error.stack,
+    };
+  }
+  if (error && typeof error === "object") {
+    const record = error as { message?: unknown; stack?: unknown };
+    if (typeof record.message === "string" && record.message.length > 0) {
+      return {
+        message: record.message,
+        stack: typeof record.stack === "string" ? record.stack : undefined,
+      };
+    }
+  }
+  const fallback = error == null ? "" : String(error);
+  return { message: fallback || "Unknown server error" };
 }
 
 function ingestAbortSignal(): AbortSignal | undefined {
@@ -145,11 +215,11 @@ export function serverErrorPayload(
   context: RequestErrorContext,
   config: ServerTelemetryConfig
 ): ServerErrorPayload {
-  const err = error instanceof Error ? error : new Error(String(error));
+  const err = readServerError(error);
   const digest = errorDigest(error);
   return {
     app: config.app,
-    message: err.message || "Unknown server error",
+    message: err.message,
     stack: err.stack,
     platform: config.platform,
     environment: config.environment,
@@ -179,6 +249,9 @@ export function createOnRequestError(config: ServerTelemetryConfig) {
       if (wasAlreadyReported(error)) return;
       const ingestUrl = config.ingestUrl?.trim().replace(/\/$/, "");
       if (!ingestUrl || !config.app?.trim()) return;
+      const digest = errorDigest(error);
+      // Same-turn only. A later request with this digest must still be sent.
+      if (digest && claimDigestThisTurn(digest)) return;
       markReported(error);
       // Intentionally ignore `request.headers` — never forward cookies or auth.
       const payload = serverErrorPayload(error, request, context, config);

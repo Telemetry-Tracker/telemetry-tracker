@@ -26,7 +26,7 @@ import {
 const PATH = "/error-tracking/nextjs";
 const TITLE = "Next.js Error Tracking";
 const DESCRIPTION =
-  "Install @telemetry-tracker/next, wrap your app with TelemetryProvider, and optionally capture server errors with instrumentation.ts. Free plan, no credit card.";
+  "Next.js error tracking for the App Router: browser errors with TelemetryProvider and server-side errors with createOnRequestError. Free plan, no credit card.";
 
 export function generateMetadata() {
   return marketingGuideMetadata({
@@ -146,21 +146,33 @@ export default function NextJsErrorTrackingPage() {
         <CodeBlock code={nextTestError} lang="typescript" caption="trackError call" />
         <CodeBlock code={nextErrorBoundary} lang="tsx" caption="Error boundary" />
 
-        <h2>Server errors (optional)</h2>
+        <h2>Server-side error tracking with Next.js App Router</h2>
         <p>
-          Skip this section for browser-only setup.{" "}
-          <code>@telemetry-tracker/next/server</code> (published with{" "}
-          <code>@telemetry-tracker/next@1.3.2</code>) exports <code>createOnRequestError</code> for{" "}
-          <code>instrumentation.ts</code>. Next.js calls it for uncaught App Router errors in Server
-          Components, Route Handlers, and Server Actions. Use <code>TELEMETRY_API_KEY</code> (server-only) —
-          do not expose a server-only secret via <code>NEXT_PUBLIC_*</code>. See the{" "}
+          Skip this section for browser-only setup. The provider above does not capture uncaught
+          errors in Server Components, Route Handlers, or Server Actions. Add{" "}
+          <code>instrumentation.ts</code> with <code>createOnRequestError</code> from{" "}
+          <code>@telemetry-tracker/next/server</code> and the server-only variables below. That hook
+          requires <strong>Next.js 15+</strong>. Use <code>TELEMETRY_API_KEY</code> — do not expose
+          a server-only secret via <code>NEXT_PUBLIC_*</code>. Seeing{" "}
+          <q>An error occurred in the Server Components render</q>?{" "}
+          <Link
+            href="/error-tracking/nextjs/server-components-render-error"
+            className="text-brand hover:underline"
+          >
+            Find the real error behind the digest
+          </Link>
+          . Limits of the hook are on{" "}
           <Link href="/docs/nextjs" className="text-brand hover:underline">
-            full Next.js docs
-          </Link>{" "}
-          for more details.
+            the Next.js docs
+          </Link>
+          . Replacing <code>@sentry/nextjs</code> is covered in{" "}
+          <Link href="/docs/migrate-from-sentry" className="text-brand hover:underline">
+            Migrate from Sentry
+          </Link>
+          .
         </p>
-        <CodeBlock code={nextEnvLocalServer} lang="bash" caption=".env.local (optional server)" />
-        <CodeBlock code={nextInstrumentation} lang="ts" caption="instrumentation.ts (optional)" />
+        <CodeBlock code={nextEnvLocalServer} lang="bash" caption=".env.local (server)" />
+        <CodeBlock code={nextInstrumentation} lang="ts" caption="instrumentation.ts" />
 
         <h2>What you will see</h2>
         <p>
@@ -208,6 +220,11 @@ export default function NextJsErrorTrackingPage() {
               href: "/docs/nextjs",
               label: "Next.js docs",
               description: "Provider, error boundary, and page tracking.",
+            },
+            {
+              href: "/docs/migrate-from-sentry",
+              label: "Migrate from Sentry",
+              description: "Replace @sentry/nextjs with this SDK.",
             },
             {
               href: "/sentry-alternative",

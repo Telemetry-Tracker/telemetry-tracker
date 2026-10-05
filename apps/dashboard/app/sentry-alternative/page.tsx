@@ -13,7 +13,7 @@ import { marketingSiteOrigin } from "@/lib/marketing-json-ld";
 const PATH = "/sentry-alternative";
 const TITLE = "Open Source Sentry Alternative";
 const DESCRIPTION =
-  "Telemetry Tracker is a smaller, open-source error tracker for side projects and indie developers. Free hosted plan, no credit card, or self-host the MIT stack.";
+  "Open-source Sentry alternative for side projects: grouped errors, events, and sessions. Free hosted plan, no credit card, or self-host the MIT stack.";
 
 export function generateMetadata() {
   return marketingGuideMetadata({
@@ -84,7 +84,9 @@ export default function SentryAlternativePage() {
             <strong>Sessions</strong> — start/end of a visit, not video replay.
           </li>
           <li>
-            <strong>Alerts</strong> — error spike and quota rules (in-app, email, HTTPS webhooks).
+            <strong>Alerts</strong> — in-app notifications, email, HTTPS webhooks, Slack, Discord
+            and Telegram. Slack, Discord, and Telegram use incoming webhook or bot URLs, not OAuth
+            apps. The dashboard rule editor currently authors error-count conditions.
           </li>
           <li>
             <strong>Releases and Web Vitals</strong> — release filters and performance views in the
@@ -140,6 +142,17 @@ export default function SentryAlternativePage() {
           .
         </p>
 
+        <h2>Migrating from Sentry</h2>
+        <p>
+          Pointing a Sentry DSN at Telemetry Tracker does not work. You remove the Sentry SDK and
+          call Telemetry Tracker instead. The step-by-step map, Next.js setup, and the list of what
+          does not come across are in{" "}
+          <Link href="/docs/migrate-from-sentry" className="text-brand hover:underline">
+            Migrate from Sentry
+          </Link>
+          .
+        </p>
+
         <h2>Getting the first error in</h2>
         <ol>
           <li>
@@ -172,6 +185,11 @@ export default function SentryAlternativePage() {
         <GuideRelatedLinks
           heading="Keep reading"
           links={[
+            {
+              href: "/docs/migrate-from-sentry",
+              label: "Migrate from Sentry",
+              description: "Replace the Sentry SDK, including Next.js.",
+            },
             {
               href: "/self-hosted-error-tracking",
               label: "Self-hosted error tracking",

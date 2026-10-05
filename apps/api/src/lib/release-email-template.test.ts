@@ -108,6 +108,14 @@ describe("buildReleaseEmailBodyHtml", () => {
     expect(html).toContain("Open dashboard");
     expect(html).toContain('src="cid:tt-brand-logo"');
     expect(html).not.toContain("telemetry-logo.jpg");
+    expect(html).not.toContain("linear-gradient");
+    expect(html).toContain(
+      '<span style="color:#1c1f28;background-color:#f0f2f7;">Telemetry</span>'
+    );
+    expect(html).toContain("background-color:#eef1ff;color:#4a5fe8");
+    expect(html).toContain("background-color:#1c1f28;color:#ffffff");
+    expect(html).toContain("background-color:#ffffff;color:#1c1f28");
+    expect(html).toContain('name="supported-color-schemes" content="light"');
   });
 });
 

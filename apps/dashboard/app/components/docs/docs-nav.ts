@@ -16,6 +16,7 @@ export const docsNavSections: DocsNavSection[] = [
     heading: "Getting started",
     items: [
       { id: "hosted-cloud", label: "Hosted cloud", href: "/docs/hosted-cloud" },
+      { id: "migrate-from-sentry", label: "Migrate from Sentry", href: "/docs/migrate-from-sentry" },
       { id: "introduction", label: "Introduction", href: "/docs#introduction" },
       { id: "quickstart", label: "Quickstart", href: "/docs#quickstart" },
       { id: "concepts", label: "Core concepts", href: "/docs#concepts" },
