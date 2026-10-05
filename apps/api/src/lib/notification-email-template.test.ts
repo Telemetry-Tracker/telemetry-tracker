@@ -71,6 +71,37 @@ describe("buildNotificationEmailHtml", () => {
     expect(html).toContain("View errors");
     expect(html).toContain("Manage notification preferences");
     expect(html).toContain('src="cid:tt-brand-logo"');
+    expect(html).not.toContain("linear-gradient");
+    expect(html).toContain('bgcolor="#f0f2f7"');
+    expect(html).toContain(
+      '<span style="color:#1c1f28;background-color:#f0f2f7;">Telemetry</span>'
+    );
+    expect(html).toContain(
+      '<span style="color:#647089;background-color:#f0f2f7;"> / </span>'
+    );
+    expect(html).toContain("background-color:#1c1f28;color:#ffffff");
+    expect(html).toContain('name="supported-color-schemes" content="light"');
+  });
+
+  it("pairs badge, title, message, and footer colors for dark-mode clients", () => {
+    const html = buildNotificationEmailHtml({
+      item: item({
+        id: "issue:1",
+        type: "issue",
+        title: "TypeError: cannot read property",
+        body: "undefined is not an object",
+        href: "/dashboard/errors/issue-1",
+      }),
+      kind: "new_error",
+      dashboardOrigin: ORIGIN,
+      projectName: "Acme Web",
+    });
+    expect(html).toContain("background-color:#fdecea;color:#c0392b");
+    expect(html).toContain("color:#647089");
+    expect(html).toContain("color:#1c1f28");
+    expect(html).toContain('bgcolor="#ffffff"');
+    expect(html).toContain('bgcolor="#f6f7fb"');
+    expect(html).toContain("Open error group");
   });
 
   it("escapes HTML in title and body", () => {

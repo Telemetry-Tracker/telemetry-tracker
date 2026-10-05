@@ -15,6 +15,8 @@ export const AUDIT_ACTIONS = {
   PROJECT_UPDATE: "project.update",
   /** Organization (workspace) display name changed. */
   ORGANIZATION_UPDATE: "organization.update",
+  /** Founder/admin resolved OrganizationReferral.needs_attention as VALID. */
+  AFFILIATE_NEEDS_ATTENTION_RESOLVE: "affiliate.needs_attention.resolve",
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];

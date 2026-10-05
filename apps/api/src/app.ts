@@ -19,6 +19,7 @@ import { contactRoutes } from "./routes/contact.js";
 import { marketingRoutes } from "./routes/marketing.js";
 import { projectDashboardRoutes } from "./routes/project-dashboard.js";
 import { billingRoutes } from "./routes/billing.js";
+import { affiliatesAdminRoutes } from "./routes/affiliates-admin.js";
 import { briefRoutes } from "./routes/brief.js";
 import { registerStripeWebhookIfConfigured } from "./routes/stripe-webhook.js";
 
@@ -45,6 +46,8 @@ export async function createApp(): Promise<FastifyInstance> {
   await app.register(cors, { delegator: corsDelegator });
 
   await registerStripeWebhookIfConfigured(app);
+  const { registerRewardfulWebhookIfConfigured } = await import("./routes/rewardful-webhook.js");
+  await registerRewardfulWebhookIfConfigured(app);
 
   await app.register(
     async function publicSurface(f) {
@@ -108,6 +111,7 @@ export async function createApp(): Promise<FastifyInstance> {
       await f.register(projectDashboardRoutes);
       await f.register(briefRoutes);
       await f.register(billingRoutes);
+      await f.register(affiliatesAdminRoutes);
     },
     { prefix: "/api" }
   );

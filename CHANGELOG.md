@@ -13,12 +13,33 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ### Added
 
-- **`@telemetry-tracker/core` 1.5.1** — sanitized browser `Script error.` handling: no fabricated SDK stacks, bounded per-window dedupe, and `context.sanitized` / `browser_error` metadata so one quirky session cannot flood App Health
-- **Dashboard** — error detail distinguishes sanitized browser Script errors from normal exceptions (badge + stack panel copy)
-
 ### Fixed
 
 ### Changed
+
+### Database
+
+---
+
+## [1.17.26] - 2026-10-05
+
+### Added
+
+- **`@telemetry-tracker/core` 1.5.1** — sanitized browser `Script error.` handling: no fabricated SDK stacks, bounded per-window dedupe, and `context.sanitized` / `browser_error` metadata so one quirky session cannot flood App Health
+- **Dashboard** — error detail distinguishes sanitized browser Script errors from normal exceptions (badge + stack panel copy)
+- **Server Components digest guide** — `/error-tracking/nextjs/server-components-render-error` explains the production digest, `onRequestError`, and server stack mapping
+- **Digest search** — global search and Issues search match `ErrorOccurrence.context.digest`
+- **Analytics** — sanitized `app_startup` view for `analytics_ro`
+- **Docs** — Sentry migration guide, and verified alert channel names
+
+### Fixed
+
+- **Transactional email** — brand header stays readable in Gmail dark mode. The header used a CSS gradient, which Gmail iOS does not recolor, so the light “Telemetry / Tracker” wordmark sat on a light bar. Notification and release emails now share a solid header fill with explicit text colors.
+- **`@telemetry-tracker/next` 1.3.3** — `createOnRequestError` no longer keeps a Next.js digest for the life of the process. The same Error object is still reported once, and a second callback in the same turn with that digest is skipped. A later request is reported again, so occurrence counts and alert rules are not stuck at one. Cross-realm Edge errors keep `message` and `stack` when `instanceof Error` fails. Server `onRequestError` requires Next.js 15+.
+
+### Changed
+
+- **Affiliates** — Stripe `metadata.referral` is withheld only for a **payout hold** (self-referral-risk: `affiliate_email_unknown*`). Plain UUID-only `UNRESOLVED` referrals write the Rewardful UUID so conversion can happen. `customer_creation_failed` does not block checkout backfill. Founders on `AFFILIATE_ADMIN_EMAILS` can `POST .../resolve-needs-attention` to clear a hold, attach metadata to the existing Customer, and write an audit row. Registration no longer drops a valid UUID when the via-token affiliate has no email.
 
 ### Database
 

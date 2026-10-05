@@ -9,6 +9,8 @@ import {
 } from "../lib/org-permissions.js";
 import { dashboardOriginOrNull } from "../lib/dashboard-origin.js";
 import { stripePriceIdForTier } from "../lib/stripe-price-config.js";
+import { canWriteAffiliateTtMetadata } from "../lib/organization-attribution.js";
+import { updateExistingCustomerReferralMetadata } from "../lib/affiliate-customer-metadata.js";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -54,7 +56,7 @@ async function resolveStripeCustomerId(
   if (!pendingCreate) return null;
   if (pendingCreate.kind === "existing") return pendingCreate.customerId;
 
-  const customer = await stripe.customers.create({
+      const customer = await stripe.customers.create({
     name: pendingCreate.orgName,
     metadata: { organization_id: orgId },
   });
@@ -122,23 +124,87 @@ export async function billingRoutes(
       if (!origin) {
         return reply.status(503).send({ error: "Dashboard origin is not configured" });
       }
-      const checkout = await stripe.checkout.sessions.create({
+
+      // Update Customer metadata if org is referred but Customer lacks affiliate metadata
+      const { isAffiliateFeatureEnabled } = await import("../lib/affiliates-feature-flag.js");
+      if (isAffiliateFeatureEnabled()) {
+        try {
+          const referral = await prisma.organizationReferral.findUnique({
+            where: { organization_id: orgId },
+            select: {
+              rewardful_referral_id: true,
+              affiliate_id: true,
+              via_token: true,
+              status: true,
+              needs_attention: true,
+              attention_reason: true,
+            },
+          });
+          // Backfill only when !isPayoutHold (shared Customer update helper).
+          if (referral) {
+            const synced = await updateExistingCustomerReferralMetadata(
+              stripe,
+              orgId,
+              customerId,
+              referral
+            );
+            if (synced === "updated") {
+              request.log.info(
+                { customerId, orgId },
+                "Updated Customer metadata with referral info at checkout"
+              );
+            }
+          }
+        } catch (err) {
+          // Log error but don't fail checkout
+          request.log.error(
+            { err, orgId },
+            "Failed to update Customer metadata at checkout"
+          );
+        }
+      }
+
+      // Build metadata (always include organization_id for backward compatibility)
+      const metadata: Record<string, string> = {
+        organization_id: orgId,
+        plan_tier: tier,
+      };
+
+      // Add affiliate metadata only when feature is enabled
+      if (isAffiliateFeatureEnabled()) {
+        try {
+          const orgReferral = await prisma.organizationReferral.findUnique({
+            where: { organization_id: orgId },
+            select: {
+              status: true,
+              affiliate_id: true,
+              needs_attention: true,
+              attention_reason: true,
+            },
+          });
+
+          if (orgReferral && canWriteAffiliateTtMetadata(orgReferral)) {
+            metadata.tt_org_id = orgId;
+            metadata.tt_affiliate_id = orgReferral.affiliate_id!;
+          }
+        } catch (err) {
+          request.log.warn({ err, orgId }, "Failed to fetch referral at checkout metadata build");
+        }
+      }
+
+      const sessionParams: Stripe.Checkout.SessionCreateParams = {
         mode: "subscription",
         customer: customerId,
         line_items: [{ price: priceId, quantity: 1 }],
         success_url: `${origin}/dashboard/settings/organization?billing=success`,
         cancel_url: `${origin}/dashboard/settings/organization?billing=canceled`,
-        metadata: {
-          organization_id: orgId,
-          plan_tier: tier,
-        },
+        metadata,
         subscription_data: {
-          metadata: {
-            organization_id: orgId,
-            plan_tier: tier,
-          },
+          metadata,
         },
-      });
+      };
+
+      const checkout = await stripe.checkout.sessions.create(sessionParams);
 
       if (!checkout.url) {
         return reply.status(500).send({ error: "Could not create checkout session" });

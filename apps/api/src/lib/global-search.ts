@@ -6,6 +6,7 @@
 
 import { Prisma, PrismaClient } from "@prisma/client";
 import { escapeLikePattern } from "./list-query.js";
+import { errorGroupTermsMatchSql } from "./list-query-helpers.js";
 import {
   isUnknownReleaseKey,
   normalizeReleaseKeySql,
@@ -414,10 +415,12 @@ async function searchErrors(
   const textTerms = [...parsed.freeTextTerms];
   if (scope.error) textTerms.push(scope.error);
 
-  const textSql = freeTextAndSql(textTerms, [
+  const textSql = errorGroupTermsMatchSql(
+    textTerms,
     Prisma.sql`eg."message"`,
     Prisma.sql`eg."fingerprint"`,
-  ]);
+    Prisma.sql`eg."id"`
+  );
   if (textSql) parts.push(textSql);
 
   // Issues list: release/platform → occurrence EXISTS; time-only → ErrorGroup.last_seen.
