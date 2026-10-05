@@ -121,6 +121,8 @@ Set these on the **API** service to enable checkout, billing portal, and webhook
    - `checkout.session.completed`
    - `customer.subscription.updated`
    - `customer.subscription.deleted`
+   - When affiliates are enabled (see [AFFILIATES.md](./AFFILIATES.md)): `invoice.paid`, `charge.refunded`, `charge.dispute.created`, `charge.dispute.updated`, `charge.dispute.closed`
+3. **API version:** pin the endpoint to **`2025-03-31.basil`** (or later) to match `stripe` v22 on the API. Affiliate commission linking uses InvoicePayment / `payment_intent` because basil removed `Invoice.charge` and `Charge.invoice`.
 3. **Checkout metadata** on completed sessions: `organization_id` (UUID), `plan_tier` (`PRO` or `BUSINESS`).
 4. For subscription-only plan changes, put the same `plan_tier` on **Subscription** or **Price** metadata so `customer.subscription.updated` can sync tier.
 

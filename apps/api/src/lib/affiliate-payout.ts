@@ -1,8 +1,9 @@
 /**
  * Manual founder payouts. No automated money movement.
  */
-import { Prisma, type PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import { effectiveCommissionState } from "./affiliate-commission.js";
+import { lockAffiliateForUpdate } from "./affiliate-lock.js";
 
 export const PAYOUT_MINIMUM_CENTS = 5000;
 
@@ -55,7 +56,7 @@ export async function computeAffiliateBalance(
     const effective = effectiveCommissionState(row, now);
     if (effective === "pending") pendingCents += row.remaining_cents;
     else if (effective === "payable") payableCents += row.remaining_cents;
-    else if (effective === "paid") paidCents += row.amount_cents;
+    else if (effective === "paid") paidCents += row.remaining_cents;
   }
   const adjustmentCents = openAdjustments.reduce((sum, row) => sum + row.amount_cents, 0);
   const currentPayableBalanceCents = payableCents + adjustmentCents;
@@ -165,9 +166,7 @@ export async function markAffiliatePayoutPaid(
 
   try {
     return await prisma.$transaction(async (tx) => {
-      await tx.$executeRaw(
-        Prisma.sql`SELECT 1 FROM "Affiliate" WHERE id = ${affiliate.id} FOR UPDATE`
-      );
+      await lockAffiliateForUpdate(tx, affiliate.id);
 
       const locked = await tx.affiliate.findUnique({
         where: { id: affiliate.id },

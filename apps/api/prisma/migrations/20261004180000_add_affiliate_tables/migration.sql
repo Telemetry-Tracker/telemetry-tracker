@@ -90,6 +90,7 @@ CREATE TABLE "AffiliateCommission" (
     "organization_id" TEXT NOT NULL,
     "stripe_invoice_id" TEXT NOT NULL,
     "stripe_charge_id" TEXT,
+    "stripe_payment_intent_id" TEXT,
     "eligible_base_cents" INTEGER NOT NULL,
     "amount_cents" INTEGER NOT NULL,
     "remaining_cents" INTEGER NOT NULL,
@@ -190,6 +191,9 @@ CREATE INDEX "AffiliateCommission_organization_id_idx" ON "AffiliateCommission"(
 
 -- CreateIndex
 CREATE INDEX "AffiliateCommission_stripe_charge_id_idx" ON "AffiliateCommission"("stripe_charge_id");
+
+-- CreateIndex
+CREATE INDEX "AffiliateCommission_stripe_payment_intent_id_idx" ON "AffiliateCommission"("stripe_payment_intent_id");
 
 -- CreateIndex
 CREATE INDEX "AffiliateCommission_state_payable_at_idx" ON "AffiliateCommission"("state", "payable_at");

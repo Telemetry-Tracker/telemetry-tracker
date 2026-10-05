@@ -65,20 +65,38 @@ On Stripe `invoice.paid` for a hosted subscription invoice:
 
 1. Resolve org from Customer / subscription / metadata.
 2. Load canonical `OrganizationReferral`.
-3. Skip unless `ACTIVE`, affiliate is active, and not a payout hold.
+3. Skip unless `ACTIVE`, affiliate is active, not a payout hold, and org `plan_tier` is **PRO** or **BUSINESS**.
 4. Eligible base = `amount_paid − tax` (integer cents). Discounts and customer credits are already reflected in `amount_paid`. If eligible base is 0, no commission.
-5. Commission = `floor(eligible × 30%)`. Exactly one row per `stripe_invoice_id` (idempotent).
+5. Commission = `floor(eligible × 30%)`. Exactly one row per `stripe_invoice_id` (idempotent). Store `stripe_payment_intent_id` and/or `stripe_charge_id` from classic invoice fields or basil InvoicePayment.
 6. Recurring invoices each create another commission. Cancel stops future invoices. A later legitimate resubscription of the same hosted org commissions the original locked affiliate again.
 
-Hold: `payable_at = invoice_paid_at + 30 days`. Effective state `payable` is derived (pending + hold elapsed + no open dispute + remaining > 0).
+Hold: `payable_at = invoice_paid_at + 30 days`. Effective state `payable` is derived (pending + hold elapsed + no open dispute + remaining > 0). Self-hosted (non-subscription) invoices are never commissioned.
+
+## Stripe webhooks
+
+The API uses `stripe` v22 (`2025-03-31.basil`). In the Stripe Dashboard, pin the `POST /webhooks/stripe` endpoint to **API version `2025-03-31.basil`** (or later basil) so payloads match the SDK. Older pinned endpoints still send `invoice.charge` / `charge.invoice`; the engine accepts both.
+
+When affiliates are enabled, the endpoint must also receive:
+
+- `invoice.paid` — record the commission. Payment is resolved from classic `invoice.charge` / `invoice.payment_intent`, or basil `invoice.payments` / `invoicePayments.list({ invoice })`. Stored `stripe_payment_intent_id` (and charge id when present) is what refunds and disputes match on.
+- `charge.refunded` — reduce remaining or create a post-payout clawback. Match by `charge.payment_intent`, then legacy `charge.invoice` / `invoice.charge`.
+- `charge.dispute.created`
+- `charge.dispute.updated`
+- `charge.dispute.closed`
+
+Billing still needs `checkout.session.completed`, `customer.subscription.updated`, and `customer.subscription.deleted` (see [BILLING.md](./BILLING.md)).
+
+If a refund or dispute arrives for a **referred** org/customer and no commission row matches, the webhook logs a warning, sets `OrganizationReferral.needs_attention` (`commission_not_found_refund_or_dispute`), and writes an audit row. That is not a payout hold; founders see it on the affiliate org list and can resolve it.
 
 ## Refunds and disputes
 
 - **Refund before payout:** reduce `remaining_cents` or void the commission row only. Do **not** create an `AffiliateAdjustment` (that would double-count the refund in payable balance). History is the immutable `amount_cents` plus remaining/voided.
-- **Refund after payout:** negative `AffiliateAdjustment` (post-payout clawback) against future payable balance. Commission stays `paid`.
+- **Refund after payout:** negative `AffiliateAdjustment` (post-payout clawback) against future payable balance. Commission stays `paid`. Clawback = `max(0, amount actually paid − desired remaining) − sum(all prior clawbacks for that commission, settled or open)`. Amount actually paid is `remaining_cents` at payout (pre-payout reductions are respected; a later settled clawback is not ignored).
 - **Dispute open:** not payable; surfaced in founder admin (`dispute_status=open`) + email on livemode `charge.dispute.created`.
 - **Dispute won:** restore normal eligibility/hold.
-- **Dispute lost:** void the unpaid commission row only; negative `AffiliateAdjustment` if already paid.
+- **Dispute lost:** void the unpaid commission row only; negative `AffiliateAdjustment` if already paid, using the same clawback cap (never more than was paid net of earlier clawbacks).
+
+Refund and dispute handlers take the same `SELECT … FROM "Affiliate" … FOR UPDATE` lock as mark-as-paid, re-read the commission inside the lock, and apply state-aware updates so a concurrent payout cannot overpay and cannot lose the clawback path.
 
 No automated money movement.
 
@@ -87,7 +105,8 @@ No automated money movement.
 Founder admin (`AFFILIATE_ADMIN_EMAILS`):
 
 - Create affiliate (name / email / code), disable, inspect orgs / commissions / adjustments / balances.
-- Payable balance = `sum(payable commissions' remaining_cents)` + `sum(open post-payout adjustments)`. Pre-payout partial refunds are not subtracted twice.
+- **Email is optional on create.** If the affiliate has no email, attributing an org sets `needs_attention` with `affiliate_email_unknown` (a **payout hold**: commissions are skipped until the founder adds an email and resolves the hold). Prefer supplying email when creating the affiliate.
+- Payable balance = `sum(payable commissions' remaining_cents)` + `sum(open post-payout adjustments)`. Pre-payout partial refunds are not subtracted twice. `paidCents` is the sum of **paid** commissions' `remaining_cents` (what was actually paid out), not the original `amount_cents`.
 - Eligible when payable ≥ €50 (5000 minor units).
 - `POST /api/meta/affiliates/:id/payouts` — select commissions; every unsettled clawback is auto-included. `amountCents` must equal selected remaining + those clawbacks (`amount_mismatch` if clawbacks are omitted from the amount; `overpay` if amount exceeds true net payable). Concurrent submit without an idempotency key returns `already_paid` (no phantom payout). Idempotent via `idempotencyKey`. Disabled affiliates may still be paid already-earned commissions. Individual commission rows are preserved as `paid`.
 
@@ -121,9 +140,9 @@ Unreleased migration `20261004180000_add_affiliate_tables` (edited in place beca
 - `WebhookEvent`
 - `Affiliate` (code, name, email, state, 30% rate)
 - `UserReferral` / `OrganizationReferral`
-- `AffiliateCommission` / `AffiliateAdjustment` / `AffiliatePayout`
+- `AffiliateCommission` (includes `stripe_payment_intent_id` for basil charge↔invoice linking) / `AffiliateAdjustment` / `AffiliatePayout`
 
-Do **not** run this migration against production until the founder explicitly enables the program.
+Do **not** run this migration against production until the founder explicitly enables the program. Any **local** database that already applied an earlier copy of `20261004180000` needs `prisma migrate reset` (or equivalent) before this revision will apply — production never ran it.
 
 ## Testing
 

@@ -2,21 +2,41 @@
  * Native commission engine: Stripe invoice.paid → 30% of eligible net paid.
  * Refunds/disputes adjust the ledger; history is never deleted.
  */
-import type { Prisma, PrismaClient } from "@prisma/client";
+import { type Prisma, type PrismaClient } from "@prisma/client";
 import type Stripe from "stripe";
+import { AUDIT_ACTIONS } from "./audit-log.js";
 import { isAffiliateFeatureEnabled } from "./affiliates-feature-flag.js";
+import { lockAffiliateForUpdate } from "./affiliate-lock.js";
+import {
+  resolveInvoicePaymentRefs,
+  stripeObjectId,
+  type InvoicePaymentLister,
+  type InvoicePaymentsLike,
+} from "./affiliate-stripe-payments.js";
 import { isPayoutHold } from "./organization-attribution.js";
+
+export {
+  chargeCustomerId,
+  chargeInvoiceId,
+  chargePaymentIntentId,
+  invoicePaymentRefsFromPayload,
+  resolveInvoicePaymentRefs,
+  stripeObjectId,
+} from "./affiliate-stripe-payments.js";
+export type { InvoicePaymentLister, InvoicePaymentRefs } from "./affiliate-stripe-payments.js";
 
 export const DEFAULT_COMMISSION_RATE_BPS = 3000;
 export const COMMISSION_HOLD_DAYS = 30;
+export const HOSTED_PAID_PLAN_TIERS = ["PRO", "BUSINESS"] as const;
+export const COMMISSION_NOT_FOUND_ATTENTION_REASON = "commission_not_found_refund_or_dispute";
+export const INVOICE_PAYMENT_UNRESOLVED_ATTENTION_REASON = "invoice_payment_unresolved";
 
 export type CommissionLogger = {
   warn: (msg: unknown, context: string) => void;
   info?: (msg: unknown, context: string) => void;
 };
 
-export type InvoiceLike = {
-  id?: string | null;
+export type InvoiceLike = InvoicePaymentsLike & {
   amount_paid?: number | null;
   tax?: number | null;
   total_tax_amounts?: Array<{ amount?: number | null }> | null;
@@ -24,7 +44,6 @@ export type InvoiceLike = {
   currency?: string | null;
   subscription?: string | { id?: string | null } | null;
   customer?: string | { id?: string | null } | null;
-  charge?: string | { id?: string | null } | null;
   billing_reason?: string | null;
   status_transitions?: { paid_at?: number | null } | null;
   parent?: {
@@ -67,26 +86,6 @@ export function addDays(from: Date, days: number): Date {
   return new Date(from.getTime() + days * 24 * 60 * 60 * 1000);
 }
 
-export function stripeObjectId(
-  value: string | { id?: string | null } | null | undefined
-): string | null {
-  if (!value) return null;
-  if (typeof value === "string") return value;
-  return value.id ?? null;
-}
-
-/** Stripe v22 Charge types omit `invoice`; live payloads still include it. */
-export function chargeInvoiceId(charge: unknown): string | null {
-  if (!charge || typeof charge !== "object") return null;
-  const invoice = (charge as { invoice?: unknown }).invoice;
-  if (typeof invoice === "string") return invoice;
-  if (invoice && typeof invoice === "object" && "id" in invoice) {
-    const id = (invoice as { id?: unknown }).id;
-    return typeof id === "string" ? id : null;
-  }
-  return null;
-}
-
 function invoiceSubscriptionId(invoice: InvoiceLike): string | null {
   const direct = stripeObjectId(invoice.subscription);
   if (direct) return direct;
@@ -103,8 +102,12 @@ function isHostedSubscriptionInvoice(invoice: InvoiceLike): boolean {
   );
 }
 
+function isHostedPaidPlanTier(planTier: string): boolean {
+  return (HOSTED_PAID_PLAN_TIERS as readonly string[]).includes(planTier);
+}
+
 export async function resolveOrgFromInvoice(
-  prisma: PrismaClient,
+  prisma: PrismaClient | Prisma.TransactionClient,
   invoice: InvoiceLike
 ): Promise<{ id: string; plan_tier: string } | null> {
   const customerId = stripeObjectId(invoice.customer);
@@ -147,7 +150,8 @@ export type RecordCommissionResult =
 export async function recordCommissionFromInvoice(
   prisma: PrismaClient,
   invoice: InvoiceLike,
-  logger?: CommissionLogger
+  logger?: CommissionLogger,
+  opts?: { stripe?: InvoicePaymentLister | Stripe | null }
 ): Promise<RecordCommissionResult> {
   if (!isAffiliateFeatureEnabled()) {
     return { kind: "not_enabled" };
@@ -171,6 +175,9 @@ export async function recordCommissionFromInvoice(
   const org = await resolveOrgFromInvoice(prisma, invoice);
   if (!org) {
     return { kind: "skipped", reason: "org_not_found" };
+  }
+  if (!isHostedPaidPlanTier(org.plan_tier)) {
+    return { kind: "skipped", reason: "not_hosted_paid_tier" };
   }
 
   const referral = await prisma.organizationReferral.findUnique({
@@ -210,7 +217,7 @@ export async function recordCommissionFromInvoice(
   const invoicePaidAt = paidAtUnix ? new Date(paidAtUnix * 1000) : new Date();
   const payableAt = addDays(invoicePaidAt, COMMISSION_HOLD_DAYS);
   const currency = (invoice.currency ?? "eur").toLowerCase();
-  const chargeId = stripeObjectId(invoice.charge);
+  const paymentRefs = await resolveInvoicePaymentRefs(invoice, opts?.stripe ?? null);
 
   try {
     const created = await prisma.affiliateCommission.create({
@@ -218,7 +225,8 @@ export async function recordCommissionFromInvoice(
         affiliate_id: affiliate.id,
         organization_id: org.id,
         stripe_invoice_id: invoiceId,
-        stripe_charge_id: chargeId,
+        stripe_charge_id: paymentRefs.chargeId,
+        stripe_payment_intent_id: paymentRefs.paymentIntentId,
         eligible_base_cents: eligible,
         amount_cents: amount,
         remaining_cents: amount,
@@ -229,8 +237,15 @@ export async function recordCommissionFromInvoice(
       },
       select: { id: true },
     });
+    if (!paymentRefs.chargeId && !paymentRefs.paymentIntentId) {
+      logger?.warn(
+        { commissionId: created.id, invoiceId, orgId: org.id },
+        "Recorded affiliate commission without charge or payment_intent; refunds/disputes may not match"
+      );
+      await flagReferralNeedsAttention(prisma, org.id, INVOICE_PAYMENT_UNRESOLVED_ATTENTION_REASON);
+    }
     logger?.info?.(
-      { commissionId: created.id, invoiceId, orgId: org.id, amount },
+      { commissionId: created.id, invoiceId, orgId: org.id, amount, ...paymentRefs },
       "Recorded affiliate commission"
     );
     return { kind: "created", commissionId: created.id, amountCents: amount };
@@ -263,11 +278,26 @@ function refundedRatio(chargeAmount: number, amountRefunded: number): number {
   return Math.min(1, Math.max(0, amountRefunded / chargeAmount));
 }
 
+/**
+ * Post-payout clawback: never exceed what was actually paid, net of every prior
+ * clawback for this commission (settled or still open).
+ */
+export function postPayoutClawbackDelta(input: {
+  amountActuallyPaid: number;
+  targetRemainingDesired: number;
+  priorClawbackCents: number;
+}): number {
+  const desired = Math.max(0, input.amountActuallyPaid - input.targetRemainingDesired);
+  return Math.max(0, desired - Math.max(0, input.priorClawbackCents));
+}
+
 export async function applyRefundToCommission(
   prisma: PrismaClient,
   input: {
     invoiceId?: string | null;
     chargeId?: string | null;
+    paymentIntentId?: string | null;
+    customerId?: string | null;
     chargeAmount: number;
     amountRefunded: number;
     refundId?: string | null;
@@ -278,80 +308,92 @@ export async function applyRefundToCommission(
   if (!isAffiliateFeatureEnabled()) return { kind: "not_enabled" };
   if (input.amountRefunded <= 0) return { kind: "skipped", reason: "no_refund" };
 
-  const commission = await findCommissionForCharge(prisma, input);
-  if (!commission) return { kind: "skipped", reason: "commission_not_found" };
+  const result = await prisma.$transaction(async (tx) => {
+    const found = await findCommissionForCharge(tx, input);
+    if (!found) return { kind: "skipped" as const, reason: "commission_not_found" };
 
-  const ratio = refundedRatio(input.chargeAmount, input.amountRefunded);
-  const targetRemaining = Math.floor(commission.amount_cents * (1 - ratio));
-  const currency = (input.currency ?? commission.currency).toLowerCase();
+    await lockAffiliateForUpdate(tx, found.affiliate_id);
+    const commission = await tx.affiliateCommission.findUnique({ where: { id: found.id } });
+    if (!commission) return { kind: "skipped" as const, reason: "commission_not_found" };
 
-  if (commission.state === "paid") {
-    const already = await prisma.affiliateAdjustment.aggregate({
-      where: {
-        commission_id: commission.id,
-        reason: "refund",
-        payout_id: null,
-      },
-      _sum: { amount_cents: true },
-    });
-    const alreadyClawed = Math.abs(already._sum.amount_cents ?? 0);
-    const desiredClawback = commission.amount_cents - targetRemaining;
-    const delta = desiredClawback - alreadyClawed;
-    if (delta <= 0) return { kind: "skipped", reason: "already_adjusted" };
+    const ratio = refundedRatio(input.chargeAmount, input.amountRefunded);
+    const targetRemaining = Math.floor(commission.amount_cents * (1 - ratio));
+    const currency = (input.currency ?? commission.currency).toLowerCase();
 
-    const adjustment = await prisma.affiliateAdjustment.create({
-      data: {
-        affiliate_id: commission.affiliate_id,
-        organization_id: commission.organization_id,
-        commission_id: commission.id,
-        amount_cents: -delta,
+    if (commission.state === "paid") {
+      return applyPostPayoutClawback(tx, {
+        commission,
+        targetRemainingDesired: targetRemaining,
         currency,
         reason: "refund",
         note: "Refund after payout",
-        stripe_refund_id: input.refundId ?? null,
-        stripe_invoice_id: commission.stripe_invoice_id,
+        stripeRefundId: input.refundId ?? null,
+      });
+    }
+
+    if (commission.state === "voided") {
+      return { kind: "skipped" as const, reason: "already_voided" };
+    }
+
+    const reduction = commission.remaining_cents - targetRemaining;
+    if (reduction <= 0) {
+      return { kind: "skipped" as const, reason: "already_reduced" };
+    }
+
+    const nextState = targetRemaining <= 0 ? "voided" : commission.state;
+    const updated = await tx.affiliateCommission.updateMany({
+      where: { id: commission.id, state: "pending", payout_id: null },
+      data: {
+        remaining_cents: Math.max(0, targetRemaining),
+        state: nextState,
+        voided_at: nextState === "voided" ? new Date() : commission.voided_at,
       },
-      select: { id: true },
     });
-    return { kind: "adjusted", adjustmentId: adjustment.id };
-  }
+    if (updated.count === 0) {
+      const latest = await tx.affiliateCommission.findUnique({ where: { id: commission.id } });
+      if (latest?.state === "paid") {
+        return applyPostPayoutClawback(tx, {
+          commission: latest,
+          targetRemainingDesired: targetRemaining,
+          currency,
+          reason: "refund",
+          note: "Refund after payout",
+          stripeRefundId: input.refundId ?? null,
+        });
+      }
+      return { kind: "skipped" as const, reason: "state_changed" };
+    }
 
-  if (commission.state === "voided") {
-    return { kind: "skipped", reason: "already_voided" };
-  }
+    logger?.info?.(
+      { commissionId: commission.id, targetRemaining, nextState },
+      "Applied refund to affiliate commission"
+    );
 
-  const reduction = commission.remaining_cents - targetRemaining;
-  if (reduction <= 0) {
-    return { kind: "skipped", reason: "already_reduced" };
-  }
-
-  // Pre-payout: mutate the commission row only. Do not emit AffiliateAdjustment —
-  // those rows are reserved for post-payout clawbacks so payable balance is not
-  // double-counted.
-  const nextState = targetRemaining <= 0 ? "voided" : commission.state;
-  await prisma.affiliateCommission.update({
-    where: { id: commission.id },
-    data: {
-      remaining_cents: Math.max(0, targetRemaining),
-      state: nextState,
-      voided_at: nextState === "voided" ? new Date() : commission.voided_at,
-    },
+    if (nextState === "voided") {
+      return { kind: "voided" as const, commissionId: commission.id };
+    }
+    return {
+      kind: "reduced" as const,
+      commissionId: commission.id,
+      remainingCents: targetRemaining,
+    };
   });
 
-  logger?.info?.(
-    { commissionId: commission.id, targetRemaining, nextState },
-    "Applied refund to affiliate commission"
-  );
-
-  if (nextState === "voided") {
-    return { kind: "voided", commissionId: commission.id };
+  if (result.kind === "skipped" && result.reason === "commission_not_found") {
+    await flagUnmatchedReferredCharge(prisma, input, logger, "refund");
   }
-  return { kind: "reduced", commissionId: commission.id, remainingCents: targetRemaining };
+  return result;
 }
 
+type ChargeMatchInput = {
+  invoiceId?: string | null;
+  chargeId?: string | null;
+  paymentIntentId?: string | null;
+};
+
 async function findCommissionForCharge(
-  prisma: PrismaClient,
-  input: { invoiceId?: string | null; chargeId?: string | null }
+  prisma: PrismaClient | Prisma.TransactionClient,
+  input: ChargeMatchInput
 ) {
   if (input.invoiceId) {
     const byInvoice = await prisma.affiliateCommission.findUnique({
@@ -359,12 +401,77 @@ async function findCommissionForCharge(
     });
     if (byInvoice) return byInvoice;
   }
+  if (input.paymentIntentId) {
+    const byPi = await prisma.affiliateCommission.findFirst({
+      where: { stripe_payment_intent_id: input.paymentIntentId },
+    });
+    if (byPi) return byPi;
+  }
   if (input.chargeId) {
     return prisma.affiliateCommission.findFirst({
       where: { stripe_charge_id: input.chargeId },
     });
   }
   return null;
+}
+
+async function priorClawbackCents(
+  prisma: PrismaClient | Prisma.TransactionClient,
+  commissionId: string
+): Promise<number> {
+  const already = await prisma.affiliateAdjustment.aggregate({
+    where: { commission_id: commissionId, amount_cents: { lt: 0 } },
+    _sum: { amount_cents: true },
+  });
+  return Math.abs(already._sum.amount_cents ?? 0);
+}
+
+type PaidCommission = {
+  id: string;
+  affiliate_id: string;
+  organization_id: string;
+  stripe_invoice_id: string;
+  remaining_cents: number;
+};
+
+type ClawbackApplyResult =
+  | { kind: "skipped"; reason: string }
+  | { kind: "adjusted"; adjustmentId: string };
+
+async function applyPostPayoutClawback(
+  tx: Prisma.TransactionClient,
+  input: {
+    commission: PaidCommission;
+    targetRemainingDesired: number;
+    currency: string;
+    reason: "refund" | "dispute_lost";
+    note: string;
+    stripeRefundId?: string | null;
+  }
+): Promise<ClawbackApplyResult> {
+  const alreadyClawed = await priorClawbackCents(tx, input.commission.id);
+  const delta = postPayoutClawbackDelta({
+    amountActuallyPaid: input.commission.remaining_cents,
+    targetRemainingDesired: input.targetRemainingDesired,
+    priorClawbackCents: alreadyClawed,
+  });
+  if (delta <= 0) return { kind: "skipped", reason: "already_adjusted" };
+
+  const adjustment = await tx.affiliateAdjustment.create({
+    data: {
+      affiliate_id: input.commission.affiliate_id,
+      organization_id: input.commission.organization_id,
+      commission_id: input.commission.id,
+      amount_cents: -delta,
+      currency: input.currency,
+      reason: input.reason,
+      note: input.note,
+      stripe_refund_id: input.stripeRefundId ?? null,
+      stripe_invoice_id: input.commission.stripe_invoice_id,
+    },
+    select: { id: true },
+  });
+  return { kind: "adjusted", adjustmentId: adjustment.id };
 }
 
 export type ApplyDisputeResult =
@@ -380,78 +487,177 @@ export async function applyDisputeToCommission(
   input: {
     invoiceId?: string | null;
     chargeId?: string | null;
+    paymentIntentId?: string | null;
+    customerId?: string | null;
     status: "open" | "won" | "lost";
     currency?: string | null;
-  }
+  },
+  logger?: CommissionLogger
 ): Promise<ApplyDisputeResult> {
   if (!isAffiliateFeatureEnabled()) return { kind: "not_enabled" };
-  const commission = await findCommissionForCharge(prisma, input);
-  if (!commission) return { kind: "skipped", reason: "commission_not_found" };
 
-  if (input.status === "open") {
-    if (commission.dispute_status === "open") {
-      return { kind: "skipped", reason: "already_open" };
+  const result = await prisma.$transaction(async (tx) => {
+    const found = await findCommissionForCharge(tx, input);
+    if (!found) return { kind: "skipped" as const, reason: "commission_not_found" };
+
+    await lockAffiliateForUpdate(tx, found.affiliate_id);
+    const commission = await tx.affiliateCommission.findUnique({ where: { id: found.id } });
+    if (!commission) return { kind: "skipped" as const, reason: "commission_not_found" };
+
+    if (input.status === "open") {
+      if (commission.dispute_status === "open") {
+        return { kind: "skipped" as const, reason: "already_open" };
+      }
+      await tx.affiliateCommission.updateMany({
+        where: { id: commission.id },
+        data: { dispute_status: "open" },
+      });
+      return { kind: "held" as const, commissionId: commission.id };
     }
-    await prisma.affiliateCommission.update({
-      where: { id: commission.id },
-      data: { dispute_status: "open" },
-    });
-    return { kind: "held", commissionId: commission.id };
-  }
 
-  if (input.status === "won") {
-    await prisma.affiliateCommission.update({
-      where: { id: commission.id },
-      data: { dispute_status: "won" },
-    });
-    return { kind: "restored", commissionId: commission.id };
-  }
+    if (input.status === "won") {
+      await tx.affiliateCommission.updateMany({
+        where: { id: commission.id },
+        data: { dispute_status: "won" },
+      });
+      return { kind: "restored" as const, commissionId: commission.id };
+    }
 
-  // lost
-  if (commission.state === "paid") {
-    const already = await prisma.affiliateAdjustment.findFirst({
-      where: { commission_id: commission.id, reason: "dispute_lost" },
-      select: { id: true },
-    });
-    if (already) return { kind: "skipped", reason: "already_adjusted" };
-    const adjustment = await prisma.affiliateAdjustment.create({
-      data: {
-        affiliate_id: commission.affiliate_id,
-        organization_id: commission.organization_id,
-        commission_id: commission.id,
-        amount_cents: -commission.amount_cents,
+    // lost
+    if (commission.state === "paid") {
+      const clawed = await applyPostPayoutClawback(tx, {
+        commission,
+        targetRemainingDesired: 0,
         currency: (input.currency ?? commission.currency).toLowerCase(),
         reason: "dispute_lost",
         note: "Dispute lost after payout",
-        stripe_invoice_id: commission.stripe_invoice_id,
+      });
+      await tx.affiliateCommission.updateMany({
+        where: { id: commission.id },
+        data: { dispute_status: "lost" },
+      });
+      return clawed;
+    }
+
+    if (commission.state === "voided") {
+      await tx.affiliateCommission.updateMany({
+        where: { id: commission.id },
+        data: { dispute_status: "lost" },
+      });
+      return { kind: "skipped" as const, reason: "already_voided" };
+    }
+
+    const voided = await tx.affiliateCommission.updateMany({
+      where: { id: commission.id, state: "pending", payout_id: null },
+      data: {
+        remaining_cents: 0,
+        state: "voided",
+        voided_at: new Date(),
+        dispute_status: "lost",
       },
-      select: { id: true },
     });
-    await prisma.affiliateCommission.update({
-      where: { id: commission.id },
-      data: { dispute_status: "lost" },
-    });
-    return { kind: "adjusted", adjustmentId: adjustment.id };
-  }
-
-  if (commission.state === "voided") {
-    await prisma.affiliateCommission.update({
-      where: { id: commission.id },
-      data: { dispute_status: "lost" },
-    });
-    return { kind: "skipped", reason: "already_voided" };
-  }
-
-  await prisma.affiliateCommission.update({
-    where: { id: commission.id },
-    data: {
-      remaining_cents: 0,
-      state: "voided",
-      voided_at: new Date(),
-      dispute_status: "lost",
-    },
+    if (voided.count === 0) {
+      const latest = await tx.affiliateCommission.findUnique({ where: { id: commission.id } });
+      if (latest?.state === "paid") {
+        const clawed = await applyPostPayoutClawback(tx, {
+          commission: latest,
+          targetRemainingDesired: 0,
+          currency: (input.currency ?? latest.currency).toLowerCase(),
+          reason: "dispute_lost",
+          note: "Dispute lost after payout",
+        });
+        await tx.affiliateCommission.updateMany({
+          where: { id: latest.id },
+          data: { dispute_status: "lost" },
+        });
+        return clawed;
+      }
+      return { kind: "skipped" as const, reason: "state_changed" };
+    }
+    return { kind: "voided" as const, commissionId: commission.id };
   });
-  return { kind: "voided", commissionId: commission.id };
+
+  if (result.kind === "skipped" && result.reason === "commission_not_found") {
+    await flagUnmatchedReferredCharge(prisma, input, logger, "dispute");
+  }
+  return result;
+}
+
+function appendAttentionReason(existing: string | null | undefined, reason: string): string {
+  const parts = (existing ?? "")
+    .split(";")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (!parts.includes(reason)) parts.push(reason);
+  return parts.join(";");
+}
+
+async function flagReferralNeedsAttention(
+  prisma: PrismaClient | Prisma.TransactionClient,
+  organizationId: string,
+  reason: string
+): Promise<void> {
+  const referral = await prisma.organizationReferral.findUnique({
+    where: { organization_id: organizationId },
+    select: { needs_attention: true, attention_reason: true },
+  });
+  if (!referral) return;
+  const attentionReason = appendAttentionReason(referral.attention_reason, reason);
+  await prisma.organizationReferral.update({
+    where: { organization_id: organizationId },
+    data: { needs_attention: true, attention_reason: attentionReason },
+  });
+}
+
+async function flagUnmatchedReferredCharge(
+  prisma: PrismaClient,
+  input: {
+    invoiceId?: string | null;
+    chargeId?: string | null;
+    paymentIntentId?: string | null;
+    customerId?: string | null;
+  },
+  logger: CommissionLogger | undefined,
+  kind: "refund" | "dispute"
+): Promise<void> {
+  const org = input.customerId
+    ? await prisma.organization.findFirst({
+        where: { stripe_customer_id: input.customerId, deleted_at: null },
+        select: { id: true },
+      })
+    : null;
+  if (!org) return;
+
+  const referral = await prisma.organizationReferral.findUnique({
+    where: { organization_id: org.id },
+    select: { affiliate_id: true, status: true, attention_reason: true },
+  });
+  if (!referral?.affiliate_id || referral.status === "REJECTED") return;
+
+  logger?.warn(
+    {
+      orgId: org.id,
+      invoiceId: input.invoiceId ?? null,
+      chargeId: input.chargeId ?? null,
+      paymentIntentId: input.paymentIntentId ?? null,
+      kind,
+    },
+    "Affiliate refund/dispute had no matching commission"
+  );
+
+  await flagReferralNeedsAttention(prisma, org.id, COMMISSION_NOT_FOUND_ATTENTION_REASON);
+  try {
+    await prisma.organizationAuditEvent.create({
+      data: {
+        organization_id: org.id,
+        actor_email: "system@telemetry-tracker.com",
+        action: AUDIT_ACTIONS.AFFILIATE_COMMISSION_NOT_FOUND,
+        target: `${kind} unmatched charge=${input.chargeId ?? "none"} pi=${input.paymentIntentId ?? "none"} invoice=${input.invoiceId ?? "none"}`,
+      },
+    });
+  } catch {
+    // Audit must not block webhook processing.
+  }
 }
 
 export function mapStripeDisputeStatus(

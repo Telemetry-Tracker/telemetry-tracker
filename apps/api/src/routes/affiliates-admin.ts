@@ -13,6 +13,7 @@ import {
 } from "../lib/affiliate-management.js";
 import { markAffiliatePayoutPaid } from "../lib/affiliate-payout.js";
 import { resolveNeedsAttentionAsValid } from "../lib/resolve-needs-attention.js";
+import { AUDIT_ACTIONS, recordUserAuditEvents } from "../lib/audit-log.js";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -51,6 +52,12 @@ export async function affiliatesAdminRoutes(
       const status = result.code === "code_taken" ? 409 : 400;
       return reply.status(status).send({ error: result.message, code: result.code });
     }
+    await recordUserAuditEvents(
+      prisma,
+      admin.userId,
+      AUDIT_ACTIONS.AFFILIATE_CREATED,
+      `affiliate ${result.id} code=${result.code}`
+    );
     return reply.status(201).send({ id: result.id, code: result.code });
   });
 
@@ -94,6 +101,12 @@ export async function affiliatesAdminRoutes(
       if (result.kind === "refused") {
         return reply.status(400).send({ error: result.message });
       }
+      await recordUserAuditEvents(
+        prisma,
+        admin.userId,
+        AUDIT_ACTIONS.AFFILIATE_UPDATED,
+        `affiliate ${affiliateId}`
+      );
       return reply.send({ updated: true });
     }
   );
@@ -151,6 +164,12 @@ export async function affiliatesAdminRoutes(
         const status = result.code === "already_paid" ? 409 : 400;
         return reply.status(status).send({ error: result.message, code: result.code });
       }
+      await recordUserAuditEvents(
+        prisma,
+        admin.userId,
+        AUDIT_ACTIONS.AFFILIATE_PAYOUT_MARKED_PAID,
+        `affiliate ${affiliateId} payout ${result.payoutId} amount_cents=${result.amountCents}`
+      );
       return reply.send({
         payoutId: result.payoutId,
         amountCents: result.amountCents,

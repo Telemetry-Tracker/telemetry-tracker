@@ -32,6 +32,7 @@ let mockCustomersRetrieve: ReturnType<typeof vi.fn>;
 let mockCustomersUpdate: ReturnType<typeof vi.fn>;
 let mockSubscriptionsRetrieve: ReturnType<typeof vi.fn>;
 let mockChargesRetrieve: ReturnType<typeof vi.fn>;
+let mockInvoicePaymentsList: ReturnType<typeof vi.fn>;
 
 function resetStripeMocks() {
   capturedCheckoutArgs = null;
@@ -64,7 +65,9 @@ function resetStripeMocks() {
     id: "ch_test",
     customer: "cus_test",
     invoice: null,
+    payment_intent: null,
   });
+  mockInvoicePaymentsList = vi.fn().mockResolvedValue({ data: [] });
 }
 
 resetStripeMocks();
@@ -79,6 +82,7 @@ vi.mock("stripe", () => {
     },
     subscriptions: { retrieve: (...args: unknown[]) => mockSubscriptionsRetrieve(...args) },
     charges: { retrieve: (...args: unknown[]) => mockChargesRetrieve(...args) },
+    invoicePayments: { list: (...args: unknown[]) => mockInvoicePaymentsList(...args) },
     webhooks: {
       constructEvent: (payload: Buffer | string) =>
         JSON.parse(typeof payload === "string" ? payload : payload.toString()),

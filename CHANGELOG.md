@@ -16,6 +16,9 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 ### Fixed
 
 - **Affiliates ledger** — Pre-payout refunds and lost disputes now only mutate the commission row. `AffiliateAdjustment` is reserved for post-payout clawbacks so payable balance is not double-counted. Mark as paid auto-includes unsettled clawbacks, refuses `amount_mismatch` / `overpay`, and serializes concurrent submits (`already_paid`, no phantom payout). After marketing consent, a remembered sessionStorage referral is promoted into the 60-day cookie even without `?ref=` in the URL.
+- **Affiliates Stripe basil linking** — `invoice.paid` stores `stripe_payment_intent_id` from InvoicePayment (`invoice.payments` / `invoicePayments.list`) so refunds and disputes still match after API `2025-03-31.basil` removed `Invoice.charge` / `Charge.invoice`. Unmatched refunds/disputes on referred orgs set `needs_attention` instead of failing silent.
+- **Affiliates post-payout clawbacks** — Claw back only what was actually paid (`remaining_cents` at payout), minus every prior clawback (settled or open). Partial pre-payout refunds are respected; a second refund after a settled clawback does not re-claw the original amount.
+- **Affiliates refund vs mark-as-paid** — Refund and dispute handlers take the same affiliate `FOR UPDATE` lock as payout, re-read the commission, and apply state-aware updates (no stale `pending` overwrite, no payout of a just-reduced remaining without the clawback path).
 
 ### Changed
 
@@ -23,7 +26,7 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ### Database
 
-- `20261004180000_add_affiliate_tables` — native affiliate tables (`Affiliate`, `UserReferral`, `OrganizationReferral`, `AffiliateCommission`, `AffiliateAdjustment`, `AffiliatePayout`, `WebhookEvent`). Edited in place on `develop` before production apply; do not run against production until the program is enabled.
+- `20261004180000_add_affiliate_tables` — native affiliate tables (`Affiliate`, `UserReferral`, `OrganizationReferral`, `AffiliateCommission` including `stripe_payment_intent_id`, `AffiliateAdjustment`, `AffiliatePayout`, `WebhookEvent`). Edited in place on `develop` before production apply; do not run against production until the program is enabled. Local DBs that already applied an earlier copy of this migration need a reset.
 
 ---
 

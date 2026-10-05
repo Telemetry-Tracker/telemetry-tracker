@@ -16,7 +16,12 @@ import {
   signStripeEvent,
   snapshotEnv,
 } from "./affiliate-test-helpers.js";
-import { PAYOUT_MINIMUM_CENTS } from "../lib/affiliate-payout.js";
+import { PAYOUT_MINIMUM_CENTS, markAffiliatePayoutPaid } from "../lib/affiliate-payout.js";
+import {
+  applyDisputeToCommission,
+  applyRefundToCommission,
+  COMMISSION_NOT_FOUND_ATTENTION_REASON,
+} from "../lib/affiliate-commission.js";
 
 const shouldRun = process.env.RUN_DB_INTEGRATION_TESTS === "true";
 const testSuite = shouldRun ? describe : describe.skip;
@@ -28,6 +33,7 @@ let mockCustomersRetrieve: ReturnType<typeof vi.fn>;
 let mockCustomersUpdate: ReturnType<typeof vi.fn>;
 let mockSubscriptionsRetrieve: ReturnType<typeof vi.fn>;
 let mockChargesRetrieve: ReturnType<typeof vi.fn>;
+let mockInvoicePaymentsList: ReturnType<typeof vi.fn>;
 
 function resetStripeMocks() {
   capturedCheckoutArgs = null;
@@ -63,7 +69,9 @@ function resetStripeMocks() {
     id: "ch_test",
     customer: "cus_test",
     invoice: null,
+    payment_intent: null,
   });
+  mockInvoicePaymentsList = vi.fn().mockResolvedValue({ data: [] });
 }
 
 resetStripeMocks();
@@ -85,6 +93,9 @@ vi.mock("stripe", () => {
     },
     charges: {
       retrieve: (...args: unknown[]) => mockChargesRetrieve(...args),
+    },
+    invoicePayments: {
+      list: (...args: unknown[]) => mockInvoicePaymentsList(...args),
     },
     webhooks: {
       constructEvent: (payload: Buffer | string) => {
@@ -214,29 +225,51 @@ testSuite("Native affiliate integration", () => {
     customerId?: string;
     subscriptionId?: string;
     paidAt?: Date;
+    basil?: boolean;
+    paymentIntentId?: string;
   }) {
     const org = await prisma.organization.findUnique({
       where: { id: opts.orgId },
       select: { stripe_customer_id: true, stripe_subscription_id: true },
     });
+    const subscriptionId =
+      opts.subscriptionId ?? org?.stripe_subscription_id ?? "sub_hosted";
+    const paymentIntentId = opts.paymentIntentId ?? (opts.basil ? `pi_${opts.invoiceId}` : undefined);
+    const object: Record<string, unknown> = {
+      id: opts.invoiceId,
+      amount_paid: opts.amountPaid,
+      tax: opts.tax ?? 0,
+      currency: "eur",
+      customer: opts.customerId ?? org?.stripe_customer_id,
+      billing_reason: "subscription_cycle",
+      status_transitions: {
+        paid_at: Math.floor((opts.paidAt ?? new Date()).getTime() / 1000),
+      },
+    };
+    if (opts.basil) {
+      object.parent = { subscription_details: { subscription: subscriptionId } };
+      object.payments = {
+        object: "list",
+        data: [
+          {
+            id: `inpay_${opts.invoiceId}`,
+            status: "paid",
+            payment: {
+              type: "payment_intent",
+              payment_intent: paymentIntentId,
+            },
+          },
+        ],
+      };
+    } else {
+      object.subscription = subscriptionId;
+      object.charge = opts.chargeId ?? `ch_${opts.invoiceId}`;
+      if (paymentIntentId) object.payment_intent = paymentIntentId;
+    }
     const event = {
       id: `evt_${opts.invoiceId}`,
       type: "invoice.paid",
-      data: {
-        object: {
-          id: opts.invoiceId,
-          amount_paid: opts.amountPaid,
-          tax: opts.tax ?? 0,
-          currency: "eur",
-          customer: opts.customerId ?? org?.stripe_customer_id,
-          subscription: opts.subscriptionId ?? org?.stripe_subscription_id ?? "sub_hosted",
-          charge: opts.chargeId ?? `ch_${opts.invoiceId}`,
-          billing_reason: "subscription_cycle",
-          status_transitions: {
-            paid_at: Math.floor((opts.paidAt ?? new Date()).getTime() / 1000),
-          },
-        },
-      },
+      data: { object },
     };
     return postStripeEvent(event);
   }
@@ -440,6 +473,20 @@ testSuite("Native affiliate integration", () => {
         where: { stripe_invoice_id: { startsWith: "in_zero_" } },
       });
       expect(zeroRows).toHaveLength(0);
+    });
+
+    it("skips commissions for Free-tier orgs even on a hosted subscription invoice", async () => {
+      const { orgId } = await referredPaidOrg(`free-${Date.now()}`);
+      await prisma.organization.update({
+        where: { id: orgId },
+        data: { plan_tier: "FREE" },
+      });
+      await paidInvoice({
+        orgId,
+        invoiceId: `in_free_${Date.now()}`,
+        amountPaid: 2900,
+      });
+      expect(await prisma.affiliateCommission.count({ where: { organization_id: orgId } })).toBe(0);
     });
 
     it("Free→paid after the 60-day window still commissions the locked affiliate", async () => {
@@ -866,6 +913,7 @@ testSuite("Native affiliate integration", () => {
       return JSON.parse(response.body) as {
         pendingCents: number;
         payableCents: number;
+        paidCents: number;
         adjustmentCents: number;
         currentPayableBalanceCents: number;
       };
@@ -1046,6 +1094,372 @@ testSuite("Native affiliate integration", () => {
       expect(
         (await prisma.affiliateCommission.findUnique({ where: { id: commission.id } }))?.state
       ).toBe("paid");
+    });
+
+    it("links basil invoice.paid to refunds/disputes via payment_intent (no invoice.charge / charge.invoice)", async () => {
+      const affiliate = await createAffiliate({ code: `basil-${Date.now()}` });
+      const { sessionId } = await registerUser({
+        email: `basil${Date.now()}@example.com`,
+        referralCode: affiliate.code,
+      });
+      const orgId = await createOrg(sessionId);
+      const customerId = `cus_basil_${orgId.slice(0, 8)}`;
+      const invoiceId = `in_basil_${Date.now()}`;
+      const paymentIntentId = `pi_basil_${Date.now()}`;
+      const chargeId = `ch_basil_${Date.now()}`;
+      await prisma.organization.update({
+        where: { id: orgId },
+        data: {
+          plan_tier: "PRO",
+          stripe_customer_id: customerId,
+          stripe_subscription_id: `sub_basil_${orgId.slice(0, 8)}`,
+        },
+      });
+      await paidInvoice({
+        orgId,
+        invoiceId,
+        amountPaid: 2900,
+        customerId,
+        basil: true,
+        paymentIntentId,
+      });
+      const commission = await prisma.affiliateCommission.findUnique({
+        where: { stripe_invoice_id: invoiceId },
+      });
+      expect(commission?.stripe_charge_id).toBeNull();
+      expect(commission?.stripe_payment_intent_id).toBe(paymentIntentId);
+      testCommissionIds.push(commission!.id);
+
+      await postStripeEvent({
+        id: `evt_basil_ref_${Date.now()}`,
+        type: "charge.refunded",
+        data: {
+          object: {
+            id: chargeId,
+            payment_intent: paymentIntentId,
+            amount: 2900,
+            amount_refunded: 1450,
+            currency: "eur",
+            customer: customerId,
+            refunds: { data: [{ id: "re_basil" }] },
+          },
+        },
+      });
+      const reduced = await prisma.affiliateCommission.findUnique({ where: { id: commission!.id } });
+      expect(reduced?.remaining_cents).toBe(435);
+      expect(reduced?.state).toBe("pending");
+
+      const lostInvoice = `in_basil_dsp_${Date.now()}`;
+      const lostPi = `pi_basil_dsp_${Date.now()}`;
+      const lostCharge = `ch_basil_dsp_${Date.now()}`;
+      await paidInvoice({
+        orgId,
+        invoiceId: lostInvoice,
+        amountPaid: 2900,
+        customerId,
+        basil: true,
+        paymentIntentId: lostPi,
+      });
+      const lostCommission = await prisma.affiliateCommission.findUnique({
+        where: { stripe_invoice_id: lostInvoice },
+      });
+      testCommissionIds.push(lostCommission!.id);
+      mockChargesRetrieve.mockResolvedValue({
+        id: lostCharge,
+        customer: customerId,
+        payment_intent: lostPi,
+      });
+      await postStripeEvent({
+        id: `evt_basil_dsp_${Date.now()}`,
+        type: "charge.dispute.closed",
+        data: {
+          object: {
+            id: `dp_basil_${Date.now()}`,
+            charge: lostCharge,
+            payment_intent: lostPi,
+            amount: 2900,
+            currency: "eur",
+            reason: "fraudulent",
+            status: "lost",
+            livemode: false,
+          },
+        },
+      });
+      expect(
+        (await prisma.affiliateCommission.findUnique({ where: { id: lostCommission!.id } }))?.state
+      ).toBe("voided");
+    });
+
+    it("lists invoicePayments when a basil invoice.paid payload omits payments", async () => {
+      const { orgId } = await pendingCommission(2900);
+      const org = await prisma.organization.findUnique({
+        where: { id: orgId },
+        select: { stripe_customer_id: true, stripe_subscription_id: true },
+      });
+      const invoiceId = `in_basil_list_${Date.now()}`;
+      const paymentIntentId = `pi_basil_list_${Date.now()}`;
+      mockInvoicePaymentsList.mockResolvedValue({
+        data: [
+          {
+            status: "paid",
+            payment: { type: "payment_intent", payment_intent: paymentIntentId },
+          },
+        ],
+      });
+      await postStripeEvent({
+        id: `evt_${invoiceId}`,
+        type: "invoice.paid",
+        data: {
+          object: {
+            id: invoiceId,
+            amount_paid: 2900,
+            tax: 0,
+            currency: "eur",
+            customer: org?.stripe_customer_id,
+            billing_reason: "subscription_cycle",
+            parent: {
+              subscription_details: { subscription: org?.stripe_subscription_id },
+            },
+            status_transitions: { paid_at: Math.floor(Date.now() / 1000) },
+          },
+        },
+      });
+      const created = await prisma.affiliateCommission.findUnique({
+        where: { stripe_invoice_id: invoiceId },
+      });
+      expect(created?.stripe_payment_intent_id).toBe(paymentIntentId);
+      testCommissionIds.push(created!.id);
+    });
+
+    it("flags needs_attention when a referred customer refund has no matching commission", async () => {
+      const { orgId, customerId, affiliate } = await pendingCommission(2900);
+      expect(affiliate.id).toBeTruthy();
+      await postStripeEvent({
+        id: `evt_unmatched_ref_${Date.now()}`,
+        type: "charge.refunded",
+        data: {
+          object: {
+            id: `ch_unmatched_${Date.now()}`,
+            payment_intent: `pi_unmatched_${Date.now()}`,
+            amount: 2900,
+            amount_refunded: 2900,
+            currency: "eur",
+            customer: customerId,
+            refunds: { data: [{ id: "re_unmatched" }] },
+          },
+        },
+      });
+      const referral = await prisma.organizationReferral.findUnique({
+        where: { organization_id: orgId },
+      });
+      expect(referral?.needs_attention).toBe(true);
+      expect(referral?.attention_reason).toContain(COMMISSION_NOT_FOUND_ATTENTION_REASON);
+      const audit = await prisma.organizationAuditEvent.findFirst({
+        where: { organization_id: orgId, action: "affiliate.commission.not_found" },
+      });
+      expect(audit).toBeTruthy();
+    });
+
+    it("claws only the paid remaining after a pre-payout partial refund, then a post-payout refund", async () => {
+      const { affiliate, commission, chargeId, invoiceId } = await pendingCommission(16667);
+      await applyRefundToCommission(prisma, {
+        invoiceId,
+        chargeId,
+        chargeAmount: 16667,
+        amountRefunded: 8334,
+        currency: "eur",
+      });
+      const reduced = await prisma.affiliateCommission.findUnique({ where: { id: commission.id } });
+      expect(reduced?.remaining_cents).toBeLessThan(commission.amount_cents);
+      const paidRemaining = reduced!.remaining_cents;
+
+      await prisma.affiliateCommission.update({
+        where: { id: commission.id },
+        data: { payable_at: new Date(Date.now() - 1000) },
+      });
+      const admin = await founderAdmin();
+      const paid = await markPaid(admin.sessionId, affiliate.id, {
+        commissionIds: [commission.id],
+        amountCents: paidRemaining,
+      });
+      expect(paid.statusCode).toBe(200);
+
+      const detail = await adminDetail(admin.sessionId, affiliate.id);
+      expect(detail.paidCents).toBe(paidRemaining);
+
+      await applyRefundToCommission(prisma, {
+        invoiceId,
+        chargeId,
+        chargeAmount: 16667,
+        amountRefunded: 16667,
+        currency: "eur",
+        refundId: "re_after_partial",
+      });
+      const clawbacks = await prisma.affiliateAdjustment.findMany({
+        where: { commission_id: commission.id, reason: "refund" },
+      });
+      expect(clawbacks).toHaveLength(1);
+      expect(clawbacks[0]?.amount_cents).toBe(-paidRemaining);
+      const stillPaid = await prisma.affiliateCommission.findUnique({
+        where: { id: commission.id },
+      });
+      expect(stillPaid?.state).toBe("paid");
+      expect(stillPaid?.remaining_cents).toBe(paidRemaining);
+    });
+
+    it("does not re-claw the original amount after a clawback has been settled", async () => {
+      const { affiliate, commission, orgId, chargeId, invoiceId } = await pendingCommission(16667);
+      await prisma.affiliateCommission.update({
+        where: { id: commission.id },
+        data: { payable_at: new Date(Date.now() - 1000) },
+      });
+      const admin = await founderAdmin();
+      expect(
+        (
+          await markPaid(admin.sessionId, affiliate.id, {
+            commissionIds: [commission.id],
+            amountCents: commission.remaining_cents,
+          })
+        ).statusCode
+      ).toBe(200);
+
+      await applyRefundToCommission(prisma, {
+        invoiceId,
+        chargeId,
+        chargeAmount: 16667,
+        amountRefunded: 8334,
+        currency: "eur",
+        refundId: "re_settle_1",
+      });
+      const first = await prisma.affiliateAdjustment.findFirst({
+        where: { commission_id: commission.id, reason: "refund" },
+      });
+      expect(first?.amount_cents).toBeLessThan(0);
+      const firstClaw = Math.abs(first!.amount_cents);
+
+      const next = await seedPayableCommission(affiliate.id, orgId, 10000);
+      const net = 10000 - firstClaw;
+      expect(
+        (
+          await markPaid(admin.sessionId, affiliate.id, {
+            commissionIds: [next.id],
+            amountCents: net,
+          })
+        ).statusCode
+      ).toBe(200);
+      expect(
+        (await prisma.affiliateAdjustment.findUnique({ where: { id: first!.id } }))?.payout_id
+      ).toBeTruthy();
+
+      await applyRefundToCommission(prisma, {
+        invoiceId,
+        chargeId,
+        chargeAmount: 16667,
+        amountRefunded: 16667,
+        currency: "eur",
+        refundId: "re_settle_2",
+      });
+      const all = await prisma.affiliateAdjustment.findMany({
+        where: { commission_id: commission.id, reason: "refund" },
+      });
+      const totalClawed = all.reduce((sum, row) => sum + Math.abs(row.amount_cents), 0);
+      expect(totalClawed).toBe(commission.remaining_cents);
+      expect(all).toHaveLength(2);
+      expect(all.some((row) => Math.abs(row.amount_cents) === commission.amount_cents)).toBe(false);
+    });
+
+    it("claws only what was paid when a dispute is lost after a pre-payout partial refund", async () => {
+      const { affiliate, commission, chargeId, invoiceId } = await pendingCommission(16667);
+      await applyRefundToCommission(prisma, {
+        invoiceId,
+        chargeId,
+        chargeAmount: 16667,
+        amountRefunded: 8334,
+        currency: "eur",
+      });
+      const paidRemaining = (
+        await prisma.affiliateCommission.findUnique({ where: { id: commission.id } })
+      )!.remaining_cents;
+      await prisma.affiliateCommission.update({
+        where: { id: commission.id },
+        data: { payable_at: new Date(Date.now() - 1000) },
+      });
+      const admin = await founderAdmin();
+      expect(
+        (
+          await markPaid(admin.sessionId, affiliate.id, {
+            commissionIds: [commission.id],
+            amountCents: paidRemaining,
+          })
+        ).statusCode
+      ).toBe(200);
+
+      await applyDisputeToCommission(prisma, {
+        invoiceId,
+        chargeId,
+        status: "lost",
+        currency: "eur",
+      });
+      const adjustment = await prisma.affiliateAdjustment.findFirst({
+        where: { commission_id: commission.id, reason: "dispute_lost" },
+      });
+      expect(adjustment?.amount_cents).toBe(-paidRemaining);
+      expect(adjustment?.amount_cents).not.toBe(-commission.amount_cents);
+    });
+
+    it("serializes refund vs mark-as-paid so there is no overpay and no lost clawback", async () => {
+      const { affiliate, commission, chargeId, invoiceId } = await pendingCommission(16667);
+      await prisma.affiliateCommission.update({
+        where: { id: commission.id },
+        data: { payable_at: new Date(Date.now() - 1000) },
+      });
+      const originalRemaining = commission.remaining_cents;
+      const admin = await registerUser({
+        email: `founder-race-${Date.now()}@example.com`,
+      });
+      process.env.AFFILIATE_ADMIN_EMAILS = admin.user.email;
+
+      const [refundResult, payoutResult] = await Promise.all([
+        applyRefundToCommission(prisma, {
+          invoiceId,
+          chargeId,
+          chargeAmount: 16667,
+          amountRefunded: 16667,
+          currency: "eur",
+          refundId: `re_race_${Date.now()}`,
+        }),
+        markAffiliatePayoutPaid(prisma, {
+          affiliateId: affiliate.id,
+          actorUserId: admin.user.id,
+          commissionIds: [commission.id],
+          amountCents: originalRemaining,
+        }),
+      ]);
+
+      const latest = await prisma.affiliateCommission.findUnique({
+        where: { id: commission.id },
+      });
+      const payouts = await prisma.affiliatePayout.findMany({
+        where: { affiliate_id: affiliate.id },
+      });
+      const clawbacks = await prisma.affiliateAdjustment.findMany({
+        where: { commission_id: commission.id },
+      });
+
+      expect(payouts.length).toBeLessThanOrEqual(1);
+      if (latest?.state === "paid") {
+        expect(latest.remaining_cents).toBe(originalRemaining);
+        expect(clawbacks.reduce((sum, row) => sum + row.amount_cents, 0)).toBe(-originalRemaining);
+        expect(payouts).toHaveLength(1);
+        expect(payoutResult.kind === "paid" || refundResult.kind === "adjusted").toBe(true);
+      } else {
+        expect(latest?.state).toBe("voided");
+        expect(latest?.remaining_cents).toBe(0);
+        expect(payouts).toHaveLength(0);
+        expect(clawbacks).toHaveLength(0);
+        expect(refundResult.kind).toBe("voided");
+        expect(payoutResult.kind).toBe("refused");
+      }
     });
   });
 

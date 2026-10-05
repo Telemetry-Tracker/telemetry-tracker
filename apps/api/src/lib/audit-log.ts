@@ -21,6 +21,8 @@ export const AUDIT_ACTIONS = {
   AFFILIATE_UPDATED: "affiliate.updated",
   AFFILIATE_PAYOUT_MARKED_PAID: "affiliate.payout.marked_paid",
   AFFILIATE_DISPUTE_CREATED: "affiliate.dispute.created",
+  /** Refund/dispute arrived for a referred org but no commission row matched. */
+  AFFILIATE_COMMISSION_NOT_FOUND: "affiliate.commission.not_found",
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];

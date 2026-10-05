@@ -761,11 +761,14 @@ model AffiliateCommission {
   organization             Organization @relation(fields: [organization_id], references: [id], onDelete: Restrict)
   stripe_invoice_id        String    @unique @map("stripe_invoice_id")
   stripe_charge_id         String?   @map("stripe_charge_id")
+  /// PaymentIntent id from InvoicePayment (basil) or legacy Invoice.payment_intent.
+  stripe_payment_intent_id String?   @map("stripe_payment_intent_id")
   /// Eligible net paid used for the 30% calc (tax/discounts/credits excluded).
   eligible_base_cents      Int       @map("eligible_base_cents")
   /// Original commission (30% of eligible base). Immutable historical amount.
   amount_cents             Int       @map("amount_cents")
-  /// Amount still owed on this commission before payout (reduced by refunds).
+  /// Amount still owed before payout (reduced by pre-payout refunds). After payout this stays
+  /// the amount that was paid; post-payout clawbacks use AffiliateAdjustment instead.
   remaining_cents          Int       @map("remaining_cents")
   currency                 String
   /// pending | paid | voided  (payable is derived: pending && now >= payable_at && !open dispute)
@@ -785,6 +788,7 @@ model AffiliateCommission {
   @@index([affiliate_id, state])
   @@index([organization_id])
   @@index([stripe_charge_id])
+  @@index([stripe_payment_intent_id])
   @@index([state, payable_at])
   @@index([payout_id])
 }

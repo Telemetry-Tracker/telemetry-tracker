@@ -7,6 +7,7 @@ import {
   eligibleNetPaidCents,
   invoiceTaxCents,
   mapStripeDisputeStatus,
+  postPayoutClawbackDelta,
 } from "./affiliate-commission.js";
 import { PAYOUT_MINIMUM_CENTS } from "./affiliate-payout.js";
 
@@ -133,5 +134,31 @@ describe("mapStripeDisputeStatus", () => {
     expect(mapStripeDisputeStatus("won")).toBe("won");
     expect(mapStripeDisputeStatus("warning_closed")).toBe("won");
     expect(mapStripeDisputeStatus("lost")).toBe("lost");
+  });
+});
+
+describe("postPayoutClawbackDelta", () => {
+  it("claws only what was paid minus the desired remaining, net of prior clawbacks", () => {
+    expect(
+      postPayoutClawbackDelta({
+        amountActuallyPaid: 500,
+        targetRemainingDesired: 0,
+        priorClawbackCents: 0,
+      })
+    ).toBe(500);
+    expect(
+      postPayoutClawbackDelta({
+        amountActuallyPaid: 1000,
+        targetRemainingDesired: 0,
+        priorClawbackCents: 500,
+      })
+    ).toBe(500);
+    expect(
+      postPayoutClawbackDelta({
+        amountActuallyPaid: 500,
+        targetRemainingDesired: 0,
+        priorClawbackCents: 500,
+      })
+    ).toBe(0);
   });
 });

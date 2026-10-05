@@ -18,7 +18,9 @@ import {
   applyRefundToCommission,
   mapStripeDisputeStatus,
   recordCommissionFromInvoice,
+  chargeCustomerId,
   chargeInvoiceId,
+  chargePaymentIntentId,
 } from "../lib/affiliate-commission.js";
 import { AUDIT_ACTIONS } from "../lib/audit-log.js";
 
@@ -256,7 +258,7 @@ async function processStripeEvent(
             const { isAffiliateFeatureEnabled } = await import("../lib/affiliates-feature-flag.js");
             if (!isAffiliateFeatureEnabled()) break;
             const invoice = event.data.object as Stripe.Invoice;
-            await recordCommissionFromInvoice(prisma, invoice, request.log);
+            await recordCommissionFromInvoice(prisma, invoice, request.log, { stripe });
             break;
           }
           case "charge.refunded": {
@@ -272,6 +274,8 @@ async function processStripeEvent(
               {
                 invoiceId,
                 chargeId: charge.id,
+                paymentIntentId: chargePaymentIntentId(charge),
+                customerId: chargeCustomerId(charge),
                 chargeAmount: charge.amount,
                 amountRefunded: charge.amount_refunded,
                 refundId: latestRefund?.id ?? null,
@@ -292,14 +296,21 @@ async function processStripeEvent(
             if (!isAffiliateFeatureEnabled()) break;
 
             const charge = await stripe.charges.retrieve(chargeId);
-            const customerId = typeof charge.customer === "string" ? charge.customer : null;
+            const customerId = chargeCustomerId(charge) ?? chargeCustomerId(dispute);
             const invoiceId = chargeInvoiceId(charge);
-            await applyDisputeToCommission(prisma, {
-              invoiceId,
-              chargeId,
-              status: mapStripeDisputeStatus(dispute.status),
-              currency: dispute.currency,
-            });
+            await applyDisputeToCommission(
+              prisma,
+              {
+                invoiceId,
+                chargeId,
+                paymentIntentId:
+                  chargePaymentIntentId(charge) ?? chargePaymentIntentId(dispute),
+                customerId,
+                status: mapStripeDisputeStatus(dispute.status),
+                currency: dispute.currency,
+              },
+              request.log
+            );
 
             if (event.type !== "charge.dispute.created") break;
             if (!customerId) break;
