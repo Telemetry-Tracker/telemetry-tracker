@@ -149,6 +149,8 @@ export async function register(
   const displayName = displayNameRaw ? displayNameRaw.slice(0, 120) : undefined;
   const inviteToken = String(formData.get("inviteToken") ?? "").trim();
   const marketingOptIn = formData.get("marketingOptIn") === "yes";
+  const rewardfulReferralId = String(formData.get("rewardfulReferralId") ?? "").trim();
+  const viaToken = String(formData.get("viaToken") ?? "").trim();
   if (formData.get("termsAccepted") !== "yes") {
     return {
       ok: false,
@@ -171,6 +173,8 @@ export async function register(
       displayName,
       marketingOptIn,
       ...(inviteToken ? { inviteToken } : {}),
+      ...(process.env.NEXT_PUBLIC_AFFILIATES_ENABLED === "true" && rewardfulReferralId ? { rewardfulReferralId } : {}),
+      ...(process.env.NEXT_PUBLIC_AFFILIATES_ENABLED === "true" && viaToken ? { viaToken } : {}),
     }),
   });
   const data = (await res.json().catch(() => ({}))) as {
