@@ -310,20 +310,17 @@ export async function attributeOrganizationToAffiliate(
 
   // Check if referral has expired (60-day last-click window)
   const expired = isReferralExpired(userReferral.captured_at);
-  let referralStatus: "UNRESOLVED" | "ACTIVE" | "EXPIRED" = "UNRESOLVED";
-  
   if (expired) {
     needsAttention = true;
     attentionReason = `referral_expired_${REFERRAL_ATTRIBUTION_WINDOW_DAYS}_days`;
-    referralStatus = "EXPIRED";
-  } else if (!userReferral.affiliate_id) {
-    // Plain unresolved is not a payout hold — Rewardful needs metadata.referral
-    // (the UUID) on the Customer in order to send referral.converted.
-    referralStatus = "UNRESOLVED";
-  } else {
-    // Affiliate is resolved and not expired
-    referralStatus = "ACTIVE";
   }
+  // Plain unresolved is not a payout hold — Rewardful needs metadata.referral
+  // (the UUID) on the Customer in order to send referral.converted.
+  const referralStatus: "UNRESOLVED" | "ACTIVE" | "EXPIRED" = expired
+    ? "EXPIRED"
+    : userReferral.affiliate_id
+      ? "ACTIVE"
+      : "UNRESOLVED";
   
   // Update UserReferral status
   await prisma.userReferral.updateMany({

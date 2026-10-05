@@ -146,10 +146,8 @@ export async function resolveNeedsAttentionAsValid(
     via_token: referral.via_token,
   };
 
-  let stripeResult: "updated" | "unchanged" | "deferred" | "skipped_deleted" = "deferred";
-  if (!org.stripe_customer_id) {
-    stripeResult = "deferred";
-  } else if (!stripe) {
+  let stripeResult: "updated" | "unchanged" | "deferred" | "skipped_deleted";
+  if (!org.stripe_customer_id || !stripe) {
     stripeResult = "deferred";
   } else {
     const sync = await updateExistingCustomerReferralMetadata(
