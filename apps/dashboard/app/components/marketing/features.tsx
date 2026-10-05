@@ -23,7 +23,7 @@ const features = [
   },
   {
     title: "Alerting",
-    desc: "Error spike and quota threshold rules with in-app notifications, email, and HTTPS webhooks.",
+    desc: "Alerts via in-app notifications, email, HTTPS webhooks, Slack, Discord and Telegram. Chat destinations use incoming webhook or bot URLs.",
     icon: (
       <>
         <path d="M8 2.5a4 4 0 0 1 4 4v2.5l1.2 2.4H2.8L4 9V6.5a4 4 0 0 1 4-4z" />

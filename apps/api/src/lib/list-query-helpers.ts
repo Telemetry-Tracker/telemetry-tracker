@@ -26,6 +26,43 @@ export function freeTextAndMatchSql(
  * Free-text event match (Global Search / Events `q`): each whitespace term must
  * match `name` OR `properties` (ILIKE), AND across terms.
  */
+/**
+ * Issues / global error search: each term matches the group message, the
+ * fingerprint, or an occurrence's `context.digest` (Next.js error reference).
+ */
+export function errorGroupTermsMatchSql(
+  terms: readonly string[],
+  messageCol: Prisma.Sql,
+  fingerprintCol: Prisma.Sql,
+  errorGroupIdCol: Prisma.Sql
+): Prisma.Sql | null {
+  const usable = terms.map((term) => term.trim()).filter(Boolean);
+  if (usable.length === 0) return null;
+  const termClauses = usable.map((term) => {
+    const pat = `%${escapeLikePattern(term)}%`;
+    return Prisma.sql`(
+      COALESCE(${messageCol}, '') ILIKE ${pat} ESCAPE '\\'
+      OR COALESCE(${fingerprintCol}, '') ILIKE ${pat} ESCAPE '\\'
+      OR EXISTS (
+        SELECT 1 FROM "ErrorOccurrence" occ
+        WHERE occ."error_group_id" = ${errorGroupIdCol}
+          AND COALESCE(occ."context"->>'digest', '') ILIKE ${pat} ESCAPE '\\'
+      )
+    )`;
+  });
+  return Prisma.join(termClauses, " AND ");
+}
+
+export function errorGroupFreeTextMatchSql(
+  q: string | undefined | null,
+  messageCol: Prisma.Sql,
+  fingerprintCol: Prisma.Sql,
+  errorGroupIdCol: Prisma.Sql
+): Prisma.Sql | null {
+  const terms = (q ?? "").trim().split(/\s+/).filter(Boolean);
+  return errorGroupTermsMatchSql(terms, messageCol, fingerprintCol, errorGroupIdCol);
+}
+
 export function eventFreeTextMatchSql(
   q: string | undefined | null,
   nameCol: Prisma.Sql = Prisma.sql`name`,

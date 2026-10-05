@@ -78,7 +78,7 @@ describe("sdk setup snippets", () => {
     expect(src).toContain("nextDocsCheckButton");
     expect(src).toContain("nextInstrumentation");
     expect(src).toMatch(/Verify ingest \(optional\)/);
-    expect(src).toMatch(/Server errors \(optional\)/);
+    expect(src).toMatch(/Server-side error tracking with Next\.js App Router/);
     expect(src).not.toMatch(/1\.3\.1 is still browser-only|not on npm until/i);
     expect(src).not.toMatch(/\/\* get pathname from usePathname/);
   });
@@ -89,6 +89,10 @@ describe("sdk setup snippets", () => {
     expect(src).toContain("nextProviderSetup");
     expect(src).toContain("nextTrackPageView");
     expect(src).toContain("nextEnvLocal");
+    expect(src).toContain("nextEnvLocalServer");
+    expect(src).toContain("nextInstrumentation");
     expect(src).toContain("nextDocsCheckButton");
+    expect(src).toMatch(/Server-side error tracking with Next\.js App Router/);
+    expect(src).toContain('href: "/docs/migrate-from-sentry"');
   });
 });

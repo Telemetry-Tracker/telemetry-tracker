@@ -10,6 +10,8 @@ const pageFiles: Record<(typeof MARKETING_GUIDE_PATHS)[number], string> = {
   "/sentry-alternative": "sentry-alternative/page.tsx",
   "/self-hosted-error-tracking": "self-hosted-error-tracking/page.tsx",
   "/error-tracking/nextjs": "error-tracking/nextjs/page.tsx",
+  "/error-tracking/nextjs/server-components-render-error":
+    "error-tracking/nextjs/server-components-render-error/page.tsx",
   "/error-tracking/react": "error-tracking/react/page.tsx",
   "/error-tracking/nodejs": "error-tracking/nodejs/page.tsx",
   "/error-tracking/react-native": "error-tracking/react-native/page.tsx",

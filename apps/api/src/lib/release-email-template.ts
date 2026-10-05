@@ -1,24 +1,17 @@
-import { emailBrandLogoImgTag } from "./email-brand-logo.js";
+import {
+  EMAIL_COLORS,
+  EMAIL_FONT_FAMILY,
+  emailDocumentHead,
+  emailSolidFill,
+  escapeHtml,
+  renderEmailBrandHeader,
+  renderEmailPrimaryCta,
+  renderEmailSecondaryCta,
+} from "./email-chrome.js";
 
-/** Dashboard-aligned palette (light theme approximations for email clients). */
-const COLORS = {
-  background: "#f6f7fb",
-  card: "#ffffff",
-  foreground: "#1c1f28",
-  muted: "#647089",
-  border: "#e4e7ef",
-  brand: "#4a5fe8",
-  brandSoft: "#eef1ff",
-  surface: "#f0f2f7",
-} as const;
+export { escapeHtml };
 
-export function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
+const COLORS = EMAIL_COLORS;
 
 const GITHUB_REPO_DOCS_BASE =
   "https://github.com/Telemetry-Tracker/telemetry-tracker/blob/main";
@@ -123,7 +116,7 @@ export function changelogMarkdownToHtml(markdown: string, dashboardOrigin: strin
 
     if (trimmed.startsWith("- ")) {
       listItems.push(
-        `<li style="margin:0 0 10px;">${parseInlineMarkdown(trimmed.slice(2), dashboardOrigin)}</li>`
+        `<li style="margin:0 0 10px;color:${COLORS.foreground};">${parseInlineMarkdown(trimmed.slice(2), dashboardOrigin)}</li>`
       );
       continue;
     }
@@ -155,58 +148,38 @@ export function buildReleaseEmailBodyHtml(options: {
   const releasesUrl = `${origin}/docs/releases`;
   const dashboardUrl = `${origin}/dashboard/overview`;
 
+  const pageFill = emailSolidFill(COLORS.background);
+  const cardFill = emailSolidFill(COLORS.card);
+
   return `<!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="color-scheme" content="light" />
-  <title>${escapeHtml(headline)}</title>
-</head>
-<body style="margin:0;padding:0;background:${COLORS.background};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${COLORS.background};padding:32px 16px;">
+${emailDocumentHead(headline)}
+<body bgcolor="${COLORS.background}" style="margin:0;padding:0;${pageFill}color:${COLORS.foreground};font-family:${EMAIL_FONT_FAMILY};">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="${COLORS.background}" style="${pageFill}padding:32px 16px;">
     <tr>
-      <td align="center">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:${COLORS.card};border:1px solid ${COLORS.border};border-radius:16px;overflow:hidden;">
+      <td align="center" bgcolor="${COLORS.background}" style="${pageFill}">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="${COLORS.card}" style="max-width:560px;${cardFill}border:1px solid ${COLORS.border};border-radius:16px;overflow:hidden;">
+          ${renderEmailBrandHeader({
+            badgeLabel: versionLabel,
+            badgeBackground: COLORS.brandSoft,
+            badgeColor: COLORS.brand,
+          })}
           <tr>
-            <td style="padding:24px 28px 20px;border-bottom:1px solid ${COLORS.border};background:linear-gradient(180deg, ${COLORS.surface} 0%, ${COLORS.card} 100%);">
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-                <tr>
-                  <td style="vertical-align:middle;">
-                    <table role="presentation" cellpadding="0" cellspacing="0">
-                      <tr>
-                        <td style="vertical-align:middle;padding-right:10px;">
-                          ${emailBrandLogoImgTag(28)}
-                        </td>
-                        <td style="vertical-align:middle;font-size:15px;font-weight:600;letter-spacing:-0.02em;color:${COLORS.foreground};">
-                          Telemetry<span style="color:${COLORS.muted};"> / </span>Tracker
-                        </td>
-                      </tr>
-                    </table>
-                  </td>
-                  <td align="right" style="vertical-align:middle;">
-                    <span style="display:inline-block;padding:4px 10px;border-radius:999px;background:${COLORS.brandSoft};color:${COLORS.brand};font-size:12px;font-weight:600;letter-spacing:0.02em;">${escapeHtml(versionLabel)}</span>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding:28px 28px 8px;">
+            <td bgcolor="${COLORS.card}" style="padding:28px 28px 8px;${cardFill}color:${COLORS.foreground};">
               <p style="margin:0 0 8px;font-size:13px;color:${COLORS.muted};">Hi there,</p>
               <h1 style="margin:0 0 20px;font-size:22px;font-weight:600;line-height:1.3;letter-spacing:-0.02em;color:${COLORS.foreground};">${escapeHtml(headline)}</h1>
               ${content}
             </td>
           </tr>
           <tr>
-            <td style="padding:8px 28px 28px;">
-              <table role="presentation" cellpadding="0" cellspacing="0">
+            <td bgcolor="${COLORS.card}" style="padding:8px 28px 28px;${cardFill}">
+              <table role="presentation" cellpadding="0" cellspacing="0" bgcolor="${COLORS.card}" style="${cardFill}">
                 <tr>
-                  <td style="padding-right:10px;">
-                    <a href="${escapeHtml(releasesUrl)}" style="display:inline-block;padding:11px 18px;border-radius:999px;background:${COLORS.foreground};color:#ffffff;font-size:14px;font-weight:600;text-decoration:none;">Release notes</a>
+                  <td bgcolor="${COLORS.card}" style="padding-right:10px;${cardFill}">
+                    ${renderEmailPrimaryCta(releasesUrl, "Release notes")}
                   </td>
-                  <td>
-                    <a href="${escapeHtml(dashboardUrl)}" style="display:inline-block;padding:11px 18px;border-radius:999px;border:1px solid ${COLORS.border};background:${COLORS.card};color:${COLORS.foreground};font-size:14px;font-weight:600;text-decoration:none;">Open dashboard</a>
+                  <td bgcolor="${COLORS.card}" style="${cardFill}">
+                    ${renderEmailSecondaryCta(dashboardUrl, "Open dashboard")}
                   </td>
                 </tr>
               </table>
@@ -224,7 +197,8 @@ export function buildReleaseEmailBodyHtml(options: {
 }
 
 export function appendReleaseEmailFooter(html: string, unsubscribeUrl: string): string {
-  const footer = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center"><p style="margin:8px 0 0;font-size:12px;line-height:1.5;color:${COLORS.muted};max-width:560px;text-align:center;">
+  const pageFill = emailSolidFill(COLORS.background);
+  const footer = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="${COLORS.background}" style="${pageFill}"><tr><td align="center" bgcolor="${COLORS.background}" style="${pageFill}"><p style="margin:8px 0 0;font-size:12px;line-height:1.5;color:${COLORS.muted};max-width:560px;text-align:center;">
   <a href="${escapeHtml(unsubscribeUrl)}" style="color:${COLORS.muted};text-decoration:underline;">Unsubscribe</a>
 </p></td></tr></table>`;
 
