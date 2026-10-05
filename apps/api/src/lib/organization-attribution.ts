@@ -24,6 +24,39 @@ export type OrganizationAttributionResult =
 /** Last-click window (days) from capture to org creation. */
 export const REFERRAL_ATTRIBUTION_WINDOW_DAYS = 60;
 
+export type ReferralStripeMetadataGate = {
+  status: string;
+  affiliate_id?: string | null;
+  needs_attention: boolean;
+};
+
+/**
+ * Rewardful commission token (`Customer.metadata.referral`).
+ * ACTIVE|UNRESOLVED and not flagged — never when `needs_attention`.
+ */
+export function canWriteStripeReferralMetadata(
+  referral: ReferralStripeMetadataGate
+): boolean {
+  return (
+    !referral.needs_attention &&
+    (referral.status === "ACTIVE" || referral.status === "UNRESOLVED")
+  );
+}
+
+/**
+ * Checkout session / Customer `tt_org_id` + `tt_affiliate_id`.
+ * ACTIVE with a resolved affiliate and not flagged.
+ */
+export function canWriteAffiliateTtMetadata(
+  referral: ReferralStripeMetadataGate
+): boolean {
+  return (
+    referral.status === "ACTIVE" &&
+    !!referral.affiliate_id &&
+    !referral.needs_attention
+  );
+}
+
 /**
  * Expired only after the window elapses (`>` not `>=`): captured_at exactly 60 days ago is still attributed.
  */
@@ -41,7 +74,8 @@ async function resolveStripeCustomerIdWithMetadata(
   stripe: Stripe,
   orgId: string,
   metadata: {
-    tt_org_id: string;
+    organization_id?: string;
+    tt_org_id?: string;
     tt_affiliate_id?: string;
     referral?: string;
   },
@@ -288,33 +322,40 @@ export async function attributeOrganizationToAffiliate(
   // Create Stripe Customer if:
   // 1. Referral has not expired (60-day last-click window)
   // 2. We have a UUID (affiliate may be unresolved) OR we have via token + resolved affiliate
+  // Referral / tt_* metadata is omitted when needs_attention so Rewardful cannot pay.
   const hasUuid = !!userReferral.rewardful_referral_id;
   const hasResolvedViaToken = !!userReferral.via_token && !!userReferral.affiliate_id;
   const shouldCreateCustomer = !expired && (hasUuid || hasResolvedViaToken);
+  const metadataGate = {
+    status: referralStatus,
+    affiliate_id: userReferral.affiliate_id,
+    needs_attention: needsAttention,
+  };
 
   // Create Stripe Customer if conditions are met
   let customerId: string | null = null;
   if (shouldCreateCustomer) {
     const metadata: {
       organization_id: string;
-      tt_org_id: string;
+      tt_org_id?: string;
       tt_affiliate_id?: string;
       referral?: string;
     } = {
       organization_id: input.organizationId,
-      tt_org_id: input.organizationId,
     };
 
-    // Add affiliate_id if resolved
-    if (userReferral.affiliate_id) {
-      metadata.tt_affiliate_id = userReferral.affiliate_id;
+    if (canWriteAffiliateTtMetadata(metadataGate)) {
+      metadata.tt_org_id = input.organizationId;
+      metadata.tt_affiliate_id = userReferral.affiliate_id!;
     }
 
     // Always prefer UUID; use via token only when no UUID and affiliate resolved
-    if (userReferral.rewardful_referral_id) {
-      metadata.referral = userReferral.rewardful_referral_id;
-    } else if (userReferral.via_token && userReferral.affiliate_id) {
-      metadata.referral = userReferral.via_token;
+    if (canWriteStripeReferralMetadata(metadataGate)) {
+      if (userReferral.rewardful_referral_id) {
+        metadata.referral = userReferral.rewardful_referral_id;
+      } else if (userReferral.via_token && userReferral.affiliate_id) {
+        metadata.referral = userReferral.via_token;
+      }
     }
 
     const customerResult = await resolveStripeCustomerIdWithMetadata(

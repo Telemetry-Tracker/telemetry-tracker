@@ -9,6 +9,10 @@ import {
 } from "../lib/org-permissions.js";
 import { dashboardOriginOrNull } from "../lib/dashboard-origin.js";
 import { stripePriceIdForTier } from "../lib/stripe-price-config.js";
+import {
+  canWriteAffiliateTtMetadata,
+  canWriteStripeReferralMetadata,
+} from "../lib/organization-attribution.js";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -134,47 +138,54 @@ export async function billingRoutes(
               affiliate_id: true,
               via_token: true,
               status: true,
+              needs_attention: true,
             },
           });
-          // Backfill Customer metadata for UNRESOLVED or ACTIVE (not EXPIRED/REJECTED)
-          // This handles cases where customers.create failed at org creation
-          const canBackfill = referral && (referral.status === "UNRESOLVED" || referral.status === "ACTIVE");
-          
-          // Update Customer if referral has UUID (even if affiliate unresolved) or resolved via token
-          const hasUuid = !!referral?.rewardful_referral_id;
-          const hasResolvedViaToken = !!referral?.via_token && !!referral?.affiliate_id;
-          
-          if (canBackfill && (hasUuid || hasResolvedViaToken)) {
-              // Check if Customer already has affiliate metadata
+          // Backfill only when needs_attention is clear:
+          //   tt_*     → ACTIVE && affiliate_id && !needs_attention
+          //   referral → (ACTIVE|UNRESOLVED) && !needs_attention
+          // Never write payout metadata for EXPIRED/REJECTED or flagged orgs.
+          if (referral) {
+            const hasUuid = !!referral.rewardful_referral_id;
+            const hasResolvedViaToken = !!referral.via_token && !!referral.affiliate_id;
+            const canWriteReferral =
+              canWriteStripeReferralMetadata(referral) &&
+              (hasUuid || hasResolvedViaToken);
+            const canWriteTt = canWriteAffiliateTtMetadata(referral);
+
+            if (canWriteReferral || canWriteTt) {
               const customer = await stripe.customers.retrieve(customerId);
-              if (!customer.deleted && !customer.metadata?.tt_affiliate_id) {
-                // Build metadata
-                const updateMetadata: Record<string, string> = {
-                  ...customer.metadata,
-                  tt_org_id: orgId,
-                };
-                
-                // Add affiliate_id if resolved
-                if (referral.affiliate_id) {
-                  updateMetadata.tt_affiliate_id = referral.affiliate_id;
+              if (!customer.deleted) {
+                const missingReferral = canWriteReferral && !customer.metadata?.referral;
+                const missingTt = canWriteTt && !customer.metadata?.tt_affiliate_id;
+                if (missingReferral || missingTt) {
+                  const updateMetadata: Record<string, string> = {
+                    ...customer.metadata,
+                  };
+
+                  if (canWriteTt && referral.affiliate_id) {
+                    updateMetadata.tt_org_id = orgId;
+                    updateMetadata.tt_affiliate_id = referral.affiliate_id;
+                  }
+
+                  if (canWriteReferral) {
+                    if (referral.rewardful_referral_id) {
+                      updateMetadata.referral = referral.rewardful_referral_id;
+                    } else if (referral.via_token && referral.affiliate_id) {
+                      updateMetadata.referral = referral.via_token;
+                    }
+                  }
+
+                  await stripe.customers.update(customerId, {
+                    metadata: updateMetadata,
+                  });
+                  request.log.info(
+                    { customerId, orgId },
+                    "Updated Customer metadata with referral info at checkout"
+                  );
                 }
-                
-                // Always prefer UUID; use via token only when no UUID and affiliate resolved
-                if (referral.rewardful_referral_id) {
-                  updateMetadata.referral = referral.rewardful_referral_id;
-                } else if (referral.via_token && referral.affiliate_id) {
-                  updateMetadata.referral = referral.via_token;
-                }
-                
-                // Update Customer metadata (preserve organization_id if it exists)
-                await stripe.customers.update(customerId, {
-                  metadata: updateMetadata,
-                });
-                request.log.info(
-                  { customerId, orgId },
-                  "Updated Customer metadata with referral info at checkout"
-                );
               }
+            }
           }
         } catch (err) {
           // Log error but don't fail checkout
@@ -194,7 +205,6 @@ export async function billingRoutes(
       // Add affiliate metadata only when feature is enabled
       if (isAffiliateFeatureEnabled()) {
         try {
-          // Check if this org has an active attribution without needs_attention
           const orgReferral = await prisma.organizationReferral.findUnique({
             where: { organization_id: orgId },
             select: {
@@ -203,11 +213,10 @@ export async function billingRoutes(
               needs_attention: true,
             },
           });
-          
-          // Only add metadata for ACTIVE status AND no needs_attention
-          if (orgReferral?.status === "ACTIVE" && orgReferral.affiliate_id && !orgReferral.needs_attention) {
+
+          if (orgReferral && canWriteAffiliateTtMetadata(orgReferral)) {
             metadata.tt_org_id = orgId;
-            metadata.tt_affiliate_id = orgReferral.affiliate_id;
+            metadata.tt_affiliate_id = orgReferral.affiliate_id!;
           }
         } catch (err) {
           request.log.warn({ err, orgId }, "Failed to fetch referral at checkout metadata build");

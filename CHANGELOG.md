@@ -20,6 +20,8 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ### Changed
 
+- **Affiliates** — `OrganizationReferral.needs_attention` now blocks Stripe Customer `metadata.referral` and checkout `tt_*`, so Rewardful cannot pay commission until the flag is cleared (a `referral.converted` that supplies an affiliate email, or a later review). Registration no longer drops a valid Rewardful UUID when the via-token affiliate has no email; the referral stays `UNRESOLVED` without Stripe payout metadata.
+
 ### Database
 
 ---

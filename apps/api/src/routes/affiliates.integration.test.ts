@@ -233,6 +233,42 @@ testSuite("Affiliate Integration Tests", () => {
       });
       expect(userReferral).toBeNull(); // Self-referral rejected
     });
+
+    it("keeps a valid UUID as UNRESOLVED when via-token affiliate has no email", async () => {
+      const affiliate = await prisma.affiliate.create({
+        data: {
+          rewardful_affiliate_id: `aff_noemail_reg_${Date.now()}`,
+          link_token: `noemail_reg_${Date.now()}`,
+          email_normalized: null,
+          state: "active",
+        },
+      });
+      testAffiliateIds.push(affiliate.id);
+
+      const referralUuid = uniqueReferralUuid();
+      const response = await app.inject({
+        method: "POST",
+        url: "/api/auth/register",
+        payload: {
+          email: `noemail-reg-${Date.now()}@example.com`,
+          password: "Password123!",
+          viaToken: affiliate.link_token,
+          rewardfulReferralId: referralUuid,
+        },
+      });
+      expect(response.statusCode).toBe(201);
+      const { user } = JSON.parse(response.body);
+      testUserIds.push(user.id);
+
+      const userReferral = await prisma.userReferral.findUnique({
+        where: { user_id: user.id },
+      });
+      expect(userReferral).toBeTruthy();
+      expect(userReferral?.rewardful_referral_id).toBe(referralUuid);
+      expect(userReferral?.via_token).toBe(affiliate.link_token);
+      expect(userReferral?.affiliate_id).toBeNull();
+      expect(userReferral?.status).toBe("UNRESOLVED");
+    });
   });
 
   describe("Organization Attribution", () => {
@@ -1516,8 +1552,8 @@ testSuite("Affiliate Integration Tests", () => {
       expect(orgRefAfter?.status).toBe("ACTIVE");
       expect(orgRefAfter?.needs_attention).toBe(false);
 
-      // The organization-attribution logic would have created a Customer with metadata.referral = referralUuid
-      // (We verify the referral data is correct; Customer creation is tested elsewhere)
+      // Org was UNRESOLVED + needs_attention at create, so Customer has no metadata.referral yet.
+      // Next checkout after this conversion (ACTIVE + !needs_attention) may backfill it.
 
       // Send a second referral.converted for a DIFFERENT affiliate
       const affiliate2 = await prisma.affiliate.create({
@@ -1666,7 +1702,7 @@ testSuite("Affiliate Integration Tests", () => {
       expect(userRef?.attributed_organization_id).toBe(org1Id);
     });
 
-    it("UUID-only first-org-only: customers.create once with metadata.referral", async () => {
+    it("UUID-only first-org-only: customers.create once without payout metadata while unresolved", async () => {
       const referralUuid = uniqueReferralUuid();
       const regResponse = await app.inject({
         method: "POST",
@@ -1716,8 +1752,17 @@ testSuite("Affiliate Integration Tests", () => {
       testOrgIds.push(org3Id);
 
       expect(mockCustomersCreate).toHaveBeenCalledTimes(1);
-      expect(mockCustomersCreate.mock.calls[0][0].metadata.referral).toBe(referralUuid);
       expect(mockCustomersCreate.mock.calls[0][0].metadata.organization_id).toBe(org1Id);
+      // UNRESOLVED + needs_attention (affiliate_unresolved): no Rewardful payout token
+      expect(mockCustomersCreate.mock.calls[0][0].metadata.referral).toBeUndefined();
+      expect(mockCustomersCreate.mock.calls[0][0].metadata.tt_affiliate_id).toBeUndefined();
+      expect(mockCustomersCreate.mock.calls[0][0].metadata.tt_org_id).toBeUndefined();
+
+      const firstOrgRef = await prisma.organizationReferral.findUnique({
+        where: { organization_id: org1Id },
+      });
+      expect(firstOrgRef?.status).toBe("UNRESOLVED");
+      expect(firstOrgRef?.needs_attention).toBe(true);
 
       expect(
         await prisma.organizationReferral.findUnique({ where: { organization_id: org1Id } })
@@ -1997,6 +2042,178 @@ testSuite("Affiliate Integration Tests", () => {
       expect(capturedCheckoutArgs?.metadata?.tt_org_id).toBeUndefined();
       expect(capturedCheckoutArgs?.metadata?.tt_affiliate_id).toBeUndefined();
       expect(mockCustomersUpdate).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("needs_attention blocks Rewardful payout metadata", () => {
+    it("no-email affiliate: customers.create has no referral; checkout has no tt_* or backfill", async () => {
+      const affiliate = await prisma.affiliate.create({
+        data: {
+          rewardful_affiliate_id: `aff_noemail_payout_${Date.now()}`,
+          link_token: `noemail_payout_${Date.now()}`,
+          email_normalized: null,
+          state: "active",
+        },
+      });
+      testAffiliateIds.push(affiliate.id);
+
+      const referralUuid = uniqueReferralUuid();
+      const regResponse = await app.inject({
+        method: "POST",
+        url: "/api/auth/register",
+        payload: {
+          email: `noemail-payout-${Date.now()}@example.com`,
+          password: "Password123!",
+          viaToken: affiliate.link_token,
+          rewardfulReferralId: referralUuid,
+        },
+      });
+      expect(regResponse.statusCode).toBe(201);
+      const { user, sessionId } = JSON.parse(regResponse.body);
+      testUserIds.push(user.id);
+
+      const userReferral = await prisma.userReferral.findUnique({
+        where: { user_id: user.id },
+      });
+      expect(userReferral?.rewardful_referral_id).toBe(referralUuid);
+      expect(userReferral?.affiliate_id).toBeNull();
+      expect(userReferral?.status).toBe("UNRESOLVED");
+
+      mockCustomersCreate.mockClear();
+      const orgResponse = await app.inject({
+        method: "POST",
+        url: "/api/meta/organizations",
+        headers: { cookie: `telemetry_session=${sessionId}` },
+        payload: { name: "No Email Payout Org" },
+      });
+      expect(orgResponse.statusCode).toBe(201);
+      const { id: orgId } = JSON.parse(orgResponse.body);
+      testOrgIds.push(orgId);
+
+      const orgReferral = await prisma.organizationReferral.findUnique({
+        where: { organization_id: orgId },
+      });
+      expect(orgReferral?.status).toBe("UNRESOLVED");
+      expect(orgReferral?.needs_attention).toBe(true);
+      expect(orgReferral?.rewardful_referral_id).toBe(referralUuid);
+
+      expect(mockCustomersCreate).toHaveBeenCalledTimes(1);
+      const createdMetadata = mockCustomersCreate.mock.calls[0][0].metadata;
+      expect(createdMetadata.organization_id).toBe(orgId);
+      expect(createdMetadata.referral).toBeUndefined();
+      expect(createdMetadata.tt_affiliate_id).toBeUndefined();
+      expect(createdMetadata.tt_org_id).toBeUndefined();
+
+      mockCustomersUpdate.mockClear();
+      mockCustomersCreate.mockClear();
+      const checkoutResponse = await app.inject({
+        method: "POST",
+        url: `/api/meta/organizations/${orgId}/billing/checkout`,
+        headers: { cookie: `telemetry_session=${sessionId}` },
+        payload: { planTier: "PRO" },
+      });
+      expect(checkoutResponse.statusCode).toBe(200);
+      expect(capturedCheckoutArgs?.metadata?.tt_org_id).toBeUndefined();
+      expect(capturedCheckoutArgs?.metadata?.tt_affiliate_id).toBeUndefined();
+      expect(capturedCheckoutArgs?.metadata?.organization_id).toBe(orgId);
+      expect(mockCustomersUpdate).not.toHaveBeenCalled();
+      expect(mockCustomersCreate).not.toHaveBeenCalled();
+    });
+
+    it("after conversion clears needs_attention, checkout backfills metadata.referral and tt_*", async () => {
+      const affiliate = await prisma.affiliate.create({
+        data: {
+          rewardful_affiliate_id: `aff_cleared_payout_${Date.now()}`,
+          link_token: `cleared_payout_${Date.now()}`,
+          email_normalized: null,
+          state: "active",
+        },
+      });
+      testAffiliateIds.push(affiliate.id);
+
+      const referralUuid = uniqueReferralUuid();
+      const regResponse = await app.inject({
+        method: "POST",
+        url: "/api/auth/register",
+        payload: {
+          email: `cleared-payout-${Date.now()}@example.com`,
+          password: "Password123!",
+          viaToken: affiliate.link_token,
+          rewardfulReferralId: referralUuid,
+        },
+      });
+      expect(regResponse.statusCode).toBe(201);
+      const { user, sessionId } = JSON.parse(regResponse.body);
+      testUserIds.push(user.id);
+
+      const orgResponse = await app.inject({
+        method: "POST",
+        url: "/api/meta/organizations",
+        headers: { cookie: `telemetry_session=${sessionId}` },
+        payload: { name: "Cleared Payout Org" },
+      });
+      expect(orgResponse.statusCode).toBe(201);
+      const { id: orgId } = JSON.parse(orgResponse.body);
+      testOrgIds.push(orgId);
+
+      const before = await prisma.organizationReferral.findUnique({
+        where: { organization_id: orgId },
+      });
+      expect(before?.needs_attention).toBe(true);
+      expect(mockCustomersCreate.mock.calls[0][0].metadata.referral).toBeUndefined();
+
+      await prisma.affiliate.update({
+        where: { id: affiliate.id },
+        data: { email_normalized: "cleared-affiliate@example.com" },
+      });
+
+      const eventId = `evt_cleared_payout_${Date.now()}`;
+      testWebhookEventKeys.push(eventId);
+      const payload = {
+        event: { id: eventId, type: "referral.converted" },
+        object: {
+          id: referralUuid,
+          conversion_state: "converted",
+          affiliate: {
+            id: affiliate.rewardful_affiliate_id,
+            email: "cleared-affiliate@example.com",
+          },
+        },
+      };
+      const webhookResp = await app.inject({
+        method: "POST",
+        url: "/webhooks/rewardful",
+        headers: {
+          "x-rewardful-signature": signRewardfulPayload(payload),
+          "content-type": "application/json",
+        },
+        payload,
+      });
+      expect(webhookResp.statusCode).toBe(200);
+
+      const after = await prisma.organizationReferral.findUnique({
+        where: { organization_id: orgId },
+      });
+      expect(after?.status).toBe("ACTIVE");
+      expect(after?.affiliate_id).toBe(affiliate.id);
+      expect(after?.needs_attention).toBe(false);
+
+      mockCustomersUpdate.mockClear();
+      mockCustomersCreate.mockClear();
+      const checkoutResponse = await app.inject({
+        method: "POST",
+        url: `/api/meta/organizations/${orgId}/billing/checkout`,
+        headers: { cookie: `telemetry_session=${sessionId}` },
+        payload: { planTier: "PRO" },
+      });
+      expect(checkoutResponse.statusCode).toBe(200);
+      expect(capturedCheckoutArgs?.metadata?.tt_org_id).toBe(orgId);
+      expect(capturedCheckoutArgs?.metadata?.tt_affiliate_id).toBe(affiliate.id);
+      expect(mockCustomersCreate).not.toHaveBeenCalled();
+      expect(mockCustomersUpdate).toHaveBeenCalledTimes(1);
+      expect(mockCustomersUpdate.mock.calls[0][1].metadata.referral).toBe(referralUuid);
+      expect(mockCustomersUpdate.mock.calls[0][1].metadata.tt_affiliate_id).toBe(affiliate.id);
+      expect(mockCustomersUpdate.mock.calls[0][1].metadata.tt_org_id).toBe(orgId);
     });
   });
 });

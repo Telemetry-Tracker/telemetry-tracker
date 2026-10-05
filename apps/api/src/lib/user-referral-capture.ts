@@ -114,7 +114,7 @@ export async function captureUserReferral(
       : null;
 
     // Only via token resolves locally
-    const affiliateId = viaResolution?.kind === "resolved" ? viaResolution.affiliateId : null;
+    let affiliateId = viaResolution?.kind === "resolved" ? viaResolution.affiliateId : null;
 
     // Check self-referral if we resolved an affiliate
     if (affiliateId) {
@@ -123,7 +123,18 @@ export async function captureUserReferral(
         affiliateId,
         input.userEmail
       );
-      if (selfReferralReason) {
+      if (selfReferralReason === "Affiliate email unknown") {
+        // Keep a valid UUID (and via token) as UNRESOLVED so referral.converted
+        // can complete later. Do not bind affiliate_id until email is known —
+        // completeUnresolvedReferrals only updates affiliate_id: null + UNRESOLVED.
+        if (logger) {
+          logger.warn(
+            { userId: input.userId, affiliateId },
+            "Affiliate email unknown at registration; keeping referral unresolved"
+          );
+        }
+        affiliateId = null;
+      } else if (selfReferralReason) {
         return { kind: "rejected_self_referral", reason: selfReferralReason };
       }
     } else {
@@ -154,10 +165,6 @@ export async function captureUserReferral(
       },
       select: { id: true },
     });
-
-    // If needs attention, update the record
-    // Note: We don't have a needs_attention field on UserReferral, only on OrganizationReferral
-    // So we just log the conflict here and it will be carried forward to OrganizationReferral
 
     return { kind: "captured", userReferralId: userReferral.id };
   } catch (err) {

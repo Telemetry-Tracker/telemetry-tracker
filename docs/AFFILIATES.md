@@ -54,7 +54,7 @@ Invalid formats are ignored. At least one valid source is required to create a `
 
 There is **no local UUID → affiliate resolution** and **no conflict detection**.
 
-- The Rewardful referral UUID from the client is stored on `UserReferral.rewardful_referral_id` and written to Stripe Customer `metadata.referral`. It stays `UNRESOLVED` until a `referral.converted` webhook maps it to an affiliate.
+- The Rewardful referral UUID from the client is stored on `UserReferral.rewardful_referral_id`. It is written to Stripe Customer `metadata.referral` only when `needs_attention` is clear. It stays `UNRESOLVED` until a `referral.converted` webhook maps it to an affiliate.
 - The link token (`viaToken`) is the only value that resolves locally, via `Affiliate.link_token`.
 - When both are present: the token may resolve `affiliate_id` immediately (`ACTIVE`); the UUID is still stored as-is for Rewardful / Customer metadata. A UUID that happens to equal some other affiliate's `rewardful_affiliate_id` is **not** treated as that affiliate.
 
@@ -90,11 +90,12 @@ Rejected when the user's email matches the affiliate email after normalization (
 
 When the affiliate has **no email**:
 
-- At registration, a via-token hit with a missing affiliate email is rejected (no `UserReferral`).
-- At org creation, a resolved affiliate with a missing email flags the org `needs_attention` (`affiliate_email_unknown`) and continues.
+- At registration, a via-token hit with a missing affiliate email does **not** reject the capture and does **not** drop a valid Rewardful UUID. The `UserReferral` stays `UNRESOLVED` with `affiliate_id` unset so a later `referral.converted` can complete it.
+- At org creation, a resolved affiliate with a missing email flags the org `needs_attention` (`affiliate_email_unknown`) and continues. Stripe Customer `metadata.referral` / `tt_*` are **not** written.
 - A `referral.converted` webhook for an affiliate with no email can complete `UNRESOLVED` rows to `ACTIVE` and set `needs_attention` (`affiliate_email_unknown_cannot_verify_self_referral`).
+- A `referral.converted` that supplies an affiliate email completes `UNRESOLVED` to `ACTIVE` and **clears** `needs_attention`. The next checkout may then backfill Customer `metadata.referral` and session `tt_*`.
 
-There is no separate "manual verification" workflow beyond the `needs_attention` flag.
+**`needs_attention` blocks Rewardful commission.** While the flag is set, Stripe Customer `metadata.referral` (and `tt_affiliate_id`) must not be written, so Rewardful cannot pay. There is no separate admin-clear UI yet; conversion that sets `ACTIVE` and clears the flag is the path that re-enables metadata.
 
 ## Organization Attribution
 
@@ -122,13 +123,22 @@ Expired, rejected, unresolved, or `needs_attention` orgs get `organization_id` +
 
 Checkout always reuses `Organization.stripe_customer_id` when present (`customers.create` is not called again).
 
-### Customer `metadata.referral` backfill
+### Customer `metadata.referral` (Rewardful payout token)
 
-At checkout, Customer metadata is backfilled only when `OrganizationReferral.status` is `UNRESOLVED` or `ACTIVE`. **Never** for `EXPIRED` or `REJECTED`.
+`needs_attention` **blocks** Stripe referral metadata and thus Rewardful commission until it is cleared.
 
-Backfill prefers the stored Rewardful UUID for `metadata.referral`; via token is used only when there is no UUID and the affiliate is resolved. `tt_org_id` / `tt_affiliate_id` may be written onto the Customer during backfill even when checkout session `tt_*` is withheld (`needs_attention`).
+**Org-creation Customer create** (when not expired and a UUID or resolved via token exists):
 
-At org creation, a Customer is created (when not expired and a UUID or resolved via token exists) with `metadata.referral` set to the UUID when present.
+- Always create the Customer so billing works (`organization_id` only when flagged).
+- Write `metadata.referral` only when `(status === "ACTIVE" || status === "UNRESOLVED") && !needs_attention`.
+- Write `tt_org_id` / `tt_affiliate_id` only when `status === "ACTIVE" && affiliate_id && !needs_attention`.
+
+**Checkout backfill** (same predicates; also skips `EXPIRED` / `REJECTED`):
+
+- `tt_*` → `ACTIVE && affiliate_id && !needs_attention`
+- `metadata.referral` → `(ACTIVE || UNRESOLVED) && !needs_attention`
+- Prefers the stored Rewardful UUID; via token is used only when there is no UUID and the affiliate is resolved.
+- If a later conversion clears `needs_attention` and sets `ACTIVE`, the next checkout may write the missing `metadata.referral` / `tt_*`.
 
 ## Commission eligibility
 

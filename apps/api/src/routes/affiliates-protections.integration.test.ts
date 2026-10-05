@@ -458,6 +458,8 @@ vi.mock("../lib/email.js", async (importOriginal) => {
       where: { id: orgId },
       data: { stripe_customer_id: existingCustomerId },
     });
+    mockCustomersUpdate.mockClear();
+    mockCustomersCreate.mockClear();
 
     const checkoutResponse = await app.inject({
       method: "POST",
@@ -470,6 +472,8 @@ vi.mock("../lib/email.js", async (importOriginal) => {
     expect(capturedCheckoutArgs?.metadata?.tt_org_id).toBeUndefined();
     expect(capturedCheckoutArgs?.metadata?.tt_affiliate_id).toBeUndefined();
     expect(capturedCheckoutArgs?.metadata?.organization_id).toBe(orgId);
+    expect(mockCustomersUpdate).not.toHaveBeenCalled();
+    expect(mockCustomersCreate).not.toHaveBeenCalled();
   });
 
   it("dedupe claim_token: stale first owner can't mark reclaimer's row", async () => {
