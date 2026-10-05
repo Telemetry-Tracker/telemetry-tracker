@@ -1,3 +1,25 @@
+import type { ErrorEvent } from "@sentry/nextjs";
+import { safeSanitizeSentryEvent } from "./sentry-privacy";
+
+/**
+ * Next.js 10.66.0 installs Http with only `disableIncomingRequestSpans: true`.
+ * Replacing that integration must keep the same flag. `none` disables incoming
+ * request-body buffering. Other Http options stay unset, matching Next's call.
+ */
+export const dashboardServerHttpIntegrationOptions = {
+  disableIncomingRequestSpans: true,
+  maxIncomingRequestBodySize: "none",
+} as const;
+
+export function replaceHttpIntegration<T extends { name: string }>(
+  integrations: T[],
+  httpIntegration: T
+): T[] {
+  return integrations.map((integration) =>
+    integration.name === "Http" ? httpIntegration : integration
+  );
+}
+
 /** Server / edge DSN. Skipped in tests and when unset (mirrors API observability). */
 export function getServerSentryDsn(): string | undefined {
   if (process.env.NODE_ENV === "test") return undefined;
@@ -20,13 +42,22 @@ export function isClientSentryEnabled(): boolean {
   return Boolean(getClientSentryDsn());
 }
 
-/** Shared init options for client, server, and edge runtimes. */
+/**
+ * Shared init options for client, server, and edge runtimes.
+ * `includeLocalVariables` is a plain boolean. This module does not import
+ * `@sentry/node`. Browser init still runs only when `NEXT_PUBLIC_SENTRY_DSN` is set.
+ */
 export function sentryInitOptions(dsn: string) {
   return {
     dsn,
     environment: process.env.NODE_ENV ?? "development",
+    sendDefaultPii: false,
+    includeLocalVariables: false,
     tracesSampleRate: 0,
-  } as const;
+    beforeSend(event: ErrorEvent) {
+      return safeSanitizeSentryEvent(event);
+    },
+  };
 }
 
 /** Client-side capture from error boundaries; no-op when DSN is unset. */
