@@ -112,7 +112,21 @@ testSuite("Billing Checkout Integration", () => {
         where: { id: { in: testWebhookEventIds } },
       }).catch(() => undefined);
     }
+    if (testAffiliateIds.length > 0) {
+      await prisma.affiliateAdjustment.deleteMany({
+        where: { affiliate_id: { in: testAffiliateIds } },
+      });
+      await prisma.affiliateCommission.deleteMany({
+        where: { affiliate_id: { in: testAffiliateIds } },
+      });
+      await prisma.affiliatePayout.deleteMany({
+        where: { affiliate_id: { in: testAffiliateIds } },
+      });
+    }
     if (testOrgIds.length > 0) {
+      await prisma.affiliateCommission.deleteMany({
+        where: { organization_id: { in: testOrgIds } },
+      });
       await prisma.organizationReferral.deleteMany({
         where: { organization_id: { in: testOrgIds } },
       });
@@ -249,8 +263,9 @@ testSuite("Billing Checkout Integration", () => {
       // Create affiliate
       const affiliate = await prisma.affiliate.create({
         data: {
-          rewardful_affiliate_id: `aff_checkout_on_${Date.now()}`,
-          link_token: `token_on_${Date.now()}`,
+          code: `token-on-${Date.now()}`,
+          name: "Checkout Affiliate",
+          email: "aff@example.com",
           email_normalized: "aff@example.com",
           state: "active",
         },
@@ -264,7 +279,7 @@ testSuite("Billing Checkout Integration", () => {
         payload: {
           email: `referred${Date.now()}@example.com`,
           password: "Password123!",
-          viaToken: affiliate.link_token,
+          referralCode: affiliate.code,
         },
       });
       expect(regResponse.statusCode).toBe(201);

@@ -1,95 +1,33 @@
 import { describe, expect, it } from "vitest";
 import {
   canWriteAffiliateTtMetadata,
-  canWriteStripeReferralMetadata,
   isPayoutHold,
+  isReferralExpired,
+  REFERRAL_ATTRIBUTION_WINDOW_DAYS,
 } from "./organization-attribution.js";
 
 describe("isPayoutHold", () => {
-  it("is true only for self-referral-risk reasons", () => {
+  it("holds self-referral-risk reasons", () => {
     expect(isPayoutHold({ attention_reason: "affiliate_email_unknown" })).toBe(true);
     expect(
-      isPayoutHold({
-        attention_reason: "affiliate_email_unknown_cannot_verify_self_referral",
-      })
+      isPayoutHold({ attention_reason: "affiliate_email_unknown_cannot_verify_self_referral" })
     ).toBe(true);
-    expect(
-      isPayoutHold({
-        attention_reason: "prior;affiliate_email_unknown_cannot_verify_self_referral",
-      })
-    ).toBe(true);
-    expect(
-      isPayoutHold({ attention_reason: "no_owner_found_for_self_referral_check" })
-    ).toBe(true);
+    expect(isPayoutHold({ attention_reason: "no_owner_found_for_self_referral_check" })).toBe(true);
     expect(isPayoutHold({ attention_reason: "rejected_self_referral" })).toBe(true);
+    expect(
+      isPayoutHold({ attention_reason: "customer_creation_failed;affiliate_email_unknown" })
+    ).toBe(true);
   });
 
-  it("is false for unresolved, Stripe create failure, and expiry", () => {
+  it("does not hold billing-only or empty reasons", () => {
     expect(isPayoutHold({ attention_reason: null })).toBe(false);
-    expect(isPayoutHold({ attention_reason: "affiliate_unresolved" })).toBe(false);
     expect(isPayoutHold({ attention_reason: "customer_creation_failed" })).toBe(false);
-    expect(isPayoutHold({ attention_reason: "referral_expired_60_days" })).toBe(false);
-    expect(
-      isPayoutHold({ attention_reason: "affiliate_unresolved;customer_creation_failed" })
-    ).toBe(false);
+    expect(isPayoutHold({ attention_reason: "affiliate_unresolved" })).toBe(false);
   });
 });
 
-describe("Stripe referral metadata gates", () => {
-  it("blocks referral and tt_* on a payout hold, not on needs_attention alone", () => {
-    const emailUnknown = {
-      status: "ACTIVE" as const,
-      affiliate_id: "aff_1",
-      needs_attention: true,
-      attention_reason: "affiliate_email_unknown",
-    };
-    expect(canWriteStripeReferralMetadata(emailUnknown)).toBe(false);
-    expect(canWriteAffiliateTtMetadata(emailUnknown)).toBe(false);
-
-    const createFailed = {
-      status: "UNRESOLVED" as const,
-      affiliate_id: null,
-      needs_attention: true,
-      attention_reason: "customer_creation_failed",
-    };
-    expect(canWriteStripeReferralMetadata(createFailed)).toBe(true);
-    expect(canWriteAffiliateTtMetadata(createFailed)).toBe(false);
-  });
-
-  it("allows referral metadata for ACTIVE|UNRESOLVED when not a payout hold", () => {
-    expect(
-      canWriteStripeReferralMetadata({
-        status: "UNRESOLVED",
-        affiliate_id: null,
-        needs_attention: false,
-        attention_reason: null,
-      })
-    ).toBe(true);
-    expect(
-      canWriteStripeReferralMetadata({
-        status: "ACTIVE",
-        affiliate_id: "aff_1",
-        needs_attention: false,
-        attention_reason: null,
-      })
-    ).toBe(true);
-    expect(
-      canWriteStripeReferralMetadata({
-        status: "EXPIRED",
-        affiliate_id: "aff_1",
-        attention_reason: "referral_expired_60_days",
-      })
-    ).toBe(false);
-    expect(
-      canWriteStripeReferralMetadata({
-        status: "REJECTED",
-        affiliate_id: null,
-        attention_reason: "rejected_self_referral",
-      })
-    ).toBe(false);
-  });
-
-  it("allows tt_* only for ACTIVE with affiliate_id and !payoutHold", () => {
+describe("canWriteAffiliateTtMetadata", () => {
+  it("writes only for ACTIVE resolved non-hold referrals", () => {
     expect(
       canWriteAffiliateTtMetadata({
         status: "ACTIVE",
@@ -111,5 +49,25 @@ describe("Stripe referral metadata gates", () => {
         attention_reason: "affiliate_email_unknown",
       })
     ).toBe(false);
+    expect(
+      canWriteAffiliateTtMetadata({
+        status: "EXPIRED",
+        affiliate_id: "aff_1",
+        attention_reason: "referral_expired_60_days",
+      })
+    ).toBe(false);
+  });
+});
+
+describe("isReferralExpired", () => {
+  const now = new Date("2026-10-05T12:00:00.000Z");
+
+  it("treats day 60 as still valid and day 61 as expired", () => {
+    const day60 = new Date(now.getTime() - REFERRAL_ATTRIBUTION_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+    const day61 = new Date(
+      now.getTime() - (REFERRAL_ATTRIBUTION_WINDOW_DAYS + 1) * 24 * 60 * 60 * 1000
+    );
+    expect(isReferralExpired(day60, now)).toBe(false);
+    expect(isReferralExpired(day61, now)).toBe(true);
   });
 });
