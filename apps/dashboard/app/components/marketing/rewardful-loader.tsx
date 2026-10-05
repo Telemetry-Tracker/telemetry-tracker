@@ -34,14 +34,19 @@ export function RewardfulLoader() {
       return;
     }
 
+    let cancelled = false;
+
     // Check initial consent state
     const currentChoice = readStoredCookieConsentChoice();
-    if (preferenceCookiesAllowed(currentChoice)) {
+    if (preferenceCookiesAllowed(currentChoice) && !cancelled) {
       setShouldLoad(true);
     }
 
     // Listen for consent changes via custom event
     const handleConsentChange = (event: Event) => {
+      if (cancelled) {
+        return;
+      }
       const customEvent = event as CustomEvent<CookieConsentChoice>;
       const newChoice = customEvent.detail;
       
@@ -57,6 +62,7 @@ export function RewardfulLoader() {
     window.addEventListener(COOKIE_CONSENT_CHANGED_EVENT, handleConsentChange);
 
     return () => {
+      cancelled = true;
       window.removeEventListener(COOKIE_CONSENT_CHANGED_EVENT, handleConsentChange);
     };
   }, []);
@@ -69,11 +75,17 @@ export function RewardfulLoader() {
       return;
     }
 
+    let cancelled = false;
+
     // Check if script is already loaded
-    const existingScript = document.querySelector('script[src*="r.wdfl.co"]');
+    const existingScript = document.querySelector('script[src*="r.wdfl.co"]') as HTMLScriptElement | null;
     if (existingScript) {
-      setScriptLoaded(true);
-      return;
+      if (!cancelled) {
+        setScriptLoaded(true);
+      }
+      return () => {
+        cancelled = true;
+      };
     }
 
     // Initialize Rewardful queue
@@ -93,16 +105,28 @@ export function RewardfulLoader() {
     script.setAttribute("data-rewardful", process.env.NEXT_PUBLIC_REWARDFUL_API_KEY || "");
     
     script.onload = () => {
+      if (cancelled) {
+        return;
+      }
       setScriptLoaded(true);
       console.debug("[Rewardful] Script loaded");
     };
     
     script.onerror = () => {
+      if (cancelled) {
+        return;
+      }
       console.error("[Rewardful] Failed to load script");
       setScriptLoaded(true); // Mark as attempted to avoid retries
     };
 
     document.head.appendChild(script);
+
+    return () => {
+      cancelled = true;
+      script.onload = null;
+      script.onerror = null;
+    };
   }, [shouldLoad, scriptLoaded]);
 
   return null; // No visual UI
