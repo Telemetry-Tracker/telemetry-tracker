@@ -69,4 +69,19 @@ describe("basil Stripe payloads", () => {
     );
     expect(refs).toEqual({ chargeId: null, paymentIntentId: "pi_listed" });
   });
+
+  it("throws when invoicePayments.list fails so the webhook can retry", async () => {
+    await expect(
+      resolveInvoicePaymentRefs(
+        { id: "in_list_fail" },
+        {
+          invoicePayments: {
+            list: async () => {
+              throw new Error("stripe timeout");
+            },
+          },
+        }
+      )
+    ).rejects.toThrow(/Failed to list Stripe invoicePayments for in_list_fail: stripe timeout/);
+  });
 });

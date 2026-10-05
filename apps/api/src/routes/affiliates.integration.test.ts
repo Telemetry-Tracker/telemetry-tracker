@@ -227,6 +227,7 @@ testSuite("Native affiliate integration", () => {
     paidAt?: Date;
     basil?: boolean;
     paymentIntentId?: string;
+    subscriptionMetadata?: Record<string, string>;
   }) {
     const org = await prisma.organization.findUnique({
       where: { id: opts.orgId },
@@ -247,7 +248,12 @@ testSuite("Native affiliate integration", () => {
       },
     };
     if (opts.basil) {
-      object.parent = { subscription_details: { subscription: subscriptionId } };
+      object.parent = {
+        subscription_details: {
+          subscription: subscriptionId,
+          ...(opts.subscriptionMetadata ? { metadata: opts.subscriptionMetadata } : {}),
+        },
+      };
       object.payments = {
         object: "list",
         data: [
@@ -265,6 +271,15 @@ testSuite("Native affiliate integration", () => {
       object.subscription = subscriptionId;
       object.charge = opts.chargeId ?? `ch_${opts.invoiceId}`;
       if (paymentIntentId) object.payment_intent = paymentIntentId;
+      if (opts.subscriptionMetadata) {
+        object.subscription_details = { metadata: opts.subscriptionMetadata };
+        object.parent = {
+          subscription_details: {
+            subscription: subscriptionId,
+            metadata: opts.subscriptionMetadata,
+          },
+        };
+      }
     }
     const event = {
       id: `evt_${opts.invoiceId}`,
@@ -475,18 +490,98 @@ testSuite("Native affiliate integration", () => {
       expect(zeroRows).toHaveLength(0);
     });
 
-    it("skips commissions for Free-tier orgs even on a hosted subscription invoice", async () => {
+    it("skips commissions when the hosted invoice metadata is explicitly FREE", async () => {
       const { orgId } = await referredPaidOrg(`free-${Date.now()}`);
       await prisma.organization.update({
         where: { id: orgId },
         data: { plan_tier: "FREE" },
       });
-      await paidInvoice({
+      const res = await paidInvoice({
         orgId,
         invoiceId: `in_free_${Date.now()}`,
         amountPaid: 2900,
+        subscriptionMetadata: { plan_tier: "FREE" },
       });
+      expect(res.statusCode).toBe(200);
       expect(await prisma.affiliateCommission.count({ where: { organization_id: orgId } })).toBe(0);
+    });
+
+    it("creates a commission when org.plan_tier is still FREE but subscription metadata is Pro/Business", async () => {
+      const pro = await referredPaidOrg(`race-pro-${Date.now()}`);
+      await prisma.organization.update({
+        where: { id: pro.orgId },
+        data: { plan_tier: "FREE" },
+      });
+      const proInvoiceId = `in_race_pro_${Date.now()}`;
+      const proRes = await paidInvoice({
+        orgId: pro.orgId,
+        invoiceId: proInvoiceId,
+        amountPaid: 2900,
+        basil: true,
+        subscriptionMetadata: { plan_tier: "PRO" },
+      });
+      expect(proRes.statusCode).toBe(200);
+      const proRows = await prisma.affiliateCommission.findMany({
+        where: { organization_id: pro.orgId },
+      });
+      expect(proRows).toHaveLength(1);
+      expect(proRows[0]?.amount_cents).toBe(870);
+      testCommissionIds.push(proRows[0]!.id);
+
+      const biz = await referredPaidOrg(`race-biz-${Date.now()}`);
+      await prisma.organization.update({
+        where: { id: biz.orgId },
+        data: { plan_tier: "FREE" },
+      });
+      const bizRes = await paidInvoice({
+        orgId: biz.orgId,
+        invoiceId: `in_race_biz_${Date.now()}`,
+        amountPaid: 2000,
+        subscriptionMetadata: { plan_tier: "BUSINESS" },
+      });
+      expect(bizRes.statusCode).toBe(200);
+      const bizRows = await prisma.affiliateCommission.findMany({
+        where: { organization_id: biz.orgId },
+      });
+      expect(bizRows).toHaveLength(1);
+      expect(bizRows[0]?.amount_cents).toBe(600);
+      testCommissionIds.push(bizRows[0]!.id);
+    });
+
+    it("does not permanently swallow invoice.paid when org is FREE and plan metadata is missing", async () => {
+      const { orgId } = await referredPaidOrg(`race-retry-${Date.now()}`);
+      await prisma.organization.update({
+        where: { id: orgId },
+        data: { plan_tier: "FREE" },
+      });
+      const invoiceId = `in_race_retry_${Date.now()}`;
+      const first = await paidInvoice({
+        orgId,
+        invoiceId,
+        amountPaid: 2900,
+      });
+      expect(first.statusCode).toBeGreaterThanOrEqual(500);
+      expect(await prisma.affiliateCommission.count({ where: { organization_id: orgId } })).toBe(0);
+      const failed = await prisma.webhookEvent.findUnique({
+        where: { provider_event_id: { provider: "stripe", event_id: `evt_${invoiceId}` } },
+      });
+      expect(failed?.status).toBe("failed");
+
+      await prisma.organization.update({
+        where: { id: orgId },
+        data: { plan_tier: "PRO" },
+      });
+      const retry = await paidInvoice({
+        orgId,
+        invoiceId,
+        amountPaid: 2900,
+      });
+      expect(retry.statusCode).toBe(200);
+      const rows = await prisma.affiliateCommission.findMany({
+        where: { organization_id: orgId },
+      });
+      expect(rows).toHaveLength(1);
+      testCommissionIds.push(rows[0]!.id);
     });
 
     it("Free→paid after the 60-day window still commissions the locked affiliate", async () => {
@@ -1229,6 +1324,42 @@ testSuite("Native affiliate integration", () => {
       });
       expect(created?.stripe_payment_intent_id).toBe(paymentIntentId);
       testCommissionIds.push(created!.id);
+    });
+
+    it("does not save a commission when invoicePayments.list fails", async () => {
+      const { orgId } = await pendingCommission(2900);
+      const org = await prisma.organization.findUnique({
+        where: { id: orgId },
+        select: { stripe_customer_id: true, stripe_subscription_id: true },
+      });
+      const invoiceId = `in_basil_list_fail_${Date.now()}`;
+      mockInvoicePaymentsList.mockRejectedValue(new Error("stripe timeout"));
+      const res = await postStripeEvent({
+        id: `evt_${invoiceId}`,
+        type: "invoice.paid",
+        data: {
+          object: {
+            id: invoiceId,
+            amount_paid: 2900,
+            tax: 0,
+            currency: "eur",
+            customer: org?.stripe_customer_id,
+            billing_reason: "subscription_cycle",
+            parent: {
+              subscription_details: { subscription: org?.stripe_subscription_id },
+            },
+            status_transitions: { paid_at: Math.floor(Date.now() / 1000) },
+          },
+        },
+      });
+      expect(res.statusCode).toBeGreaterThanOrEqual(500);
+      expect(
+        await prisma.affiliateCommission.findUnique({ where: { stripe_invoice_id: invoiceId } })
+      ).toBeNull();
+      const failed = await prisma.webhookEvent.findUnique({
+        where: { provider_event_id: { provider: "stripe", event_id: `evt_${invoiceId}` } },
+      });
+      expect(failed?.status).toBe("failed");
     });
 
     it("flags needs_attention when a referred customer refund has no matching commission", async () => {

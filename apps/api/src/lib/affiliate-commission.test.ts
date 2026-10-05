@@ -8,6 +8,7 @@ import {
   invoiceTaxCents,
   mapStripeDisputeStatus,
   postPayoutClawbackDelta,
+  resolveCommissionPlanEligibility,
 } from "./affiliate-commission.js";
 import { PAYOUT_MINIMUM_CENTS } from "./affiliate-payout.js";
 
@@ -160,5 +161,77 @@ describe("postPayoutClawbackDelta", () => {
         priorClawbackCents: 500,
       })
     ).toBe(0);
+  });
+});
+
+describe("resolveCommissionPlanEligibility", () => {
+  const paidHosted = {
+    amount_paid: 2900,
+    billing_reason: "subscription_cycle" as const,
+    subscription: "sub_hosted",
+  };
+
+  it("treats org PRO/BUSINESS as eligible without metadata", () => {
+    expect(resolveCommissionPlanEligibility("PRO", paidHosted)).toEqual({
+      eligible: true,
+      retry: false,
+    });
+    expect(resolveCommissionPlanEligibility("BUSINESS", paidHosted)).toEqual({
+      eligible: true,
+      retry: false,
+    });
+  });
+
+  it("treats FREE org as eligible when parent.subscription_details.metadata is Pro/Business", () => {
+    expect(
+      resolveCommissionPlanEligibility("FREE", {
+        ...paidHosted,
+        parent: { subscription_details: { metadata: { plan_tier: "PRO" } } },
+      })
+    ).toEqual({ eligible: true, retry: false });
+    expect(
+      resolveCommissionPlanEligibility("FREE", {
+        ...paidHosted,
+        subscription_details: { metadata: { plan_tier: "business" } },
+      })
+    ).toEqual({ eligible: true, retry: false });
+  });
+
+  it("never commissions an unambiguous FREE plan", () => {
+    expect(
+      resolveCommissionPlanEligibility("FREE", {
+        ...paidHosted,
+        parent: { subscription_details: { metadata: { plan_tier: "FREE" } } },
+      })
+    ).toEqual({ eligible: false, retry: false });
+  });
+
+  it("retries when a paid hosted invoice hits a FREE org with missing/ambiguous metadata", () => {
+    expect(resolveCommissionPlanEligibility("FREE", paidHosted)).toEqual({
+      eligible: false,
+      retry: true,
+    });
+    expect(
+      resolveCommissionPlanEligibility("FREE", {
+        ...paidHosted,
+        parent: { subscription_details: { metadata: { plan_tier: "unknown" } } },
+      })
+    ).toEqual({ eligible: false, retry: true });
+  });
+
+  it("does not retry zero-paid or non-subscription invoices", () => {
+    expect(
+      resolveCommissionPlanEligibility("FREE", {
+        amount_paid: 0,
+        billing_reason: "subscription_cycle",
+        subscription: "sub_hosted",
+      })
+    ).toEqual({ eligible: false, retry: false });
+    expect(
+      resolveCommissionPlanEligibility("FREE", {
+        amount_paid: 9900,
+        billing_reason: "manual",
+      })
+    ).toEqual({ eligible: false, retry: false });
   });
 });

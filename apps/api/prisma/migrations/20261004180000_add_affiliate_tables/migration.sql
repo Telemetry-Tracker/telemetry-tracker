@@ -1,6 +1,3 @@
--- CreateEnum
-CREATE TYPE "ReferralStatus" AS ENUM ('UNRESOLVED', 'ACTIVE', 'EXPIRED', 'REJECTED');
-
 -- CreateTable
 CREATE TABLE "WebhookEvent" (
     "id" TEXT NOT NULL,
@@ -18,27 +15,16 @@ CREATE TABLE "WebhookEvent" (
     CONSTRAINT "WebhookEvent_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
-CREATE TABLE "Affiliate" (
-    "id" TEXT NOT NULL,
-    "code" TEXT NOT NULL,
-    "name" TEXT NOT NULL,
-    "email" TEXT,
-    "email_normalized" TEXT,
-    "state" TEXT NOT NULL,
-    "commission_rate_bps" INTEGER NOT NULL DEFAULT 3000,
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "Affiliate_pkey" PRIMARY KEY ("id")
-);
+-- CreateEnum
+CREATE TYPE "ReferralStatus" AS ENUM ('UNRESOLVED', 'ACTIVE', 'EXPIRED', 'REJECTED');
 
 -- CreateTable
 CREATE TABLE "UserReferral" (
     "id" TEXT NOT NULL,
     "user_id" TEXT NOT NULL,
     "affiliate_id" TEXT,
-    "referral_code" TEXT,
+    "rewardful_referral_id" TEXT,
+    "via_token" TEXT,
     "source" TEXT NOT NULL DEFAULT 'link',
     "status" "ReferralStatus" NOT NULL DEFAULT 'UNRESOLVED',
     "captured_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -50,11 +36,25 @@ CREATE TABLE "UserReferral" (
 );
 
 -- CreateTable
+CREATE TABLE "Affiliate" (
+    "id" TEXT NOT NULL,
+    "rewardful_affiliate_id" TEXT NOT NULL,
+    "link_token" TEXT,
+    "email_normalized" TEXT,
+    "state" TEXT NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Affiliate_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "OrganizationReferral" (
     "id" TEXT NOT NULL,
     "organization_id" TEXT NOT NULL,
     "affiliate_id" TEXT,
-    "referral_code" TEXT,
+    "rewardful_referral_id" TEXT,
+    "via_token" TEXT,
     "source" TEXT NOT NULL,
     "status" "ReferralStatus" NOT NULL DEFAULT 'UNRESOLVED',
     "first_seen_at" TIMESTAMP(3),
@@ -69,61 +69,22 @@ CREATE TABLE "OrganizationReferral" (
 );
 
 -- CreateTable
-CREATE TABLE "AffiliatePayout" (
-    "id" TEXT NOT NULL,
-    "affiliate_id" TEXT NOT NULL,
-    "amount_cents" INTEGER NOT NULL,
-    "currency" TEXT NOT NULL,
-    "paid_at" TIMESTAMP(3) NOT NULL,
-    "reference_note" TEXT,
-    "created_by" TEXT NOT NULL,
-    "idempotency_key" TEXT,
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "AffiliatePayout_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
 CREATE TABLE "AffiliateCommission" (
     "id" TEXT NOT NULL,
-    "affiliate_id" TEXT NOT NULL,
-    "organization_id" TEXT NOT NULL,
-    "stripe_invoice_id" TEXT NOT NULL,
+    "rewardful_commission_id" TEXT NOT NULL,
+    "affiliate_id" TEXT,
+    "organization_id" TEXT,
     "stripe_charge_id" TEXT,
-    "stripe_payment_intent_id" TEXT,
-    "eligible_base_cents" INTEGER NOT NULL,
     "amount_cents" INTEGER NOT NULL,
-    "remaining_cents" INTEGER NOT NULL,
     "currency" TEXT NOT NULL,
     "state" TEXT NOT NULL,
-    "invoice_paid_at" TIMESTAMP(3) NOT NULL,
-    "payable_at" TIMESTAMP(3) NOT NULL,
+    "due_at" TIMESTAMP(3),
     "paid_at" TIMESTAMP(3),
     "voided_at" TIMESTAMP(3),
-    "payout_id" TEXT,
-    "dispute_status" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "AffiliateCommission_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "AffiliateAdjustment" (
-    "id" TEXT NOT NULL,
-    "affiliate_id" TEXT NOT NULL,
-    "organization_id" TEXT,
-    "commission_id" TEXT,
-    "amount_cents" INTEGER NOT NULL,
-    "currency" TEXT NOT NULL,
-    "reason" TEXT NOT NULL,
-    "note" TEXT,
-    "stripe_refund_id" TEXT,
-    "stripe_invoice_id" TEXT,
-    "payout_id" TEXT,
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "AffiliateAdjustment_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
@@ -136,15 +97,6 @@ CREATE INDEX "WebhookEvent_provider_received_at_idx" ON "WebhookEvent"("provider
 CREATE INDEX "WebhookEvent_provider_status_locked_at_idx" ON "WebhookEvent"("provider", "status", "locked_at");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Affiliate_code_key" ON "Affiliate"("code");
-
--- CreateIndex
-CREATE INDEX "Affiliate_email_normalized_idx" ON "Affiliate"("email_normalized");
-
--- CreateIndex
-CREATE INDEX "Affiliate_state_idx" ON "Affiliate"("state");
-
--- CreateIndex
 CREATE UNIQUE INDEX "UserReferral_user_id_key" ON "UserReferral"("user_id");
 
 -- CreateIndex
@@ -154,7 +106,19 @@ CREATE UNIQUE INDEX "UserReferral_attributed_organization_id_key" ON "UserReferr
 CREATE INDEX "UserReferral_affiliate_id_idx" ON "UserReferral"("affiliate_id");
 
 -- CreateIndex
-CREATE INDEX "UserReferral_referral_code_idx" ON "UserReferral"("referral_code");
+CREATE INDEX "UserReferral_rewardful_referral_id_idx" ON "UserReferral"("rewardful_referral_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Affiliate_rewardful_affiliate_id_key" ON "Affiliate"("rewardful_affiliate_id");
+
+-- CreateIndex
+CREATE INDEX "Affiliate_link_token_idx" ON "Affiliate"("link_token");
+
+-- CreateIndex
+CREATE INDEX "Affiliate_email_normalized_idx" ON "Affiliate"("email_normalized");
+
+-- CreateIndex
+CREATE INDEX "Affiliate_state_idx" ON "Affiliate"("state");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "OrganizationReferral_organization_id_key" ON "OrganizationReferral"("organization_id");
@@ -163,7 +127,7 @@ CREATE UNIQUE INDEX "OrganizationReferral_organization_id_key" ON "OrganizationR
 CREATE INDEX "OrganizationReferral_affiliate_id_idx" ON "OrganizationReferral"("affiliate_id");
 
 -- CreateIndex
-CREATE INDEX "OrganizationReferral_referral_code_idx" ON "OrganizationReferral"("referral_code");
+CREATE INDEX "OrganizationReferral_rewardful_referral_id_idx" ON "OrganizationReferral"("rewardful_referral_id");
 
 -- CreateIndex
 CREATE INDEX "OrganizationReferral_source_idx" ON "OrganizationReferral"("source");
@@ -175,13 +139,7 @@ CREATE INDEX "OrganizationReferral_attributed_at_idx" ON "OrganizationReferral"(
 CREATE INDEX "OrganizationReferral_needs_attention_idx" ON "OrganizationReferral"("needs_attention");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "AffiliatePayout_idempotency_key_key" ON "AffiliatePayout"("idempotency_key");
-
--- CreateIndex
-CREATE INDEX "AffiliatePayout_affiliate_id_paid_at_idx" ON "AffiliatePayout"("affiliate_id", "paid_at");
-
--- CreateIndex
-CREATE UNIQUE INDEX "AffiliateCommission_stripe_invoice_id_key" ON "AffiliateCommission"("stripe_invoice_id");
+CREATE UNIQUE INDEX "AffiliateCommission_rewardful_commission_id_key" ON "AffiliateCommission"("rewardful_commission_id");
 
 -- CreateIndex
 CREATE INDEX "AffiliateCommission_affiliate_id_state_idx" ON "AffiliateCommission"("affiliate_id", "state");
@@ -193,25 +151,7 @@ CREATE INDEX "AffiliateCommission_organization_id_idx" ON "AffiliateCommission"(
 CREATE INDEX "AffiliateCommission_stripe_charge_id_idx" ON "AffiliateCommission"("stripe_charge_id");
 
 -- CreateIndex
-CREATE INDEX "AffiliateCommission_stripe_payment_intent_id_idx" ON "AffiliateCommission"("stripe_payment_intent_id");
-
--- CreateIndex
-CREATE INDEX "AffiliateCommission_state_payable_at_idx" ON "AffiliateCommission"("state", "payable_at");
-
--- CreateIndex
-CREATE INDEX "AffiliateCommission_payout_id_idx" ON "AffiliateCommission"("payout_id");
-
--- CreateIndex
-CREATE INDEX "AffiliateAdjustment_affiliate_id_idx" ON "AffiliateAdjustment"("affiliate_id");
-
--- CreateIndex
-CREATE INDEX "AffiliateAdjustment_commission_id_idx" ON "AffiliateAdjustment"("commission_id");
-
--- CreateIndex
-CREATE INDEX "AffiliateAdjustment_payout_id_idx" ON "AffiliateAdjustment"("payout_id");
-
--- CreateIndex
-CREATE INDEX "AffiliateAdjustment_stripe_invoice_id_idx" ON "AffiliateAdjustment"("stripe_invoice_id");
+CREATE INDEX "AffiliateCommission_state_due_at_idx" ON "AffiliateCommission"("state", "due_at");
 
 -- AddForeignKey
 ALTER TABLE "UserReferral" ADD CONSTRAINT "UserReferral_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -229,25 +169,7 @@ ALTER TABLE "OrganizationReferral" ADD CONSTRAINT "OrganizationReferral_organiza
 ALTER TABLE "OrganizationReferral" ADD CONSTRAINT "OrganizationReferral_affiliate_id_fkey" FOREIGN KEY ("affiliate_id") REFERENCES "Affiliate"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "AffiliatePayout" ADD CONSTRAINT "AffiliatePayout_affiliate_id_fkey" FOREIGN KEY ("affiliate_id") REFERENCES "Affiliate"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "AffiliateCommission" ADD CONSTRAINT "AffiliateCommission_affiliate_id_fkey" FOREIGN KEY ("affiliate_id") REFERENCES "Affiliate"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "AffiliateCommission" ADD CONSTRAINT "AffiliateCommission_affiliate_id_fkey" FOREIGN KEY ("affiliate_id") REFERENCES "Affiliate"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "AffiliateCommission" ADD CONSTRAINT "AffiliateCommission_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "Organization"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "AffiliateCommission" ADD CONSTRAINT "AffiliateCommission_payout_id_fkey" FOREIGN KEY ("payout_id") REFERENCES "AffiliatePayout"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "AffiliateAdjustment" ADD CONSTRAINT "AffiliateAdjustment_affiliate_id_fkey" FOREIGN KEY ("affiliate_id") REFERENCES "Affiliate"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "AffiliateAdjustment" ADD CONSTRAINT "AffiliateAdjustment_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "Organization"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "AffiliateAdjustment" ADD CONSTRAINT "AffiliateAdjustment_commission_id_fkey" FOREIGN KEY ("commission_id") REFERENCES "AffiliateCommission"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "AffiliateAdjustment" ADD CONSTRAINT "AffiliateAdjustment_payout_id_fkey" FOREIGN KEY ("payout_id") REFERENCES "AffiliatePayout"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "AffiliateCommission" ADD CONSTRAINT "AffiliateCommission_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "Organization"("id") ON DELETE SET NULL ON UPDATE CASCADE;

@@ -14,6 +14,7 @@ import {
   type InvoicePaymentsLike,
 } from "./affiliate-stripe-payments.js";
 import { isPayoutHold } from "./organization-attribution.js";
+import { parsePlanTierMetadata } from "./stripe-subscription-sync.js";
 
 export {
   chargeCustomerId,
@@ -30,6 +31,16 @@ export const COMMISSION_HOLD_DAYS = 30;
 export const HOSTED_PAID_PLAN_TIERS = ["PRO", "BUSINESS"] as const;
 export const COMMISSION_NOT_FOUND_ATTENTION_REASON = "commission_not_found_refund_or_dispute";
 export const INVOICE_PAYMENT_UNRESOLVED_ATTENTION_REASON = "invoice_payment_unresolved";
+export const COMMISSION_PLAN_TIER_RETRY_MESSAGE =
+  "invoice.paid arrived before hosted plan_tier was stored and subscription metadata is missing or ambiguous";
+
+/** Thrown so Stripe retries instead of marking the webhook processed. */
+export class AffiliateCommissionRetryError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AffiliateCommissionRetryError";
+  }
+}
 
 export type CommissionLogger = {
   warn: (msg: unknown, context: string) => void;
@@ -106,6 +117,50 @@ function isHostedPaidPlanTier(planTier: string): boolean {
   return (HOSTED_PAID_PLAN_TIERS as readonly string[]).includes(planTier);
 }
 
+/** Stripe copies checkout subscription_data.metadata onto these invoice fields. */
+export function invoiceSubscriptionPlanTierRaw(invoice: InvoiceLike): string | undefined {
+  return (
+    invoice.parent?.subscription_details?.metadata?.plan_tier ??
+    invoice.subscription_details?.metadata?.plan_tier
+  );
+}
+
+export function hostedPaidPlanTierFromInvoiceMetadata(
+  invoice: InvoiceLike
+): (typeof HOSTED_PAID_PLAN_TIERS)[number] | null {
+  const parsed = parsePlanTierMetadata(invoiceSubscriptionPlanTierRaw(invoice));
+  if (parsed && isHostedPaidPlanTier(parsed)) {
+    return parsed as (typeof HOSTED_PAID_PLAN_TIERS)[number];
+  }
+  return null;
+}
+
+export type CommissionPlanEligibility = { eligible: boolean; retry: boolean };
+
+/**
+ * Hosted Pro/Business from org.plan_tier, or from invoice/subscription metadata when
+ * checkout.session.completed has not written plan_tier yet.
+ * Ambiguous FREE + paid hosted invoice → retry (do not skip forever).
+ */
+export function resolveCommissionPlanEligibility(
+  orgPlanTier: string,
+  invoice: InvoiceLike
+): CommissionPlanEligibility {
+  if (isHostedPaidPlanTier(orgPlanTier)) {
+    return { eligible: true, retry: false };
+  }
+  if (hostedPaidPlanTierFromInvoiceMetadata(invoice)) {
+    return { eligible: true, retry: false };
+  }
+  const metaTier = parsePlanTierMetadata(invoiceSubscriptionPlanTierRaw(invoice));
+  const paidHosted =
+    isHostedSubscriptionInvoice(invoice) && (invoice.amount_paid ?? 0) > 0;
+  if (orgPlanTier === "FREE" && paidHosted && metaTier !== "FREE") {
+    return { eligible: false, retry: true };
+  }
+  return { eligible: false, retry: false };
+}
+
 export async function resolveOrgFromInvoice(
   prisma: PrismaClient | Prisma.TransactionClient,
   invoice: InvoiceLike
@@ -176,7 +231,11 @@ export async function recordCommissionFromInvoice(
   if (!org) {
     return { kind: "skipped", reason: "org_not_found" };
   }
-  if (!isHostedPaidPlanTier(org.plan_tier)) {
+  const plan = resolveCommissionPlanEligibility(org.plan_tier, invoice);
+  if (!plan.eligible) {
+    if (plan.retry) {
+      throw new AffiliateCommissionRetryError(COMMISSION_PLAN_TIER_RETRY_MESSAGE);
+    }
     return { kind: "skipped", reason: "not_hosted_paid_tier" };
   }
 

@@ -19,7 +19,7 @@ When the feature flag is **OFF** (the default), signup and billing behave exactl
 | `Affiliate` table | **MODIFY** | Founder-created. Public `code` (case-insensitive). No Rewardful IDs. |
 | `OrganizationReferral` | **MODIFY** | Stores `referral_code` instead of Rewardful UUID / via token. |
 | `AffiliateCommission` | **MODIFY** | Native ledger: one row per Stripe invoice. States pending → payable → paid / voided. |
-| `AffiliateAdjustment` / `AffiliatePayout` | **MODIFY** | New ledger tables on the same migration (unreleased). |
+| `AffiliateAdjustment` / `AffiliatePayout` | **MODIFY** | Added by forward migration `20261005180000_affiliate_rewardful_to_native` (after the Rewardful-shaped `20261004180000` already applied in production 1.17.27). |
 | Rewardful JS (`r.wdfl.co`), `RewardfulLoader` | **REMOVE** | Replaced by first-party `?ref=` capture + sessionStorage / optional cookie. |
 | `REWARDFUL_*` env, `/webhooks/rewardful` | **REMOVE** | No Rewardful secrets or routes. |
 | Stripe `metadata.referral` | **REMOVE** | Commissions come from TT attribution + `invoice.paid`, not Rewardful conversion. |
@@ -65,7 +65,7 @@ On Stripe `invoice.paid` for a hosted subscription invoice:
 
 1. Resolve org from Customer / subscription / metadata.
 2. Load canonical `OrganizationReferral`.
-3. Skip unless `ACTIVE`, affiliate is active, not a payout hold, and org `plan_tier` is **PRO** or **BUSINESS**.
+3. Skip unless `ACTIVE`, affiliate is active, not a payout hold, and the org is hosted **PRO** or **BUSINESS**. Eligibility is `org.plan_tier` **or** Stripe subscription metadata on the invoice (`parent.subscription_details.metadata.plan_tier` / `subscription_details.metadata.plan_tier` written at checkout). If `org.plan_tier` is still FREE (checkout.session.completed has not landed) and that metadata is missing or ambiguous, the webhook **fails** so Stripe retries — it is not marked processed and skipped forever. Explicit FREE metadata, self-hosted invoices, and zero-eligible paid amounts are never commissioned.
 4. Eligible base = `amount_paid − tax` (integer cents). Discounts and customer credits are already reflected in `amount_paid`. If eligible base is 0, no commission.
 5. Commission = `floor(eligible × 30%)`. Exactly one row per `stripe_invoice_id` (idempotent). Store `stripe_payment_intent_id` and/or `stripe_charge_id` from classic invoice fields or basil InvoicePayment.
 6. Recurring invoices each create another commission. Cancel stops future invoices. A later legitimate resubscription of the same hosted org commissions the original locked affiliate again.
@@ -74,11 +74,11 @@ Hold: `payable_at = invoice_paid_at + 30 days`. Effective state `payable` is der
 
 ## Stripe webhooks
 
-The API uses `stripe` v22 (`2025-03-31.basil`). In the Stripe Dashboard, pin the `POST /webhooks/stripe` endpoint to **API version `2025-03-31.basil`** (or later basil) so payloads match the SDK. Older pinned endpoints still send `invoice.charge` / `charge.invoice`; the engine accepts both.
+The API constructs `new Stripe(key)` with **no `apiVersion` pin**, so outbound Stripe calls use **stripe v22’s SDK default (dahlia)**. Webhook **payload** shape is set by the Dashboard endpoint pin, not the SDK. Pin `POST /webhooks/stripe` to **`2025-03-31.basil` or later** (basil or dahlia) so `InvoicePayment` is present. Older pins still send `invoice.charge` / `charge.invoice`; the engine accepts both classic and basil+ payloads.
 
 When affiliates are enabled, the endpoint must also receive:
 
-- `invoice.paid` — record the commission. Payment is resolved from classic `invoice.charge` / `invoice.payment_intent`, or basil `invoice.payments` / `invoicePayments.list({ invoice })`. Stored `stripe_payment_intent_id` (and charge id when present) is what refunds and disputes match on.
+- `invoice.paid` — record the commission. Payment is resolved from classic `invoice.charge` / `invoice.payment_intent`, or basil+ `invoice.payments` / `invoicePayments.list({ invoice })`. If `invoicePayments.list` fails, the webhook errors so Stripe retries (no commission row without payment ids). Stored `stripe_payment_intent_id` (and charge id when present) is what refunds and disputes match on.
 - `charge.refunded` — reduce remaining or create a post-payout clawback. Match by `charge.payment_intent`, then legacy `charge.invoice` / `invoice.charge`.
 - `charge.dispute.created`
 - `charge.dispute.updated`
@@ -135,14 +135,21 @@ Clears a genuine hold (`needs_attention`). Refuses `REJECTED` / `EXPIRED`. Never
 
 ## Database
 
-Unreleased migration `20261004180000_add_affiliate_tables` (edited in place because it has not been applied in production):
+Production API **1.17.27** already applied `20261004180000_add_affiliate_tables` on boot via `migrateDeployBeforeListen`. That file is the **Rewardful-shaped** original (`rewardful_*` columns; no `Affiliate.code`, `AffiliatePayout`, `AffiliateAdjustment`, or `stripe_payment_intent_id`). This PR restores it to match `main` byte-for-byte — do not rewrite it in place.
 
-- `WebhookEvent`
+Forward migration `20261005180000_affiliate_rewardful_to_native` converts those tables to the native schema:
+
 - `Affiliate` (code, name, email, state, 30% rate)
-- `UserReferral` / `OrganizationReferral`
-- `AffiliateCommission` (includes `stripe_payment_intent_id` for basil charge↔invoice linking) / `AffiliateAdjustment` / `AffiliatePayout`
+- `UserReferral` / `OrganizationReferral` (`referral_code` instead of Rewardful ids / via-token)
+- `AffiliateCommission` (includes `stripe_payment_intent_id` for basil+ charge↔invoice linking)
+- `AffiliateAdjustment` / `AffiliatePayout`
+- `WebhookEvent` (unchanged; created by `20261004180000`)
 
-Do **not** run this migration against production until the founder explicitly enables the program. Any **local** database that already applied an earlier copy of `20261004180000` needs `prisma migrate reset` (or equivalent) before this revision will apply — production never ran it.
+Production tables are expected **empty** (flags never enabled; Rewardful never used). The forward migration still uses ALTER / ADD COLUMN / backfill / DROP so leftover rows cannot block NOT NULL.
+
+**Local/CI:** any database that already applied the *edited* (native) checksum of `20261004180000` will fail Prisma’s checksum check against the restored original. Reset (`prisma migrate reset`) or `prisma migrate resolve` as appropriate. Fresh databases apply original `20261004180000` then the forward migration.
+
+Do **not** enable feature flags from this PR. Do **not** run production migrations until the founder explicitly enables the program.
 
 ## Testing
 

@@ -129,8 +129,9 @@ export async function resolveInvoicePaymentRefs(
   try {
     const listed = await lister.invoicePayments.list({ invoice: invoiceId, limit: 10 });
     refs = mergeRefs(refs, refsFromInvoicePaymentRows(listed.data ?? []));
-  } catch {
-    // Webhook should still record the commission; refund matching may need founder attention.
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    throw new Error(`Failed to list Stripe invoicePayments for ${invoiceId}: ${detail}`);
   }
   return refs;
 }
