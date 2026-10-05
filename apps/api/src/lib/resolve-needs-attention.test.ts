@@ -12,8 +12,7 @@ function mockPrisma(opts: {
     status: string;
     needs_attention: boolean;
     attention_reason: string | null;
-    rewardful_referral_id: string | null;
-    via_token: string | null;
+    referral_code?: string | null;
   } | null;
 }) {
   return {
@@ -44,8 +43,7 @@ describe("resolveNeedsAttentionAsValid", () => {
         status: "ACTIVE",
         needs_attention: true,
         attention_reason: "affiliate_email_unknown",
-        rewardful_referral_id: "00000000-0000-4000-8000-000000000001",
-        via_token: null,
+        referral_code: "alice",
       },
     });
     const stripe = {
@@ -103,8 +101,7 @@ describe("resolveNeedsAttentionAsValid", () => {
         status: "REJECTED",
         needs_attention: true,
         attention_reason: "rejected_self_referral",
-        rewardful_referral_id: "00000000-0000-4000-8000-000000000002",
-        via_token: null,
+        referral_code: "alice",
       },
     });
     const stripe = {
@@ -138,8 +135,7 @@ describe("resolveNeedsAttentionAsValid", () => {
         status: "ACTIVE",
         needs_attention: true,
         attention_reason: "affiliate_email_unknown",
-        rewardful_referral_id: null,
-        via_token: "alice",
+        referral_code: "alice",
       },
     });
     const stripe = {

@@ -1,6 +1,7 @@
 /**
- * Organization attribution: copy from UserReferral and create Stripe Customer with metadata.
+ * Organization attribution: copy from UserReferral and optionally create a Stripe Customer.
  * Always writes OrganizationReferral even if Stripe Customer creation fails.
+ * Canonical: one org ≤ one affiliate; locked at first-org claim.
  */
 import type { PrismaClient } from "@prisma/client";
 import { Prisma } from "@prisma/client";
@@ -21,7 +22,7 @@ export type OrganizationAttributionResult =
   | { kind: "invitee_not_attributed" }
   | { kind: "rejected_self_referral"; reason: string };
 
-/** Last-click window (days) from capture to org creation. */
+/** Last-touch window (days) from capture to signup. */
 export const REFERRAL_ATTRIBUTION_WINDOW_DAYS = 60;
 
 export type ReferralStripeMetadataGate = {
@@ -32,11 +33,8 @@ export type ReferralStripeMetadataGate = {
 };
 
 /**
- * Payout hold: withhold Rewardful `metadata.referral` / `tt_*` only for
- * self-referral-risk reasons (`affiliate_email_unknown*`, owner missing,
- * rejected self-referral). Not for `affiliate_unresolved` or
- * `customer_creation_failed` — those must still allow the UUID so Rewardful
- * can convert, and checkout backfill can repair a failed create.
+ * Payout hold: withhold commissions and tt_* for self-referral-risk reasons.
+ * Not a hold for customer_creation_failed (billing still works; checkout can backfill tt_*).
  */
 export function isPayoutHold(referral: {
   attention_reason?: string | null;
@@ -44,19 +42,6 @@ export function isPayoutHold(referral: {
   const reason = referral.attention_reason ?? "";
   return /(?:^|;)(affiliate_email_unknown|no_owner_found_for_self_referral_check|rejected_self_referral)/.test(
     reason
-  );
-}
-
-/**
- * Rewardful commission token (`Customer.metadata.referral`).
- * ACTIVE|UNRESOLVED and not a payout hold.
- */
-export function canWriteStripeReferralMetadata(
-  referral: ReferralStripeMetadataGate
-): boolean {
-  return (
-    !isPayoutHold(referral) &&
-    (referral.status === "ACTIVE" || referral.status === "UNRESOLVED")
   );
 }
 
@@ -77,15 +62,11 @@ export function canWriteAffiliateTtMetadata(
 /**
  * Expired only after the window elapses (`>` not `>=`): captured_at exactly 60 days ago is still attributed.
  */
-function isReferralExpired(capturedAt: Date): boolean {
-  const daysSinceCapture = (Date.now() - capturedAt.getTime()) / (1000 * 60 * 60 * 24);
+export function isReferralExpired(capturedAt: Date, now: Date = new Date()): boolean {
+  const daysSinceCapture = (now.getTime() - capturedAt.getTime()) / (1000 * 60 * 60 * 24);
   return daysSinceCapture > REFERRAL_ATTRIBUTION_WINDOW_DAYS;
 }
 
-/**
- * Resolve or create Stripe Customer ID with idempotency and proper locking.
- * Uses the existing resolveStripeCustomerId pattern but with affiliate metadata.
- */
 async function resolveStripeCustomerIdWithMetadata(
   prisma: PrismaClient,
   stripe: Stripe,
@@ -94,25 +75,22 @@ async function resolveStripeCustomerIdWithMetadata(
     organization_id?: string;
     tt_org_id?: string;
     tt_affiliate_id?: string;
-    referral?: string;
   },
   logger?: { warn: (msg: unknown, context: string) => void }
 ): Promise<{ customerId: string | null; failed: boolean }> {
-  // Check if Customer already exists
   const unlocked = await prisma.organization.findFirst({
     where: { id: orgId, deleted_at: null },
     select: { stripe_customer_id: true, name: true },
   });
-  
+
   if (!unlocked) {
     return { customerId: null, failed: false };
   }
-  
+
   if (unlocked.stripe_customer_id) {
     return { customerId: unlocked.stripe_customer_id, failed: false };
   }
 
-  // Need to create Customer - use transaction with row lock
   const pendingCreate = await prisma.$transaction(async (tx) => {
     await tx.$executeRaw(
       Prisma.sql`SELECT 1 FROM "Organization" WHERE id = ${orgId} FOR UPDATE`
@@ -131,21 +109,22 @@ async function resolveStripeCustomerIdWithMetadata(
   if (!pendingCreate) {
     return { customerId: null, failed: false };
   }
-  
+
   if (pendingCreate.kind === "existing") {
     return { customerId: pendingCreate.customerId, failed: false };
   }
 
-  // Create Stripe Customer with idempotency key
   try {
-    const customer = await stripe.customers.create({
-      name: pendingCreate.orgName,
-      metadata,
-    }, {
-      idempotencyKey: `org_${orgId}_referral`,
-    });
+    const customer = await stripe.customers.create(
+      {
+        name: pendingCreate.orgName,
+        metadata,
+      },
+      {
+        idempotencyKey: `org_${orgId}_referral`,
+      }
+    );
 
-    // Save Customer ID with locking
     const savedId = await prisma.$transaction(async (tx) => {
       await tx.$executeRaw(
         Prisma.sql`SELECT 1 FROM "Organization" WHERE id = ${orgId} FOR UPDATE`
@@ -162,7 +141,7 @@ async function resolveStripeCustomerIdWithMetadata(
       });
       return customer.id;
     });
-    
+
     return { customerId: savedId, failed: false };
   } catch (stripeErr) {
     if (logger) {
@@ -178,6 +157,7 @@ async function resolveStripeCustomerIdWithMetadata(
 /**
  * Attribute organization to affiliate (copy from UserReferral).
  * Always writes OrganizationReferral. If Stripe Customer creation fails, flags for attention.
+ * Window is locked at signup: an ACTIVE UserReferral stays ACTIVE even if org is created later.
  */
 export async function attributeOrganizationToAffiliate(
   prisma: PrismaClient,
@@ -189,15 +169,14 @@ export async function attributeOrganizationToAffiliate(
     return { kind: "not_enabled" };
   }
 
-  // Check if user has a referral record
   const userReferral = await prisma.userReferral.findUnique({
     where: { user_id: input.userId },
     select: {
       id: true,
       affiliate_id: true,
-      rewardful_referral_id: true,
-      via_token: true,
+      referral_code: true,
       source: true,
+      status: true,
       captured_at: true,
       user: {
         select: {
@@ -211,13 +190,11 @@ export async function attributeOrganizationToAffiliate(
     return { kind: "not_referred" };
   }
 
-  // Atomically claim this organization for this user's referral
-  // Only the first org created by a referred user gets attributed
   const claimed = await prisma.userReferral.updateMany({
     where: {
       id: userReferral.id,
       user_id: input.userId,
-      attributed_organization_id: null, // Only claim if not yet attributed
+      attributed_organization_id: null,
     },
     data: {
       attributed_organization_id: input.organizationId,
@@ -225,7 +202,6 @@ export async function attributeOrganizationToAffiliate(
   });
 
   if (claimed.count === 0) {
-    // User already has an attributed org - don't attribute this one
     if (logger) {
       logger.info(
         { userId: input.userId, orgId: input.organizationId },
@@ -235,12 +211,9 @@ export async function attributeOrganizationToAffiliate(
     return { kind: "not_referred" };
   }
 
-  // Successfully claimed! Now proceed with attribution
-  // Initialize needs_attention tracking
   let needsAttention = false;
   let attentionReason: string | null = null;
 
-  // Self-referral and affiliate email validation
   if (userReferral.affiliate_id) {
     const affiliate = await prisma.affiliate.findUnique({
       where: { id: userReferral.affiliate_id },
@@ -248,9 +221,7 @@ export async function attributeOrganizationToAffiliate(
     });
 
     if (affiliate) {
-      // Check if affiliate email is unknown/missing
       if (!affiliate.email_normalized || affiliate.email_normalized.trim() === "") {
-        // Unknown affiliate email - flag for attention but continue
         needsAttention = true;
         attentionReason = "affiliate_email_unknown";
         if (logger) {
@@ -260,18 +231,15 @@ export async function attributeOrganizationToAffiliate(
           );
         }
       } else {
-        // Check self-referral
         const userNormalized = normalizeEmailForSelfReferralCheck(userReferral.user.email);
         if (affiliate.email_normalized === userNormalized) {
-          // Self-referral detected at org creation
           if (logger) {
             logger.warn(
               { userId: input.userId, affiliateId: userReferral.affiliate_id },
               "Self-referral rejected at org attribution"
             );
           }
-          
-          // Update UserReferral to mark as rejected
+
           await prisma.userReferral.updateMany({
             where: {
               id: userReferral.id,
@@ -281,14 +249,12 @@ export async function attributeOrganizationToAffiliate(
               status: "REJECTED",
             },
           });
-          
-          // Create OrganizationReferral with rejection reason
+
           await prisma.organizationReferral.create({
             data: {
               organization_id: input.organizationId,
               affiliate_id: null,
-              rewardful_referral_id: userReferral.rewardful_referral_id,
-              via_token: userReferral.via_token,
+              referral_code: userReferral.referral_code,
               source: userReferral.source,
               first_seen_at: userReferral.captured_at,
               attributed_at: new Date(),
@@ -308,21 +274,23 @@ export async function attributeOrganizationToAffiliate(
     }
   }
 
-  // Check if referral has expired (60-day last-click window)
-  const expired = isReferralExpired(userReferral.captured_at);
-  if (expired) {
-    needsAttention = true;
-    attentionReason = `referral_expired_${REFERRAL_ATTRIBUTION_WINDOW_DAYS}_days`;
+  // Signup lock: honor UserReferral.status when already EXPIRED/REJECTED/ACTIVE.
+  // Do not re-open the 60-day window at org creation.
+  let referralStatus: "UNRESOLVED" | "ACTIVE" | "EXPIRED" | "REJECTED" = userReferral.status;
+  if (userReferral.status !== "EXPIRED" && userReferral.status !== "REJECTED") {
+    if (!userReferral.affiliate_id) {
+      referralStatus = "UNRESOLVED";
+    } else {
+      referralStatus = "ACTIVE";
+    }
   }
-  // Plain unresolved is not a payout hold — Rewardful needs metadata.referral
-  // (the UUID) on the Customer in order to send referral.converted.
-  const referralStatus: "UNRESOLVED" | "ACTIVE" | "EXPIRED" = expired
-    ? "EXPIRED"
-    : userReferral.affiliate_id
-      ? "ACTIVE"
-      : "UNRESOLVED";
-  
-  // Update UserReferral status
+  if (referralStatus === "EXPIRED") {
+    needsAttention = true;
+    attentionReason = attentionReason
+      ? `${attentionReason};referral_expired_${REFERRAL_ATTRIBUTION_WINDOW_DAYS}_days`
+      : `referral_expired_${REFERRAL_ATTRIBUTION_WINDOW_DAYS}_days`;
+  }
+
   await prisma.userReferral.updateMany({
     where: {
       id: userReferral.id,
@@ -333,13 +301,7 @@ export async function attributeOrganizationToAffiliate(
     },
   });
 
-  // Create Stripe Customer if:
-  // 1. Referral has not expired (60-day last-click window)
-  // 2. We have a UUID (affiliate may be unresolved) OR we have via token + resolved affiliate
-  // Referral metadata is omitted only on a payout hold (self-referral risk).
-  const hasUuid = !!userReferral.rewardful_referral_id;
-  const hasResolvedViaToken = !!userReferral.via_token && !!userReferral.affiliate_id;
-  const shouldCreateCustomer = !expired && (hasUuid || hasResolvedViaToken);
+  const shouldCreateCustomer = referralStatus === "ACTIVE" || referralStatus === "UNRESOLVED";
   const metadataGate = {
     status: referralStatus,
     affiliate_id: userReferral.affiliate_id,
@@ -347,14 +309,12 @@ export async function attributeOrganizationToAffiliate(
     attention_reason: attentionReason,
   };
 
-  // Create Stripe Customer if conditions are met
   let customerId: string | null = null;
   if (shouldCreateCustomer) {
     const metadata: {
       organization_id: string;
       tt_org_id?: string;
       tt_affiliate_id?: string;
-      referral?: string;
     } = {
       organization_id: input.organizationId,
     };
@@ -362,15 +322,6 @@ export async function attributeOrganizationToAffiliate(
     if (canWriteAffiliateTtMetadata(metadataGate)) {
       metadata.tt_org_id = input.organizationId;
       metadata.tt_affiliate_id = userReferral.affiliate_id!;
-    }
-
-    // Always prefer UUID; use via token only when no UUID and affiliate resolved
-    if (canWriteStripeReferralMetadata(metadataGate)) {
-      if (userReferral.rewardful_referral_id) {
-        metadata.referral = userReferral.rewardful_referral_id;
-      } else if (userReferral.via_token && userReferral.affiliate_id) {
-        metadata.referral = userReferral.via_token;
-      }
     }
 
     const customerResult = await resolveStripeCustomerIdWithMetadata(
@@ -390,13 +341,11 @@ export async function attributeOrganizationToAffiliate(
     }
   }
 
-  // Always create OrganizationReferral record
   const orgReferral = await prisma.organizationReferral.create({
     data: {
       organization_id: input.organizationId,
       affiliate_id: userReferral.affiliate_id,
-      rewardful_referral_id: userReferral.rewardful_referral_id,
-      via_token: userReferral.via_token,
+      referral_code: userReferral.referral_code,
       source: userReferral.source,
       first_seen_at: userReferral.captured_at,
       attributed_at: new Date(),
