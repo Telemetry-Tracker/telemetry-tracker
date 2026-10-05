@@ -6,6 +6,7 @@
 import {
   preferenceCookiesAllowed,
   readStoredCookieConsentChoice,
+  type CookieConsentChoice,
 } from "@/lib/cookie-consent";
 
 export const AFFILIATE_REFERRAL_STORAGE_KEY = "tt_affiliate_ref";
@@ -77,6 +78,17 @@ export function rememberAffiliateReferral(codeRaw: string, capturedAt: Date = ne
     writeAffiliateReferralCookie(referral);
   }
   return referral;
+}
+
+/** Promote a remembered sessionStorage referral into the 60-day cookie after consent. */
+export function promoteRememberedAffiliateReferralCookie(
+  choice?: CookieConsentChoice | null
+): StoredAffiliateReferral | null {
+  if (!preferenceCookiesAllowed(choice ?? readStoredCookieConsentChoice())) return null;
+  const remembered = readRememberedAffiliateReferral();
+  if (!remembered) return null;
+  writeAffiliateReferralCookie(remembered);
+  return remembered;
 }
 
 export function readRememberedAffiliateReferral(): StoredAffiliateReferral | null {

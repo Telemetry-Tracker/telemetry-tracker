@@ -813,6 +813,240 @@ testSuite("Native affiliate integration", () => {
       expect(JSON.parse(first.body).payoutId).toBe(JSON.parse(second.body).payoutId);
       expect(await prisma.affiliatePayout.count({ where: { affiliate_id: affiliate.id } })).toBe(1);
     });
+
+    async function founderAdmin() {
+      const adminEmail = `founder-ledger-${Date.now()}@example.com`;
+      process.env.AFFILIATE_ADMIN_EMAILS = adminEmail;
+      return registerUser({ email: adminEmail });
+    }
+
+    async function seedPayableCommission(
+      affiliateId: string,
+      organizationId: string,
+      amountCents: number
+    ) {
+      const row = await prisma.affiliateCommission.create({
+        data: {
+          affiliate_id: affiliateId,
+          organization_id: organizationId,
+          stripe_invoice_id: `in_seed_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`,
+          eligible_base_cents: Math.ceil((amountCents * 10_000) / 3000),
+          amount_cents: amountCents,
+          remaining_cents: amountCents,
+          currency: "eur",
+          state: "pending",
+          invoice_paid_at: new Date(),
+          payable_at: new Date(Date.now() - 1000),
+        },
+      });
+      testCommissionIds.push(row.id);
+      return row;
+    }
+
+    async function markPaid(
+      adminSessionId: string,
+      affiliateId: string,
+      payload: Record<string, unknown>
+    ) {
+      return app.inject({
+        method: "POST",
+        url: `/api/meta/affiliates/${affiliateId}/payouts`,
+        headers: { cookie: `telemetry_session=${adminSessionId}` },
+        payload,
+      });
+    }
+
+    async function adminDetail(adminSessionId: string, affiliateId: string) {
+      const response = await app.inject({
+        method: "GET",
+        url: `/api/meta/affiliates/${affiliateId}`,
+        headers: { cookie: `telemetry_session=${adminSessionId}` },
+      });
+      expect(response.statusCode).toBe(200);
+      return JSON.parse(response.body) as {
+        pendingCents: number;
+        payableCents: number;
+        adjustmentCents: number;
+        currentPayableBalanceCents: number;
+      };
+    }
+
+    async function paidThenClawback() {
+      const { affiliate, commission, orgId } = await pendingCommission(16667);
+      await prisma.affiliateCommission.update({
+        where: { id: commission.id },
+        data: { payable_at: new Date(Date.now() - 1000) },
+      });
+      const admin = await founderAdmin();
+      const paid = await markPaid(admin.sessionId, affiliate.id, {
+        commissionIds: [commission.id],
+        amountCents: commission.remaining_cents,
+      });
+      expect(paid.statusCode).toBe(200);
+      await postStripeEvent({
+        id: `evt_claw_${Date.now()}`,
+        type: "charge.refunded",
+        data: {
+          object: {
+            id: commission.stripe_charge_id,
+            invoice: commission.stripe_invoice_id,
+            amount: 16667,
+            amount_refunded: 16667,
+            currency: "eur",
+            refunds: { data: [{ id: `re_claw_${Date.now()}` }] },
+          },
+        },
+      });
+      const next = await seedPayableCommission(affiliate.id, orgId, 10000);
+      return { affiliate, commission, next, admin };
+    }
+
+    it("does not double-count a pre-payout partial refund in payable balance", async () => {
+      const partial = await pendingCommission(2900);
+      await postStripeEvent({
+        id: `evt_bal_partial_${Date.now()}`,
+        type: "charge.refunded",
+        data: {
+          object: {
+            id: partial.chargeId,
+            invoice: partial.invoiceId,
+            amount: 2900,
+            amount_refunded: 1450,
+            currency: "eur",
+            refunds: { data: [{ id: "re_bal_partial" }] },
+          },
+        },
+      });
+      await prisma.affiliateCommission.update({
+        where: { id: partial.commission.id },
+        data: { payable_at: new Date(Date.now() - 1000) },
+      });
+      const remaining = (
+        await prisma.affiliateCommission.findUnique({ where: { id: partial.commission.id } })
+      )?.remaining_cents;
+      expect(remaining).toBeGreaterThan(0);
+      expect(remaining).toBeLessThan(partial.commission.amount_cents);
+      expect(
+        await prisma.affiliateAdjustment.count({ where: { commission_id: partial.commission.id } })
+      ).toBe(0);
+
+      const admin = await founderAdmin();
+      const detail = await adminDetail(admin.sessionId, partial.affiliate.id);
+      expect(detail.pendingCents).toBe(0);
+      expect(detail.payableCents).toBe(remaining);
+      expect(detail.adjustmentCents).toBe(0);
+      expect(detail.currentPayableBalanceCents).toBe(remaining);
+    });
+
+    it("refuses mark as paid when amountCents ignores omitted open clawbacks", async () => {
+      const { affiliate, next, admin } = await paidThenClawback();
+      const ignored = await markPaid(admin.sessionId, affiliate.id, {
+        commissionIds: [next.id],
+        amountCents: 10000,
+      });
+      expect(ignored.statusCode).toBe(400);
+      expect(JSON.parse(ignored.body).code).toBe("amount_mismatch");
+      expect(await prisma.affiliatePayout.count({ where: { affiliate_id: affiliate.id } })).toBe(1);
+      expect(
+        await prisma.affiliateAdjustment.count({
+          where: { affiliate_id: affiliate.id, payout_id: null },
+        })
+      ).toBe(1);
+    });
+
+    it("auto-includes omitted open clawbacks when amountCents is the net payable", async () => {
+      const { affiliate, next, admin } = await paidThenClawback();
+      const paid = await markPaid(admin.sessionId, affiliate.id, {
+        commissionIds: [next.id],
+        amountCents: 5000,
+      });
+      expect(paid.statusCode).toBe(200);
+      const payoutId = JSON.parse(paid.body).payoutId as string;
+      const clawback = await prisma.affiliateAdjustment.findFirst({
+        where: { affiliate_id: affiliate.id, reason: "refund" },
+      });
+      expect(clawback?.payout_id).toBe(payoutId);
+      expect(await prisma.affiliatePayout.count({ where: { affiliate_id: affiliate.id } })).toBe(2);
+    });
+
+    it("records a negative adjustment for dispute-lost after payout and reduces balance", async () => {
+      const { affiliate, commission, orgId } = await pendingCommission(16667);
+      await prisma.affiliateCommission.update({
+        where: { id: commission.id },
+        data: { payable_at: new Date(Date.now() - 1000) },
+      });
+      const extra = await seedPayableCommission(affiliate.id, orgId, 10000);
+      const admin = await founderAdmin();
+      const paid = await markPaid(admin.sessionId, affiliate.id, {
+        commissionIds: [commission.id],
+        amountCents: commission.remaining_cents,
+      });
+      expect(paid.statusCode).toBe(200);
+
+      const before = await adminDetail(admin.sessionId, affiliate.id);
+      expect(before.payableCents).toBe(extra.remaining_cents);
+      expect(before.currentPayableBalanceCents).toBe(extra.remaining_cents);
+
+      mockChargesRetrieve.mockResolvedValue({
+        id: commission.stripe_charge_id,
+        invoice: commission.stripe_invoice_id,
+      });
+      await postStripeEvent({
+        id: `evt_dsp_paid_lost_${Date.now()}`,
+        type: "charge.dispute.closed",
+        data: {
+          object: {
+            id: `dp_paid_lost_${Date.now()}`,
+            charge: commission.stripe_charge_id,
+            amount: 16667,
+            currency: "eur",
+            reason: "fraudulent",
+            status: "lost",
+            livemode: false,
+          },
+        },
+      });
+
+      const stillPaid = await prisma.affiliateCommission.findUnique({
+        where: { id: commission.id },
+      });
+      expect(stillPaid?.state).toBe("paid");
+      const adjustment = await prisma.affiliateAdjustment.findFirst({
+        where: { commission_id: commission.id, reason: "dispute_lost" },
+      });
+      expect(adjustment?.amount_cents).toBe(-commission.amount_cents);
+      const after = await adminDetail(admin.sessionId, affiliate.id);
+      expect(after.payableCents).toBe(extra.remaining_cents);
+      expect(after.adjustmentCents).toBe(-commission.amount_cents);
+      expect(after.currentPayableBalanceCents).toBe(
+        extra.remaining_cents - commission.amount_cents
+      );
+    });
+
+    it("refuses a concurrent second mark-as-paid without an idempotency key (no phantom payout)", async () => {
+      const { affiliate, commission } = await pendingCommission(16667);
+      await prisma.affiliateCommission.update({
+        where: { id: commission.id },
+        data: { payable_at: new Date(Date.now() - 1000) },
+      });
+      const admin = await founderAdmin();
+      const payload = {
+        commissionIds: [commission.id],
+        amountCents: commission.remaining_cents,
+      };
+      const [first, second] = await Promise.all([
+        markPaid(admin.sessionId, affiliate.id, payload),
+        markPaid(admin.sessionId, affiliate.id, payload),
+      ]);
+      const statuses = [first.statusCode, second.statusCode].sort((a, b) => a - b);
+      expect(statuses).toEqual([200, 409]);
+      const refused = first.statusCode === 409 ? first : second;
+      expect(JSON.parse(refused.body).code).toBe("already_paid");
+      expect(await prisma.affiliatePayout.count({ where: { affiliate_id: affiliate.id } })).toBe(1);
+      expect(
+        (await prisma.affiliateCommission.findUnique({ where: { id: commission.id } }))?.state
+      ).toBe("paid");
+    });
   });
 
   describe("feature flag OFF", () => {

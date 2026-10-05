@@ -46,7 +46,7 @@ When OFF:
 ## Visitor → signup
 
 1. Affiliate shares `https://telemetry-tracker.com/?ref=<code>` (`?via=` is accepted as an alias).
-2. Last-touch wins. `ReferralCapture` always writes **sessionStorage** (same-session fallback without marketing cookies). After optional-cookie consent, a first-party `tt_affiliate_ref` cookie is stored for 60 days.
+2. Last-touch wins. `ReferralCapture` always writes **sessionStorage** (same-session fallback without marketing cookies). After optional-cookie consent, a remembered sessionStorage referral is promoted into a first-party `tt_affiliate_ref` cookie for 60 days even if `?ref=` is no longer in the URL.
 3. Register sends `referralCode` + `referralCapturedAt`. Declining optional cookies does not drop same-session attribution. No fingerprinting.
 4. Only **active** affiliates resolve. Codes are case-insensitive, 2–64 characters, and must not be UUIDs.
 5. Attribution locks at signup. Later links and existing accounts cannot gain or change it.
@@ -74,11 +74,11 @@ Hold: `payable_at = invoice_paid_at + 30 days`. Effective state `payable` is der
 
 ## Refunds and disputes
 
-- **Refund before payout:** reduce `remaining_cents` or void. Ledger adjustment recorded. History is not deleted.
-- **Refund after payout:** negative `AffiliateAdjustment` against future payable balance. Commission stays `paid`.
+- **Refund before payout:** reduce `remaining_cents` or void the commission row only. Do **not** create an `AffiliateAdjustment` (that would double-count the refund in payable balance). History is the immutable `amount_cents` plus remaining/voided.
+- **Refund after payout:** negative `AffiliateAdjustment` (post-payout clawback) against future payable balance. Commission stays `paid`.
 - **Dispute open:** not payable; surfaced in founder admin (`dispute_status=open`) + email on livemode `charge.dispute.created`.
 - **Dispute won:** restore normal eligibility/hold.
-- **Dispute lost:** void if unpaid; negative adjustment if already paid.
+- **Dispute lost:** void the unpaid commission row only; negative `AffiliateAdjustment` if already paid.
 
 No automated money movement.
 
@@ -87,9 +87,9 @@ No automated money movement.
 Founder admin (`AFFILIATE_ADMIN_EMAILS`):
 
 - Create affiliate (name / email / code), disable, inspect orgs / commissions / adjustments / balances.
-- Payable balance = payable commissions + unsettled adjustments.
+- Payable balance = `sum(payable commissions' remaining_cents)` + `sum(open post-payout adjustments)`. Pre-payout partial refunds are not subtracted twice.
 - Eligible when payable ≥ €50 (5000 minor units).
-- `POST /api/meta/affiliates/:id/payouts` — select commissions/adjustments, record amount + timestamp + optional reference. Idempotent via `idempotencyKey`. Individual commission rows are preserved as `paid`.
+- `POST /api/meta/affiliates/:id/payouts` — select commissions; every unsettled clawback is auto-included. `amountCents` must equal selected remaining + those clawbacks (`amount_mismatch` if clawbacks are omitted from the amount; `overpay` if amount exceeds true net payable). Concurrent submit without an idempotency key returns `already_paid` (no phantom payout). Idempotent via `idempotencyKey`. Disabled affiliates may still be paid already-earned commissions. Individual commission rows are preserved as `paid`.
 
 There is no public application form and no automated Wise/SEPA/PayPal payout.
 

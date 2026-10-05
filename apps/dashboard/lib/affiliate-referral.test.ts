@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   AFFILIATE_REFERRAL_STORAGE_KEY,
   parsePublicAffiliateCode,
+  promoteRememberedAffiliateReferralCookie,
   readRememberedAffiliateReferral,
   rememberAffiliateReferral,
   resolveReferralFromParams,
@@ -33,6 +34,14 @@ describe("affiliate-referral", () => {
   it("writes the 60-day cookie only after marketing consent", () => {
     window.localStorage.setItem(COOKIE_CONSENT_STORAGE_KEY, "accepted");
     rememberAffiliateReferral("alice");
+    expect(document.cookie).toContain(AFFILIATE_REFERRAL_STORAGE_KEY);
+  });
+
+  it("promotes a sessionStorage referral into the cookie after later marketing consent", () => {
+    rememberAffiliateReferral("alice");
+    expect(document.cookie.includes(AFFILIATE_REFERRAL_STORAGE_KEY)).toBe(false);
+    window.localStorage.setItem(COOKIE_CONSENT_STORAGE_KEY, "accepted");
+    expect(promoteRememberedAffiliateReferralCookie("accepted")?.code).toBe("alice");
     expect(document.cookie).toContain(AFFILIATE_REFERRAL_STORAGE_KEY);
   });
 });

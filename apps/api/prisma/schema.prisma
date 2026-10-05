@@ -789,7 +789,7 @@ model AffiliateCommission {
   @@index([payout_id])
 }
 
-/// Ledger adjustments (refunds/disputes after payout, and auditable pre-payout reductions).
+/// Post-payout clawbacks and other true balance adjustments. Pre-payout refunds/disputes mutate the commission row only.
 model AffiliateAdjustment {
   id                  String    @id @default(uuid())
   affiliate_id        String    @map("affiliate_id")

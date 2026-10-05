@@ -325,29 +325,17 @@ export async function applyRefundToCommission(
     return { kind: "skipped", reason: "already_reduced" };
   }
 
+  // Pre-payout: mutate the commission row only. Do not emit AffiliateAdjustment —
+  // those rows are reserved for post-payout clawbacks so payable balance is not
+  // double-counted.
   const nextState = targetRemaining <= 0 ? "voided" : commission.state;
-  await prisma.$transaction(async (tx) => {
-    await tx.affiliateCommission.update({
-      where: { id: commission.id },
-      data: {
-        remaining_cents: Math.max(0, targetRemaining),
-        state: nextState,
-        voided_at: nextState === "voided" ? new Date() : commission.voided_at,
-      },
-    });
-    await tx.affiliateAdjustment.create({
-      data: {
-        affiliate_id: commission.affiliate_id,
-        organization_id: commission.organization_id,
-        commission_id: commission.id,
-        amount_cents: -reduction,
-        currency,
-        reason: "refund",
-        note: nextState === "voided" ? "Full refund before payout" : "Partial refund before payout",
-        stripe_refund_id: input.refundId ?? null,
-        stripe_invoice_id: commission.stripe_invoice_id,
-      },
-    });
+  await prisma.affiliateCommission.update({
+    where: { id: commission.id },
+    data: {
+      remaining_cents: Math.max(0, targetRemaining),
+      state: nextState,
+      voided_at: nextState === "voided" ? new Date() : commission.voided_at,
+    },
   });
 
   logger?.info?.(
@@ -454,28 +442,14 @@ export async function applyDisputeToCommission(
     return { kind: "skipped", reason: "already_voided" };
   }
 
-  await prisma.$transaction(async (tx) => {
-    await tx.affiliateCommission.update({
-      where: { id: commission.id },
-      data: {
-        remaining_cents: 0,
-        state: "voided",
-        voided_at: new Date(),
-        dispute_status: "lost",
-      },
-    });
-    await tx.affiliateAdjustment.create({
-      data: {
-        affiliate_id: commission.affiliate_id,
-        organization_id: commission.organization_id,
-        commission_id: commission.id,
-        amount_cents: -commission.remaining_cents,
-        currency: (input.currency ?? commission.currency).toLowerCase(),
-        reason: "dispute_lost",
-        note: "Dispute lost before payout",
-        stripe_invoice_id: commission.stripe_invoice_id,
-      },
-    });
+  await prisma.affiliateCommission.update({
+    where: { id: commission.id },
+    data: {
+      remaining_cents: 0,
+      state: "voided",
+      voided_at: new Date(),
+      dispute_status: "lost",
+    },
   });
   return { kind: "voided", commissionId: commission.id };
 }

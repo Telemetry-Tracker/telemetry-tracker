@@ -15,6 +15,8 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ### Fixed
 
+- **Affiliates ledger** — Pre-payout refunds and lost disputes now only mutate the commission row. `AffiliateAdjustment` is reserved for post-payout clawbacks so payable balance is not double-counted. Mark as paid auto-includes unsettled clawbacks, refuses `amount_mismatch` / `overpay`, and serializes concurrent submits (`already_paid`, no phantom payout). After marketing consent, a remembered sessionStorage referral is promoted into the 60-day cookie even without `?ref=` in the URL.
+
 ### Changed
 
 - **Affiliates (native)** — Telemetry Tracker now owns referral attribution and 30% recurring commissions. Rewardful is fully removed (no account, JS, API, webhooks, or secrets). Visitor links use `?ref=<code>` with last-touch, a 60-day window, signup lock, and first-party sessionStorage plus an optional consent cookie. Stripe `invoice.paid` writes an idempotent commission; refunds/disputes adjust the ledger; founder admin marks payouts paid at ≥ €50 after a 30-day hold. Feature flags stay **OFF** by default. Historical Rewardful notes in 1.17.26 described the previous integration that this replaces.

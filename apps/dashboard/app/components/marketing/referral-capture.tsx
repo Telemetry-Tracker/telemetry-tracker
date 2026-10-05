@@ -3,12 +3,14 @@
 import { useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import {
+  promoteRememberedAffiliateReferralCookie,
   rememberAffiliateReferral,
   resolveReferralFromParams,
 } from "@/lib/affiliate-referral";
 import {
   COOKIE_CONSENT_CHANGED_EVENT,
   preferenceCookiesAllowed,
+  readStoredCookieConsentChoice,
   type CookieConsentChoice,
 } from "@/lib/cookie-consent";
 
@@ -27,11 +29,16 @@ export function ReferralCapture() {
 
   useEffect(() => {
     if (process.env.NEXT_PUBLIC_AFFILIATES_ENABLED !== "true") return;
-    const persistCookieIfConsented = (choice: CookieConsentChoice) => {
+    const persistCookieIfConsented = (choice: CookieConsentChoice | null) => {
       if (!preferenceCookiesAllowed(choice)) return;
-      const code = resolveReferralFromParams(searchParams);
-      if (code) rememberAffiliateReferral(code);
+      const fromUrl = resolveReferralFromParams(searchParams);
+      if (fromUrl) {
+        rememberAffiliateReferral(fromUrl);
+        return;
+      }
+      promoteRememberedAffiliateReferralCookie(choice);
     };
+    persistCookieIfConsented(readStoredCookieConsentChoice());
     const onChange = (event: Event) => {
       const detail = (event as CustomEvent<CookieConsentChoice>).detail;
       persistCookieIfConsented(detail);

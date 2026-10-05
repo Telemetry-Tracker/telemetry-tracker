@@ -1,10 +1,8 @@
 /**
  * Manual founder payouts. No automated money movement.
  */
-import type { PrismaClient } from "@prisma/client";
-import {
-  effectiveCommissionState,
-} from "./affiliate-commission.js";
+import { Prisma, type PrismaClient } from "@prisma/client";
+import { effectiveCommissionState } from "./affiliate-commission.js";
 
 export const PAYOUT_MINIMUM_CENTS = 5000;
 
@@ -16,6 +14,17 @@ export type AffiliateBalance = {
   currentPayableBalanceCents: number;
   payoutEligible: boolean;
 };
+
+/** Open post-payout clawbacks (and commission-less true balance adjustments). */
+export function openPayableAdjustmentWhere(
+  affiliateId: string
+): Prisma.AffiliateAdjustmentWhereInput {
+  return {
+    affiliate_id: affiliateId,
+    payout_id: null,
+    OR: [{ commission_id: null }, { commission: { state: "paid" } }],
+  };
+}
 
 export async function computeAffiliateBalance(
   prisma: PrismaClient,
@@ -34,7 +43,7 @@ export async function computeAffiliateBalance(
       },
     }),
     prisma.affiliateAdjustment.findMany({
-      where: { affiliate_id: affiliateId, payout_id: null },
+      where: openPayableAdjustmentWhere(affiliateId),
       select: { amount_cents: true },
     }),
   ]);
@@ -71,6 +80,15 @@ export type MarkPayoutPaidInput = {
   idempotencyKey?: string | null;
 };
 
+export type MarkPayoutPaidRefuseCode =
+  | "below_minimum"
+  | "amount_mismatch"
+  | "overpay"
+  | "not_payable"
+  | "already_paid"
+  | "invalid_selection"
+  | "affiliate_disabled";
+
 export type MarkPayoutPaidResult =
   | {
       kind: "paid";
@@ -81,15 +99,41 @@ export type MarkPayoutPaidResult =
   | { kind: "not_found" }
   | {
       kind: "refused";
-      code:
-        | "below_minimum"
-        | "amount_mismatch"
-        | "not_payable"
-        | "already_paid"
-        | "invalid_selection"
-        | "affiliate_disabled";
+      code: MarkPayoutPaidRefuseCode;
       message: string;
     };
+
+function refused(code: MarkPayoutPaidRefuseCode, message: string): MarkPayoutPaidResult {
+  return { kind: "refused", code, message };
+}
+
+class PayoutRowMismatchError extends Error {
+  constructor() {
+    super("Payout row counts did not match the locked selection");
+    this.name = "PayoutRowMismatchError";
+  }
+}
+
+async function replayIdempotentPayout(
+  prisma: PrismaClient | Prisma.TransactionClient,
+  affiliateId: string,
+  idempotencyKey: string
+): Promise<MarkPayoutPaidResult | null> {
+  const existing = await prisma.affiliatePayout.findUnique({
+    where: { idempotency_key: idempotencyKey },
+    select: { id: true, amount_cents: true, affiliate_id: true },
+  });
+  if (!existing) return null;
+  if (existing.affiliate_id !== affiliateId) {
+    return refused("invalid_selection", "Idempotency key belongs to another affiliate");
+  }
+  return {
+    kind: "paid",
+    payoutId: existing.id,
+    amountCents: existing.amount_cents,
+    idempotent: true,
+  };
+}
 
 export async function markAffiliatePayoutPaid(
   prisma: PrismaClient,
@@ -98,108 +142,111 @@ export async function markAffiliatePayoutPaid(
 ): Promise<MarkPayoutPaidResult> {
   const affiliate = await prisma.affiliate.findUnique({
     where: { id: input.affiliateId },
-    select: { id: true, state: true },
+    select: { id: true },
   });
   if (!affiliate) return { kind: "not_found" };
+  // Disabled affiliates may still be paid already-earned commissions.
+  // `affiliate_disabled` stays in the refuse union for callers.
 
   const idempotencyKey = input.idempotencyKey?.trim() || null;
   if (idempotencyKey) {
-    const existing = await prisma.affiliatePayout.findUnique({
-      where: { idempotency_key: idempotencyKey },
-      select: { id: true, amount_cents: true, affiliate_id: true },
-    });
-    if (existing) {
-      if (existing.affiliate_id !== affiliate.id) {
-        return {
-          kind: "refused",
-          code: "invalid_selection",
-          message: "Idempotency key belongs to another affiliate",
-        };
-      }
-      return {
-        kind: "paid",
-        payoutId: existing.id,
-        amountCents: existing.amount_cents,
-        idempotent: true,
-      };
-    }
+    const replay = await replayIdempotentPayout(prisma, affiliate.id, idempotencyKey);
+    if (replay) return replay;
   }
 
   const commissionIds = [...new Set(input.commissionIds)];
-  const adjustmentIds = [...new Set(input.adjustmentIds ?? [])];
+  const requestedAdjustmentIds = [...new Set(input.adjustmentIds ?? [])];
   if (commissionIds.length === 0) {
-    return {
-      kind: "refused",
-      code: "invalid_selection",
-      message: "Select at least one commission",
-    };
-  }
-
-  const commissions = await prisma.affiliateCommission.findMany({
-    where: { id: { in: commissionIds }, affiliate_id: affiliate.id },
-  });
-  if (commissions.length !== commissionIds.length) {
-    return {
-      kind: "refused",
-      code: "invalid_selection",
-      message: "One or more commissions do not belong to this affiliate",
-    };
-  }
-
-  for (const commission of commissions) {
-    if (commission.state === "paid") {
-      return {
-        kind: "refused",
-        code: "already_paid",
-        message: "One or more commissions are already marked paid",
-      };
-    }
-    if (effectiveCommissionState(commission, now) !== "payable") {
-      return {
-        kind: "refused",
-        code: "not_payable",
-        message: "One or more commissions are not payable yet",
-      };
-    }
-  }
-
-  const adjustments = adjustmentIds.length
-    ? await prisma.affiliateAdjustment.findMany({
-        where: { id: { in: adjustmentIds }, affiliate_id: affiliate.id, payout_id: null },
-      })
-    : [];
-  if (adjustments.length !== adjustmentIds.length) {
-    return {
-      kind: "refused",
-      code: "invalid_selection",
-      message: "One or more adjustments do not belong to this affiliate or are already paid",
-    };
-  }
-
-  const commissionTotal = commissions.reduce((sum, row) => sum + row.remaining_cents, 0);
-  const adjustmentTotal = adjustments.reduce((sum, row) => sum + row.amount_cents, 0);
-  const expected = commissionTotal + adjustmentTotal;
-  if (expected !== input.amountCents) {
-    return {
-      kind: "refused",
-      code: "amount_mismatch",
-      message: `amountCents must equal selected net (${expected})`,
-    };
-  }
-  if (expected < PAYOUT_MINIMUM_CENTS) {
-    return {
-      kind: "refused",
-      code: "below_minimum",
-      message: `Payout requires at least ${PAYOUT_MINIMUM_CENTS} cents payable`,
-    };
+    return refused("invalid_selection", "Select at least one commission");
   }
 
   const paidAt = input.paidAt && !Number.isNaN(input.paidAt.getTime()) ? input.paidAt : now;
-  const currency = commissions[0]?.currency ?? "eur";
   const note = input.referenceNote?.trim() ? input.referenceNote.trim().slice(0, 500) : null;
 
   try {
-    const payout = await prisma.$transaction(async (tx) => {
+    return await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw(
+        Prisma.sql`SELECT 1 FROM "Affiliate" WHERE id = ${affiliate.id} FOR UPDATE`
+      );
+
+      const locked = await tx.affiliate.findUnique({
+        where: { id: affiliate.id },
+        select: { id: true },
+      });
+      if (!locked) return { kind: "not_found" as const };
+
+      if (idempotencyKey) {
+        const replay = await replayIdempotentPayout(tx, affiliate.id, idempotencyKey);
+        if (replay) return replay;
+      }
+
+      const commissions = await tx.affiliateCommission.findMany({
+        where: { id: { in: commissionIds }, affiliate_id: affiliate.id },
+      });
+      if (commissions.length !== commissionIds.length) {
+        return refused(
+          "invalid_selection",
+          "One or more commissions do not belong to this affiliate"
+        );
+      }
+
+      for (const commission of commissions) {
+        if (commission.state === "paid") {
+          return refused("already_paid", "One or more commissions are already marked paid");
+        }
+        if (effectiveCommissionState(commission, now) !== "payable") {
+          return refused("not_payable", "One or more commissions are not payable yet");
+        }
+      }
+
+      const openAdjustments = await tx.affiliateAdjustment.findMany({
+        where: openPayableAdjustmentWhere(affiliate.id),
+      });
+      const openIds = new Set(openAdjustments.map((row) => row.id));
+      for (const id of requestedAdjustmentIds) {
+        if (!openIds.has(id)) {
+          return refused(
+            "invalid_selection",
+            "One or more adjustments do not belong to this affiliate or are already paid"
+          );
+        }
+      }
+
+      const allCommissions = await tx.affiliateCommission.findMany({
+        where: { affiliate_id: affiliate.id },
+        select: {
+          state: true,
+          remaining_cents: true,
+          payable_at: true,
+          dispute_status: true,
+        },
+      });
+      const payableTotal = allCommissions.reduce((sum, row) => {
+        return effectiveCommissionState(row, now) === "payable" ? sum + row.remaining_cents : sum;
+      }, 0);
+
+      const commissionTotal = commissions.reduce((sum, row) => sum + row.remaining_cents, 0);
+      const adjustmentTotal = openAdjustments.reduce((sum, row) => sum + row.amount_cents, 0);
+      const expected = commissionTotal + adjustmentTotal;
+      const netPayable = payableTotal + adjustmentTotal;
+
+      if (expected !== input.amountCents) {
+        return refused(
+          "amount_mismatch",
+          `amountCents must equal selected commissions plus all unsettled adjustments (${expected}); open clawbacks are auto-included`
+        );
+      }
+      if (input.amountCents > netPayable || expected > netPayable) {
+        return refused("overpay", "amountCents exceeds the affiliate's payable balance");
+      }
+      if (expected < PAYOUT_MINIMUM_CENTS) {
+        return refused(
+          "below_minimum",
+          `Payout requires at least ${PAYOUT_MINIMUM_CENTS} cents payable`
+        );
+      }
+
+      const currency = commissions[0]?.currency ?? "eur";
       const created = await tx.affiliatePayout.create({
         data: {
           affiliate_id: affiliate.id,
@@ -212,30 +259,41 @@ export async function markAffiliatePayoutPaid(
         },
         select: { id: true },
       });
-      await tx.affiliateCommission.updateMany({
-        where: { id: { in: commissionIds }, state: "pending" },
+
+      const commissionsUpdated = await tx.affiliateCommission.updateMany({
+        where: { id: { in: commissionIds }, state: "pending", payout_id: null },
         data: {
           state: "paid",
           paid_at: paidAt,
           payout_id: created.id,
         },
       });
-      if (adjustmentIds.length > 0) {
-        await tx.affiliateAdjustment.updateMany({
-          where: { id: { in: adjustmentIds }, payout_id: null },
+      if (commissionsUpdated.count !== commissionIds.length) {
+        throw new PayoutRowMismatchError();
+      }
+
+      const openAdjustmentIds = openAdjustments.map((row) => row.id);
+      if (openAdjustmentIds.length > 0) {
+        const adjustmentsUpdated = await tx.affiliateAdjustment.updateMany({
+          where: { id: { in: openAdjustmentIds }, payout_id: null },
           data: { payout_id: created.id },
         });
+        if (adjustmentsUpdated.count !== openAdjustmentIds.length) {
+          throw new PayoutRowMismatchError();
+        }
       }
-      return created;
-    });
 
-    return {
-      kind: "paid",
-      payoutId: payout.id,
-      amountCents: expected,
-      idempotent: false,
-    };
+      return {
+        kind: "paid" as const,
+        payoutId: created.id,
+        amountCents: expected,
+        idempotent: false,
+      };
+    });
   } catch (err) {
+    if (err instanceof PayoutRowMismatchError) {
+      return refused("already_paid", "One or more commissions were claimed by a concurrent payout");
+    }
     if (
       idempotencyKey &&
       typeof err === "object" &&
@@ -243,18 +301,8 @@ export async function markAffiliatePayoutPaid(
       "code" in err &&
       (err as { code: string }).code === "P2002"
     ) {
-      const existing = await prisma.affiliatePayout.findUnique({
-        where: { idempotency_key: idempotencyKey },
-        select: { id: true, amount_cents: true },
-      });
-      if (existing) {
-        return {
-          kind: "paid",
-          payoutId: existing.id,
-          amountCents: existing.amount_cents,
-          idempotent: true,
-        };
-      }
+      const replay = await replayIdempotentPayout(prisma, affiliate.id, idempotencyKey);
+      if (replay) return replay;
     }
     throw err;
   }
