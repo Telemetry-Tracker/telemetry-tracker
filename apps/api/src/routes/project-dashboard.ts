@@ -105,7 +105,11 @@ export async function projectDashboardRoutes(
     if (!session) {
       return reply.status(401).send({ error: "Unauthorized" });
     }
-    const body = (request.body ?? {}) as { name?: string };
+    const body = (request.body ?? {}) as {
+      name?: string;
+      rewardfulReferralId?: string;
+      viaToken?: string;
+    };
     const name =
       typeof body.name === "string" && body.name.trim() !== ""
         ? body.name.trim().slice(0, 120)
@@ -113,6 +117,7 @@ export async function projectDashboardRoutes(
     if (!name) {
       return reply.status(400).send({ error: "name is required" });
     }
+
     const org = await prisma.organization.create({
       data: {
         name,
@@ -125,6 +130,44 @@ export async function projectDashboardRoutes(
       },
       select: { id: true, name: true },
     });
+
+    // Affiliate attribution: copy from UserReferral (if user was referred at registration)
+    const { isAffiliateFeatureEnabled } = await import("../lib/affiliates-feature-flag.js");
+    if (isAffiliateFeatureEnabled()) {
+      const stripeKey = process.env.STRIPE_SECRET_KEY?.trim();
+      if (stripeKey) {
+        try {
+          const { attributeOrganizationToAffiliate } = await import("../lib/organization-attribution.js");
+          const Stripe = (await import("stripe")).default;
+          const stripe = new Stripe(stripeKey);
+          
+          const attributionResult = await attributeOrganizationToAffiliate(
+            prisma,
+            stripe,
+            {
+              organizationId: org.id,
+              organizationName: org.name,
+              userId: session.userId,
+            },
+            request.log
+          );
+          
+          if (attributionResult.kind === "attributed" && attributionResult.needsAttention) {
+            request.log.warn(
+              { orgId: org.id, referralId: attributionResult.referralId },
+              "Organization attributed but needs founder attention"
+            );
+          }
+        } catch (error) {
+          // Log attribution failure but don't block org creation
+          request.log.error(
+            { orgId: org.id, userId: session.userId, error },
+            "Failed to attribute organization to affiliate"
+          );
+        }
+      }
+    }
+
     return reply.status(201).send({ id: org.id, name: org.name });
   });
 

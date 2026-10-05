@@ -108,8 +108,8 @@ export function CookieConsent({ serverChoice = null }: CookieConsentProps) {
               className="mt-0.5 h-2 w-2 shrink-0 animate-pulse-dot rounded-full bg-brand"
             />
             <p className="text-sm leading-relaxed text-muted-foreground">
-              We use a minimal set of cookies to keep the product running. Optional analytics load
-              when you accept. Read our{" "}
+              We use a minimal set of cookies to keep the product running. Optional analytics and
+              affiliate tracking load when you accept. Read our{" "}
               <Link
                 href="/cookies"
                 className="text-foreground underline decoration-border underline-offset-4 transition-colors hover:decoration-foreground"

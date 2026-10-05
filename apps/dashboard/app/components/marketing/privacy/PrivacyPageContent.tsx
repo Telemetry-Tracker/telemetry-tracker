@@ -5,8 +5,8 @@ import { Footer } from "@/app/components/marketing/footer";
 import { Nav } from "@/app/components/marketing/nav";
 import { HOSTED_DASHBOARD_URL, HOSTED_OPERATOR } from "@/lib/hosted-cloud";
 
-const EFFECTIVE = "July 2, 2026";
-const VERSION = "2026.07";
+const EFFECTIVE = "October 5, 2026";
+const VERSION = "2026.10";
 
 const principles = [
   {
@@ -63,7 +63,11 @@ const dataTable = [
 const optionalServices = [
   { name: "Stripe", role: "Optional payment processing", note: "When configured on the API" },
   { name: "Resend", role: "Optional transactional email", note: "Invites, password reset, contact, product updates" },
-  { name: "Sentry", role: "Optional error monitoring", note: "When SENTRY_DSN is set on the API and/or dashboard" },
+  {
+    name: "Sentry",
+    role: "Operational error monitoring",
+    note: "Used by Telemetry Tracker for Hosted Cloud service errors. Not the store for customer telemetry.",
+  },
 ];
 
 const rights = [
@@ -81,7 +85,7 @@ const toc: { id: string; label: string }[] = [
   { id: "what", label: "2. What we collect" },
   { id: "legal", label: "3. Legal basis" },
   { id: "sharing", label: "4. Sharing" },
-  { id: "subprocessors", label: "5. Optional third parties" },
+  { id: "subprocessors", label: "5. Third-party services" },
   { id: "transfers", label: "6. Where data lives" },
   { id: "retention", label: "7. Retention" },
   { id: "security", label: "8. Security" },
@@ -201,6 +205,18 @@ export function PrivacyPageContent() {
                     product updates) may use Resend when configured.
                   </p>
                   <p>
+                    Customer telemetry you send through ingest is stored by Telemetry Tracker.
+                    Separately, Telemetry Tracker uses Sentry for operational error monitoring of
+                    the Hosted Cloud service. Production error events are submitted to Sentry at
+                    the EU ingest host <code className="font-mono text-[12px]">ingest.de.sentry.io</code>.
+                    That is the ingest endpoint on the production DSN. Before an event is sent,
+                    the SDK is configured with default personal-data sending off and a filter that
+                    removes common authentication headers, cookies, query strings, request bodies,
+                    and Sentry user fields. This describes that configuration. It does not mean later
+                    Sentry processing stays in the EU, and it does not mean an error event never
+                    contains personal data.
+                  </p>
+                  <p>
                     Privacy requests for Hosted Cloud accounts:{" "}
                     <ContactEmailLink className="text-foreground/85 hover:text-foreground" />.
                   </p>
@@ -306,15 +322,19 @@ export function PrivacyPageContent() {
                     We do not sell personal data. On a self-hosted deployment, telemetry is not
                     shared with us unless you include reproduction details in support correspondence.
                     On the Hosted Cloud, {HOSTED_OPERATOR} uses subprocessors (for example Stripe,
-                    Resend, and infrastructure providers) only to operate the service — see Section
-                    5.
+                    Resend, Sentry, and infrastructure providers) only to operate the service — see
+                    Section 5. Customer telemetry stored by Telemetry Tracker is separate from the
+                    operational error events Telemetry Tracker sends to Sentry to monitor the Hosted
+                    Cloud service.
                   </p>
                 </Section>
 
                 <Section id="subprocessors" title="5. Third-party services">
                   <p>
-                    Self-hosted and Hosted Cloud deployments may call external services when
-                    configured:
+                    Self-hosted deployments call these services only when you configure them. On the
+                    Hosted Cloud, billing may use Stripe and email may use Resend when those are
+                    configured. Telemetry Tracker uses Sentry for operational error monitoring of the
+                    Hosted Cloud service.
                   </p>
                   <div className="mt-5 overflow-hidden rounded-xl border border-border">
                     <table className="w-full text-left text-sm">
@@ -346,9 +366,10 @@ export function PrivacyPageContent() {
                   <p>
                     Self-hosted: data residency is determined by where you deploy PostgreSQL and
                     the dashboard. Hosted Cloud: Customer Data and account data are stored in
-                    infrastructure selected by {HOSTED_OPERATOR} for the managed service. Optional
-                    third-party services may process data in their own regions — configure them only
-                    if that meets your compliance requirements.
+                    infrastructure selected by {HOSTED_OPERATOR} for the managed service.
+                    Operational error events are submitted to Sentry at{" "}
+                    <code className="font-mono text-[12px]">ingest.de.sentry.io</code>. Third-party
+                    services may process data in regions described by those providers.
                   </p>
                 </Section>
 

@@ -21,6 +21,27 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ---
 
+## [1.17.27] - 2026-10-05
+
+### Added
+
+- **Affiliates (disabled by default)** — Rewardful affiliate integration behind `AFFILIATES_ENABLED` / `NEXT_PUBLIC_AFFILIATES_ENABLED` (requires Stripe). When flags are unset, webhook routes stay unregistered, admin APIs return 404, and the dashboard does not load Rewardful ([#732](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/732)).
+
+### Fixed
+
+- **Sentry operational privacy** — API and dashboard `beforeSend` sanitizers strip auth/API-key/session/cookie headers, request bodies, cookies, query strings, Sentry `user`, and `tt_live_*` keys; fail-closed try/catch so pathological events cannot drop reporting. `sendDefaultPii: false`, `includeLocalVariables: false`, `tracesSampleRate: 0`, and incoming request-body buffering disabled (`maxIncomingRequestBodySize: "none"`) ([#736](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/736)).
+
+### Changed
+
+- **/privacy** — describes Sentry as Hosted Cloud operational monitoring with EU ingest host `ingest.de.sentry.io`, without zero-PII or full EU residency claims ([#736](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/736)).
+- **Affiliates attribution** — Stripe `metadata.referral` withheld only for payout holds (`affiliate_email_unknown*`); plain UUID-only `UNRESOLVED` referrals write the Rewardful UUID; founder `resolve-needs-attention` path for `AFFILIATE_ADMIN_EMAILS` ([#732](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/732)).
+
+### Database
+
+- **`20261004180000_add_affiliate_tables`** — additive tables `WebhookEvent`, `UserReferral`, `Affiliate`, `OrganizationReferral`, `AffiliateCommission` (applied on production API boot via `migrateDeployBeforeListen`) ([#732](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/732)).
+
+---
+
 ## [1.17.26] - 2026-10-05
 
 ### Added
@@ -38,6 +59,7 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 - **`@telemetry-tracker/next` 1.3.3** — `createOnRequestError` no longer keeps a Next.js digest for the life of the process. The same Error object is still reported once, and a second callback in the same turn with that digest is skipped. A later request is reported again, so occurrence counts and alert rules are not stuck at one. Cross-realm Edge errors keep `message` and `stack` when `instanceof Error` fails. Server `onRequestError` requires Next.js 15+.
 
 ### Changed
+
 
 ### Database
 
