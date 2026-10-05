@@ -1261,12 +1261,13 @@ testSuite("Native affiliate integration", () => {
     });
 
     it("claws only the paid remaining after a pre-payout partial refund, then a post-payout refund", async () => {
-      const { affiliate, commission, chargeId, invoiceId } = await pendingCommission(16667);
+      const chargeAmount = 40000;
+      const { affiliate, commission, chargeId, invoiceId } = await pendingCommission(chargeAmount);
       await applyRefundToCommission(prisma, {
         invoiceId,
         chargeId,
-        chargeAmount: 16667,
-        amountRefunded: 8334,
+        chargeAmount,
+        amountRefunded: 20000,
         currency: "eur",
       });
       const reduced = await prisma.affiliateCommission.findUnique({ where: { id: commission.id } });
@@ -1290,8 +1291,8 @@ testSuite("Native affiliate integration", () => {
       await applyRefundToCommission(prisma, {
         invoiceId,
         chargeId,
-        chargeAmount: 16667,
-        amountRefunded: 16667,
+        chargeAmount,
+        amountRefunded: chargeAmount,
         currency: "eur",
         refundId: "re_after_partial",
       });
@@ -1369,12 +1370,13 @@ testSuite("Native affiliate integration", () => {
     });
 
     it("claws only what was paid when a dispute is lost after a pre-payout partial refund", async () => {
-      const { affiliate, commission, chargeId, invoiceId } = await pendingCommission(16667);
+      const chargeAmount = 40000;
+      const { affiliate, commission, chargeId, invoiceId } = await pendingCommission(chargeAmount);
       await applyRefundToCommission(prisma, {
         invoiceId,
         chargeId,
-        chargeAmount: 16667,
-        amountRefunded: 8334,
+        chargeAmount,
+        amountRefunded: 20000,
         currency: "eur",
       });
       const paidRemaining = (
