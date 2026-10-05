@@ -21,6 +21,27 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ---
 
+## [1.17.27] - 2026-10-05
+
+### Added
+
+- **Affiliates (disabled by default)** — Rewardful affiliate integration behind `AFFILIATES_ENABLED` / `NEXT_PUBLIC_AFFILIATES_ENABLED` (requires Stripe). When flags are unset, webhook routes stay unregistered, admin APIs return 404, and the dashboard does not load Rewardful ([#732](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/732)).
+
+### Fixed
+
+- **Sentry operational privacy** — API and dashboard `beforeSend` sanitizers strip auth/API-key/session/cookie headers, request bodies, cookies, query strings, Sentry `user`, and `tt_live_*` keys; fail-closed try/catch so pathological events cannot drop reporting. `sendDefaultPii: false`, `includeLocalVariables: false`, `tracesSampleRate: 0`, and incoming request-body buffering disabled (`maxIncomingRequestBodySize: "none"`) ([#736](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/736)).
+
+### Changed
+
+- **/privacy** — describes Sentry as Hosted Cloud operational monitoring with EU ingest host `ingest.de.sentry.io`, without zero-PII or full EU residency claims ([#736](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/736)).
+- **Affiliates attribution** — Stripe `metadata.referral` withheld only for payout holds (`affiliate_email_unknown*`); plain UUID-only `UNRESOLVED` referrals write the Rewardful UUID; founder `resolve-needs-attention` path for `AFFILIATE_ADMIN_EMAILS` ([#732](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/732)).
+
+### Database
+
+- **`20261004180000_add_affiliate_tables`** — additive tables `WebhookEvent`, `UserReferral`, `Affiliate`, `OrganizationReferral`, `AffiliateCommission` (applied on production API boot via `migrateDeployBeforeListen`) ([#732](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/732)).
+
+---
+
 ## [1.17.26] - 2026-10-05
 
 ### Added
@@ -39,7 +60,6 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ### Changed
 
-- **Affiliates** — Stripe `metadata.referral` is withheld only for a **payout hold** (self-referral-risk: `affiliate_email_unknown*`). Plain UUID-only `UNRESOLVED` referrals write the Rewardful UUID so conversion can happen. `customer_creation_failed` does not block checkout backfill. Founders on `AFFILIATE_ADMIN_EMAILS` can `POST .../resolve-needs-attention` to clear a hold, attach metadata to the existing Customer, and write an audit row. Registration no longer drops a valid UUID when the via-token affiliate has no email.
 
 ### Database
 
