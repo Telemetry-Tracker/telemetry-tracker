@@ -18,6 +18,7 @@ const cols: { heading: string; links: { label: string; href: string }[] }[] = [
       { label: "Sentry alternative", href: "/sentry-alternative" },
       { label: "Self-hosted error tracking", href: "/self-hosted-error-tracking" },
       { label: "Next.js", href: "/error-tracking/nextjs" },
+      { label: "Next.js digest errors", href: "/error-tracking/nextjs/server-components-render-error" },
       { label: "React", href: "/error-tracking/react" },
       { label: "Node.js", href: "/error-tracking/nodejs" },
       { label: "React Native", href: "/error-tracking/react-native" },

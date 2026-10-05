@@ -6,10 +6,18 @@ type MarketingGuideLayoutProps = {
   kicker: string;
   title: string;
   lede: ReactNode;
+  /** Visible content date, e.g. "2026-10". */
+  updated?: string;
   children: ReactNode;
 };
 
-export function MarketingGuideLayout({ kicker, title, lede, children }: MarketingGuideLayoutProps) {
+export function MarketingGuideLayout({
+  kicker,
+  title,
+  lede,
+  updated,
+  children,
+}: MarketingGuideLayoutProps) {
   return (
     <main id="main-content" className="marketing-main-offset min-h-screen bg-background text-foreground">
       <Nav />
@@ -19,6 +27,9 @@ export function MarketingGuideLayout({ kicker, title, lede, children }: Marketin
             <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">{kicker}</p>
             <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">{title}</h1>
             <div className="mt-4 text-base leading-relaxed text-muted-foreground">{lede}</div>
+            {updated ? (
+              <p className="mt-4 text-sm text-muted-foreground">Last updated {updated}</p>
+            ) : null}
           </header>
           <div className="prose-docs min-w-0 space-y-6 text-[15px] leading-relaxed text-foreground/85 [&_h2]:mt-10 [&_h2]:scroll-mt-36 [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:tracking-tight [&_h3]:mt-8 [&_h3]:text-lg [&_h3]:font-semibold [&_p]:text-foreground/85 [&_ul]:list-disc [&_ul]:space-y-2 [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:space-y-2 [&_ol]:pl-5">
             {children}

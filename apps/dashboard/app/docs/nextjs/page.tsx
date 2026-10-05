@@ -83,16 +83,26 @@ export default function DocsNextJsPage() {
 
       <h2>Server-side error tracking with Next.js App Router</h2>
       <p>
-        Skip this section for browser-only setup.{" "}
+        Skip this section for browser-only setup. <code>onRequestError</code> was added in{" "}
+        <strong>Next.js 15</strong>. The browser provider above still works on Next.js 14.{" "}
         <code>@telemetry-tracker/next/server</code> (published with{" "}
-        <code>@telemetry-tracker/next@1.3.2</code>) exports <code>createOnRequestError</code> for{" "}
+        <code>@telemetry-tracker/next@1.3.2</code>, digest handling fixed in{" "}
+        <code>1.3.3</code>) exports <code>createOnRequestError</code> for{" "}
         <code>instrumentation.ts</code>. Next.js calls it for uncaught App Router errors in Server
         Components, Route Handlers, and Server Actions. The helper uses <code>fetch</code> only (Node
-        and Edge). It never throws into Next.js, does not forward request headers, strips query
-        strings from the path, and skips an error already marked with the shared reported symbol (or
-        a recent Next.js digest). It does not report errors you catch, browser errors, or build
-        failures. Use <code>TELEMETRY_API_KEY</code> (server-only) — do not expose a server-only
-        secret via <code>NEXT_PUBLIC_*</code>.
+        and Edge). It never throws into Next.js, does not forward request headers, and strips query
+        strings from the path. It reports a given Error object once, and it skips a second call in
+        the same turn that carries the same digest. A later request with that digest is reported
+        again. It does not report errors you catch, browser errors, or build failures. Use{" "}
+        <code>TELEMETRY_API_KEY</code> (server-only) — do not expose a server-only secret via{" "}
+        <code>NEXT_PUBLIC_*</code>. Seeing only a digest in production is covered in{" "}
+        <Link
+          href="/error-tracking/nextjs/server-components-render-error"
+          className="text-brand hover:underline"
+        >
+          the Server Components render error guide
+        </Link>
+        .
       </p>
       <CodeBlock code={nextInstrumentation} lang="ts" caption="instrumentation.ts (optional)" />
 
@@ -121,6 +131,10 @@ identify(null);     // on logout`}
       <DocsAlsoSee
         links={[
           { href: "/error-tracking/nextjs", label: "Next.js error tracking guide" },
+          {
+            href: "/error-tracking/nextjs/server-components-render-error",
+            label: "Server Components render error",
+          },
           { href: "/docs/migrate-from-sentry", label: "Migrate from Sentry" },
           { href: "/error-tracking/react", label: "React error tracking" },
           { href: "/docs/hosted-cloud", label: "Hosted cloud getting started" },
