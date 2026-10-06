@@ -112,7 +112,51 @@ Founder admin (`AFFILIATE_ADMIN_EMAILS`):
 - Eligible when payable ≥ €50 (5000 minor units).
 - `POST /api/meta/affiliates/:id/payouts` — select commissions; every unsettled clawback is auto-included. `amountCents` must equal selected remaining + those clawbacks (`amount_mismatch` if clawbacks are omitted from the amount; `overpay` if amount exceeds true net payable). Concurrent submit without an idempotency key returns `already_paid` (no phantom payout). Idempotent via `idempotencyKey`. Disabled affiliates may still be paid already-earned commissions. Individual commission rows are preserved as `paid`.
 
-There is no public application form and no automated Wise/SEPA/PayPal payout.
+There is no automated Wise/SEPA/PayPal payout.
+
+## Public program page and applications
+
+All of this follows `NEXT_PUBLIC_AFFILIATES_ENABLED` (dashboard, build-time) and the API flag. With the flag off, `/affiliates` and `/affiliates/terms` 404, the footer link / pricing / docs mentions are not rendered, the sitemap omits them, and `POST /api/affiliate-applications` returns 404.
+
+- **`/affiliates`** — public, indexable landing page (canonical + Open Graph, listed in `sitemap.xml`, not disallowed in `robots.txt`; no FAQ JSON-LD because the site does not use that pattern). Earning examples are computed from `PLAN_LIST_PRICES_EUR` in `apps/dashboard/lib/plan-pricing.ts` (the pricing page's source of truth: Pro €15/mo, Business €99/mo — monthly billing only) and the program constants in `apps/dashboard/lib/affiliate-program.ts`. A parity test (`lib/affiliate-program.test.ts`) fails if those constants drift from the API engine (`DEFAULT_COMMISSION_RATE_BPS`, `COMMISSION_HOLD_DAYS`, `PAYOUT_MINIMUM_CENTS`, `REFERRAL_ATTRIBUTION_WINDOW_DAYS`, `HOSTED_PAID_PLAN_TIERS`).
+- **`/affiliates/terms`** — program terms; every number is rendered from the same constants. `AFFILIATE_TERMS_VERSION` is stored on each application.
+- **Discoverability** — footer link "Affiliate Program — Earn 30%" (marketing site + docs share the footer), one line under the pricing tiers, one line on the docs home. Never inside the product dashboard.
+- **Application form** (no account needed) → `POST /api/affiliate-applications` via a dashboard server action. Fields: name, email, website/profile URL, how they will promote TT, required terms checkbox. Stored in `AffiliateApplication` (`pending` / `approved` / `rejected`).
+  - Validation + length limits (name 100, email 254, URL 300 http(s) only, promotion 20–1000 chars).
+  - Honeypot field `company_website`: silently accepted, nothing stored.
+  - Per-IP rate limit (default 5 per 10 minutes, `RATE_LIMIT_AFFILIATE_APPLICATION_MAX`). The dashboard calls the API server-side, so the server action forwards the visitor IP (from `x-real-ip` / first `x-forwarded-for` hop, validated) in `x-tt-client-ip`; the API keys the limit on it and falls back to the socket IP. Because that header could be spoofed by a direct API caller, a global DB cap (`AFFILIATE_APPLICATIONS_MAX_PER_HOUR`, default 30) backstops it.
+  - Dedupe: one pending application per normalized email (Gmail dot/+tag rules) via the unique `pending_email_key` column, which is NULL once reviewed (so a rejected applicant can re-apply). Duplicates get the same success response.
+  - **Applicants are never emailed.** Optional founder notification: set `AFFILIATE_APPLICATION_NOTIFY_EMAILS` (comma-separated) and transactional email; unset = no email.
+- **Founder admin UI** — `/dashboard/settings/affiliates` (Settings → Founder → Affiliates). The page calls `GET /api/meta/affiliates/access` server-side and 404s unless it returns 200; the nav item is only rendered for admins. No banners elsewhere in the product dashboard.
+  - Applications: filter by status, details, approve with a suggested editable code (format checked client-side, uniqueness by the API → 409 `code_taken`), reject with optional note. Approve creates the `Affiliate` in the same transaction and links `affiliate_id`.
+  - After approval / creation: referral URL `https://telemetry-tracker.com/?ref=CODE` with a copy button plus copyable deep links (below).
+  - Affiliates table: name/email, code, referred orgs, paying orgs, pending (hold), payable (net of open clawbacks), paid; copy link; disable / enable.
+  - "Create affiliate directly" (invited partner or a test affiliate for a production attribution check).
+  - Affiliate detail `/dashboard/settings/affiliates/:id`: referred orgs with resolve-needs-attention (reason required), commissions, record payout (selected payable commissions + open clawbacks, idempotency key), payouts, adjustments.
+
+Admin API added for the UI (same `AFFILIATE_ADMIN_EMAILS` gate: 404 flag off, 401 no session, 403 not allowlisted):
+
+- `GET /api/meta/affiliates/access`
+- `GET /api/meta/affiliates/applications?status=pending|approved|rejected|all`
+- `POST /api/meta/affiliates/applications/:id/approve` `{ code, note? }` → 201 `{ affiliateId, code }`; 409 `code_taken` / `not_pending`
+- `POST /api/meta/affiliates/applications/:id/reject` `{ note? }`
+
+### Verified `?ref=` destinations
+
+`ReferralCapture` is mounted in the root layout, so `?ref=` / `?via=` is captured on every route. These destinations are covered by `apps/dashboard/__tests__/referral-destinations.test.ts` (page exists, middleware passes the query through) and are offered as deep links in the admin UI:
+
+| Destination | URL |
+| --- | --- |
+| Homepage | `https://telemetry-tracker.com/?ref=CODE` |
+| Pricing | `https://telemetry-tracker.com/pricing?ref=CODE` |
+| Sentry alternative | `https://telemetry-tracker.com/sentry-alternative?ref=CODE` |
+| Migrate from Sentry | `https://telemetry-tracker.com/docs/migrate-from-sentry?ref=CODE` |
+| Next.js error tracking | `https://telemetry-tracker.com/error-tracking/nextjs?ref=CODE` |
+| Next.js SDK docs | `https://telemetry-tracker.com/docs/nextjs?ref=CODE` |
+| Self-hosted vs hosted | `https://telemetry-tracker.com/self-hosted-error-tracking?ref=CODE` |
+| Sign up | `https://telemetry-tracker.com/register?ref=CODE` |
+
+Also verified: `www.` → apex redirect keeps `?ref=`; legacy `/?signUp=1&ref=CODE` / `?signIn=1` redirects now keep `ref` / `via` (they used to drop the whole query string). A visitor who is already signed in and opens `/register?ref=…` is sent to the dashboard (attribution locks at signup, so nothing to capture).
 
 ## Founder resolve
 
@@ -127,6 +171,10 @@ Clears a genuine hold (`needs_attention`). Refuses `REJECTED` / `EXPIRED`. Never
 ```bash
 # AFFILIATES_ENABLED=true
 # AFFILIATE_ADMIN_EMAILS=founder@example.com
+# Public application form (optional tuning)
+# RATE_LIMIT_AFFILIATE_APPLICATION_MAX=5        # per client IP per 10 minutes
+# AFFILIATE_APPLICATIONS_MAX_PER_HOUR=30        # global cap across all IPs
+# AFFILIATE_APPLICATION_NOTIFY_EMAILS=founder@example.com   # unset = no notification; applicants are never emailed
 ```
 
 **Dashboard:**
@@ -150,6 +198,8 @@ Forward migration `20261005180000_affiliate_rewardful_to_native` converts those 
 Production tables are expected **empty** (flags never enabled; Rewardful never used). The forward migration still uses ALTER / ADD COLUMN / backfill / DROP so leftover rows cannot block NOT NULL.
 
 **Local/CI:** any database that already applied the *edited* (native) checksum of `20261004180000` will fail Prisma’s checksum check against the restored original. Reset (`prisma migrate reset`) or `prisma migrate resolve` as appropriate. Fresh databases apply original `20261004180000` then the forward migration.
+
+Additive migration `20261006120000_add_affiliate_applications` creates `AffiliateApplication` (status `CHECK` pending/approved/rejected, `terms_version`, `terms_accepted_at`, `reviewed_by`, `reviewed_at`, `review_note`, nullable `affiliate_id` FK → `Affiliate` `ON DELETE SET NULL`, unique `pending_email_key`, indexes on `(status, created_at)`, `email_normalized`, `affiliate_id`). No existing table or column is changed.
 
 Do **not** enable feature flags from this PR. Do **not** run production migrations until the founder explicitly enables the program.
 
