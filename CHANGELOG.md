@@ -15,6 +15,14 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ### Fixed
 
+### Changed
+
+---
+
+## [1.18.0] - 2026-10-05
+
+### Fixed
+
 - **Affiliates ledger** — Pre-payout refunds and lost disputes now only mutate the commission row. `AffiliateAdjustment` is reserved for post-payout clawbacks so payable balance is not double-counted. Mark as paid auto-includes unsettled clawbacks, refuses `amount_mismatch` / `overpay`, and serializes concurrent submits (`already_paid`, no phantom payout). After marketing consent, a remembered sessionStorage referral is promoted into the 60-day cookie even without `?ref=` in the URL.
 - **Affiliates first-invoice race** — `invoice.paid` can arrive while `org.plan_tier` is still FREE (`checkout.session.completed` has not written it yet). Commission eligibility also reads hosted Pro/Business from invoice/subscription metadata (`parent.subscription_details.metadata` / `subscription_details.metadata`). If the invoice is a paid hosted subscription but the org is still FREE and that metadata is missing or ambiguous, the webhook fails so Stripe retries instead of marking processed and skipping forever. Self-hosted, explicit FREE, and zero-eligible invoices are never commissioned.
 - **Affiliates Stripe basil linking** — `invoice.paid` stores `stripe_payment_intent_id` from InvoicePayment (`invoice.payments` / `invoicePayments.list`) so refunds and disputes still match after API `2025-03-31.basil` removed `Invoice.charge` / `Charge.invoice`. If `invoicePayments.list` fails, the webhook errors for retry instead of saving a commission with no payment ids. Unmatched refunds/disputes on referred orgs set `needs_attention` instead of failing silent.
