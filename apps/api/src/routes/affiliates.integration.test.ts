@@ -60,10 +60,17 @@ function resetStripeMocks() {
     id,
     ...params,
   }));
+  // stripe@22 SDK default API (dahlia): period end only on subscription items.
   mockSubscriptionsRetrieve = vi.fn().mockResolvedValue({
     id: "sub_test",
+    object: "subscription",
     status: "active",
-    current_period_end: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
+    items: {
+      object: "list",
+      data: [
+        { id: "si_test", current_period_end: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60 },
+      ],
+    },
   });
   mockChargesRetrieve = vi.fn().mockResolvedValue({
     id: "ch_test",
