@@ -19,6 +19,14 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ---
 
+## [1.18.1] - 2026-10-06
+
+### Fixed
+
+- **Dashboard build: affiliates flag** — The dashboard Docker build now declares `NEXT_PUBLIC_AFFILIATES_ENABLED` as a build `ARG`, so Railway passes it into `next build` and the client-side `?ref=` capture can see it. Unset keeps the flag off (unchanged). Changing the flag requires a dashboard rebuild.
+
+---
+
 ## [1.18.0] - 2026-10-05
 
 ### Fixed
