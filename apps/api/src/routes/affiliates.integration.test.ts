@@ -10,6 +10,7 @@ import type Stripe from "stripe";
 import {
   applyAffiliateTestEnv,
   cleanupAffiliateFixtures,
+  MS_PER_DAY,
   referralCapturedAtDaysAgo,
   REFERRAL_ATTRIBUTION_WINDOW_DAYS,
   restoreEnv,
@@ -20,6 +21,7 @@ import { PAYOUT_MINIMUM_CENTS, markAffiliatePayoutPaid } from "../lib/affiliate-
 import {
   applyDisputeToCommission,
   applyRefundToCommission,
+  COMMISSION_HOLD_DAYS,
   COMMISSION_NOT_FOUND_ATTENTION_REASON,
 } from "../lib/affiliate-commission.js";
 
@@ -1600,6 +1602,109 @@ testSuite("Native affiliate integration", () => {
         expect(refundResult.kind).toBe("voided");
         expect(payoutResult.kind).toBe("refused");
       }
+    });
+  });
+
+  describe("coverage audit: hold dates, payout holds, Customer metadata", () => {
+    async function referredProOrg(code: string) {
+      const affiliate = await createAffiliate({ code });
+      const { sessionId } = await registerUser({
+        email: `audit-${code}@example.com`,
+        referralCode: code,
+      });
+      const orgId = await createOrg(sessionId, `Audit ${code}`);
+      await prisma.organization.update({
+        where: { id: orgId },
+        data: {
+          plan_tier: "PRO",
+          stripe_customer_id: `cus_audit_${orgId.slice(0, 8)}`,
+          stripe_subscription_id: `sub_audit_${orgId.slice(0, 8)}`,
+        },
+      });
+      return { affiliate, orgId };
+    }
+
+    it("sets payable_at to the invoice paid time + 30 days from a real invoice.paid webhook", async () => {
+      const { orgId } = await referredProOrg(`hold-${Date.now()}`);
+      // Whole seconds: Stripe status_transitions.paid_at is a unix timestamp.
+      const paidAt = new Date(Math.floor(Date.now() / 1000) * 1000 - 3 * MS_PER_DAY);
+      const response = await paidInvoice({
+        orgId,
+        invoiceId: `in_hold_${Date.now()}`,
+        amountPaid: 1500,
+        paidAt,
+      });
+      expect(response.statusCode).toBe(200);
+      const rows = await prisma.affiliateCommission.findMany({ where: { organization_id: orgId } });
+      expect(rows).toHaveLength(1);
+      testCommissionIds.push(rows[0]!.id);
+      expect(rows[0]!.invoice_paid_at.toISOString()).toBe(paidAt.toISOString());
+      expect(rows[0]!.payable_at.toISOString()).toBe(
+        new Date(paidAt.getTime() + COMMISSION_HOLD_DAYS * MS_PER_DAY).toISOString()
+      );
+      expect(rows[0]!.state).toBe("pending");
+      expect(rows[0]!.amount_cents).toBe(450);
+    });
+
+    it("creates no commission on invoice.paid while the org referral is on payout hold", async () => {
+      const { orgId } = await referredProOrg(`payhold-${Date.now()}`);
+      await prisma.organizationReferral.update({
+        where: { organization_id: orgId },
+        data: { needs_attention: true, attention_reason: "affiliate_email_unknown" },
+      });
+      const response = await paidInvoice({
+        orgId,
+        invoiceId: `in_payhold_${Date.now()}`,
+        amountPaid: 1500,
+      });
+      expect(response.statusCode).toBe(200);
+      expect(await prisma.affiliateCommission.count({ where: { organization_id: orgId } })).toBe(0);
+      // Hold is preserved (founder must resolve it); attribution is never rewritten.
+      const referral = await prisma.organizationReferral.findUnique({
+        where: { organization_id: orgId },
+      });
+      expect(referral?.needs_attention).toBe(true);
+      expect(referral?.status).toBe("ACTIVE");
+    });
+
+    it("creates the Stripe Customer with tt_* metadata for a referred user's org, and not for a non-referred user", async () => {
+      const code = `cust-${Date.now()}`;
+      const affiliate = await createAffiliate({ code });
+      const referred = await registerUser({
+        email: `cust-referred-${Date.now()}@example.com`,
+        referralCode: code,
+      });
+      const referredOrgId = await createOrg(referred.sessionId, "Customer Meta Org");
+      expect(mockCustomersCreate).toHaveBeenCalledTimes(1);
+      const [params, options] = mockCustomersCreate.mock.calls[0] as [
+        { name: string; metadata: Record<string, string> },
+        { idempotencyKey: string },
+      ];
+      expect(params.metadata).toEqual({
+        organization_id: referredOrgId,
+        tt_org_id: referredOrgId,
+        tt_affiliate_id: affiliate.id,
+      });
+      expect(params.name).toBe("Customer Meta Org");
+      expect(options.idempotencyKey).toBe(`org_${referredOrgId}_referral`);
+      const savedOrg = await prisma.organization.findUnique({
+        where: { id: referredOrgId },
+        select: { stripe_customer_id: true },
+      });
+      expect(savedOrg?.stripe_customer_id).toMatch(/^cus_/);
+
+      mockCustomersCreate.mockClear();
+      const plain = await registerUser({ email: `cust-plain-${Date.now()}@example.com` });
+      const plainOrgId = await createOrg(plain.sessionId, "Plain Org");
+      expect(mockCustomersCreate).not.toHaveBeenCalled();
+      const plainOrg = await prisma.organization.findUnique({
+        where: { id: plainOrgId },
+        select: { stripe_customer_id: true },
+      });
+      expect(plainOrg?.stripe_customer_id).toBeNull();
+      expect(
+        await prisma.organizationReferral.findUnique({ where: { organization_id: plainOrgId } })
+      ).toBeNull();
     });
   });
 

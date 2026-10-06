@@ -713,6 +713,7 @@ model Affiliate {
   commissions             AffiliateCommission[]
   adjustments             AffiliateAdjustment[]
   payouts                 AffiliatePayout[]
+  applications            AffiliateApplication[]
 
   @@index([email_normalized])
   @@index([state])
@@ -836,4 +837,39 @@ model AffiliatePayout {
   adjustments       AffiliateAdjustment[]
 
   @@index([affiliate_id, paid_at])
+}
+
+/// Public affiliate program application from /affiliates (no account needed).
+/// Founder approves (creates an Affiliate) or rejects in the dashboard admin. Applicants are never emailed.
+model AffiliateApplication {
+  id                String     @id @default(uuid())
+  name              String
+  email             String
+  /// Same normalization as Affiliate.email_normalized (lowercase, +tag stripped, gmail dots removed).
+  email_normalized  String     @map("email_normalized")
+  /// Equals email_normalized while status = pending, NULL otherwise. Unique → at most one pending
+  /// application per normalized email (repeat submissions dedupe onto the existing row).
+  pending_email_key String?    @unique @map("pending_email_key")
+  website_url       String     @map("website_url")
+  /// Short answer: how / where the applicant will promote Telemetry Tracker.
+  promotion_plan    String     @map("promotion_plan")
+  /// Version label of the affiliate terms the applicant accepted (e.g. 2026-10-06).
+  terms_version     String     @map("terms_version")
+  terms_accepted_at DateTime   @map("terms_accepted_at")
+  /// pending | approved | rejected (CHECK constraint in the migration)
+  status            String     @default("pending")
+  /// Optional founder note on approve / reject (internal only).
+  review_note       String?    @map("review_note")
+  /// User id of the founder who approved / rejected.
+  reviewed_by       String?    @map("reviewed_by")
+  reviewed_at       DateTime?  @map("reviewed_at")
+  /// Affiliate created on approval.
+  affiliate_id      String?    @map("affiliate_id")
+  affiliate         Affiliate? @relation(fields: [affiliate_id], references: [id], onDelete: SetNull)
+  created_at        DateTime   @default(now()) @map("created_at")
+  updated_at        DateTime   @updatedAt @map("updated_at")
+
+  @@index([status, created_at])
+  @@index([email_normalized])
+  @@index([affiliate_id])
 }

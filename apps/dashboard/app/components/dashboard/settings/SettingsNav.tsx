@@ -43,6 +43,16 @@ const GROUPS: Group[] = [
   },
 ];
 
+/** Only rendered when the server confirmed the user is on AFFILIATE_ADMIN_EMAILS. */
+export const FOUNDER_GROUP: Group = {
+  label: "Founder",
+  items: [{ href: "/dashboard/settings/affiliates", label: "Affiliates" }],
+};
+
+export function settingsNavGroups(showFounderAdmin: boolean): Group[] {
+  return showFounderAdmin ? [...GROUPS, FOUNDER_GROUP] : GROUPS;
+}
+
 function SettingsNavLink({
   href,
   active,
@@ -79,16 +89,17 @@ function SettingsNavLink({
   );
 }
 
-export function SettingsNav() {
+export function SettingsNav({ showFounderAdmin = false }: { showFounderAdmin?: boolean } = {}) {
   const pathname = usePathname() ?? "/";
+  const groups = settingsNavGroups(showFounderAdmin);
 
   return (
     <aside className="lg:sticky lg:top-28 lg:self-start">
       <div className="mb-4 px-2 text-[11px] uppercase tracking-wider text-muted-foreground">
         Settings
       </div>
-      <nav aria-label="Settings"  className="space-y-5 text-sm">
-        {GROUPS.map((g) => (
+      <nav aria-label="Settings" className="space-y-5 text-sm">
+        {groups.map((g) => (
           <div key={g.label}>
             <div className="mb-1 px-2 text-[10px] uppercase tracking-wider text-muted-foreground">
               {g.label}
@@ -98,7 +109,10 @@ export function SettingsNav() {
                 <li key={i.href}>
                   <SettingsNavLink
                     href={i.href}
-                    active={pathname === i.href}
+                    active={
+                      pathname === i.href ||
+                      (i.href === FOUNDER_GROUP.items[0]?.href && pathname.startsWith(`${i.href}/`))
+                    }
                     label={i.label}
                     badge={i.badge}
                     comingSoon={i.comingSoon}

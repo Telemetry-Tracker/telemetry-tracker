@@ -1,7 +1,7 @@
 /**
  * Founder-only affiliate create / update / inspect helpers.
  */
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import { randomBytes } from "node:crypto";
 import {
   isValidAffiliateCode,
@@ -29,13 +29,16 @@ export type UpdateAffiliateInput = {
   state?: "active" | "disabled";
 };
 
+/** Works with the root client or inside `prisma.$transaction` (application approval). */
+type AffiliateDb = PrismaClient | Prisma.TransactionClient;
+
 function trimName(raw: string): string | null {
   const name = raw.trim().slice(0, 120);
   return name.length > 0 ? name : null;
 }
 
 async function allocateUniqueCode(
-  prisma: PrismaClient,
+  prisma: AffiliateDb,
   requested: string | null | undefined,
   name: string
 ): Promise<{ kind: "ok"; code: string } | { kind: "taken" } | { kind: "invalid" }> {
@@ -65,8 +68,20 @@ async function allocateUniqueCode(
   return { kind: "taken" };
 }
 
+/**
+ * Suggest an unused code derived from a display name (founder can edit before approving).
+ * Advisory only: uniqueness is re-checked (and enforced by the unique index) on create.
+ */
+export async function suggestUniqueAffiliateCode(
+  prisma: AffiliateDb,
+  name: string
+): Promise<string | null> {
+  const allocated = await allocateUniqueCode(prisma, null, name);
+  return allocated.kind === "ok" ? allocated.code : null;
+}
+
 export async function createAffiliate(
-  prisma: PrismaClient,
+  prisma: AffiliateDb,
   input: CreateAffiliateInput
 ): Promise<CreateAffiliateResult> {
   const name = trimName(input.name);
