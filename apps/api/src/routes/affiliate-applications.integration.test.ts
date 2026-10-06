@@ -225,7 +225,11 @@ testSuite("Affiliate applications (public form + founder review)", () => {
     });
 
     it("enforces the global hourly cap", async () => {
-      process.env.AFFILIATE_APPLICATIONS_MAX_PER_HOUR = "2";
+      // Cap counts every application in the last hour; allow 2 more than whatever the DB already has.
+      const existing = await prisma.affiliateApplication.count({
+        where: { created_at: { gte: new Date(Date.now() - 60 * 60 * 1000) } },
+      });
+      process.env.AFFILIATE_APPLICATIONS_MAX_PER_HOUR = String(existing + 2);
       expect((await apply(applicationPayload())).statusCode).toBe(200);
       expect((await apply(applicationPayload())).statusCode).toBe(200);
       const capped = await apply(applicationPayload());
