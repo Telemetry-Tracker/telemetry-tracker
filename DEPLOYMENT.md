@@ -62,6 +62,10 @@ Rate limits (`RATE_LIMIT_*`), legacy org fallback (`TELEMETRY_ORGANIZATION_ID`),
 
 Do not set `NEXT_PUBLIC_TELEMETRY_PUBLIC_DASHBOARD=true` on a public production URL.
 
+**`NEXT_PUBLIC_*` are build-time.** Next.js inlines them into the bundle during `next build` (client code always; server code too when the variable is present at build). The root `Dockerfile` declares every `NEXT_PUBLIC_*` the dashboard reads as an `ARG` (+ `ENV`) in the build stage so Railway (Dockerfile builder) passes the service variables into the build; with plain Docker use `--build-arg NAME=value`. Unset → empty → same as unset. Changing any of them requires a **rebuild** of the dashboard — redeploying an existing/cached image keeps the old values. When the dashboard starts reading a new `NEXT_PUBLIC_*`, add it to the `Dockerfile` too. These values ship to browsers by design: never put secrets in a `NEXT_PUBLIC_*` variable or a dashboard build `ARG` (Sentry source-map upload credentials such as `SENTRY_AUTH_TOKEN` are intentionally not passed into the image build).
+
+Declared build args: `NEXT_PUBLIC_AFFILIATES_ENABLED`, `NEXT_PUBLIC_DASHBOARD_DEBUG`, `NEXT_PUBLIC_GA_MEASUREMENT_ID`, `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION`, `NEXT_PUBLIC_SENTRY_DSN`, `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_TELEMETRY_API_KEY`, `NEXT_PUBLIC_TELEMETRY_APP`, `NEXT_PUBLIC_TELEMETRY_INGEST_URL`, `NEXT_PUBLIC_TELEMETRY_PUBLIC_DASHBOARD`.
+
 ---
 
 ## Build and run
