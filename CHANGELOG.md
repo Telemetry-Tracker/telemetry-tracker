@@ -13,6 +13,8 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ### Added
 
+- **Dashboard Sentry release** — Browser, server, and edge Sentry now report `release` = `telemetry-tracker-dashboard@<version>` (derived at build time from `CHANGELOG.md`, no env var needed), so errors are tagged by version and release-health sessions are sent. Unresolvable version → release stays unset as before.
+
 ### Fixed
 
 ### Changed
