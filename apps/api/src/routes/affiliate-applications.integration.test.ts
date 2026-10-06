@@ -49,6 +49,8 @@ const ENV_KEYS = [
 ] as const;
 
 const DOMAIN = "apply-it.example.com";
+/** Exact domain match on this file's throwaway applicant emails. */
+const isOwnEmail = (email: string) => email.slice(email.lastIndexOf("@") + 1) === DOMAIN;
 
 testSuite("Affiliate applications (public form + founder review)", () => {
   let app: FastifyInstance;
@@ -313,7 +315,7 @@ testSuite("Affiliate applications (public form + founder review)", () => {
         applications: { email: string; status: string; suggestedCode: string | null }[];
       };
       expect(pendingBody.status).toBe("pending");
-      const mine = pendingBody.applications.filter((a) => a.email.endsWith(DOMAIN));
+      const mine = pendingBody.applications.filter((a) => isOwnEmail(a.email));
       expect(mine).toHaveLength(1);
       expect(mine[0]?.suggestedCode).toMatch(/^grace-hopper-[0-9a-f]{4}$/);
 
@@ -323,7 +325,7 @@ testSuite("Affiliate applications (public form + founder review)", () => {
         headers: founder,
       });
       const rejectedBody = JSON.parse(rejected.body) as { applications: { email: string; suggestedCode: null }[] };
-      expect(rejectedBody.applications.filter((a) => a.email.endsWith(DOMAIN)).map((a) => a.email)).toEqual([
+      expect(rejectedBody.applications.filter((a) => isOwnEmail(a.email)).map((a) => a.email)).toEqual([
         rejectedEmail,
       ]);
       expect(rejectedBody.applications[0]?.suggestedCode).toBeNull();
@@ -335,7 +337,7 @@ testSuite("Affiliate applications (public form + founder review)", () => {
       });
       expect(
         (JSON.parse(all.body) as { applications: { email: string }[] }).applications.filter((a) =>
-          a.email.endsWith(DOMAIN)
+          isOwnEmail(a.email)
         )
       ).toHaveLength(2);
 
