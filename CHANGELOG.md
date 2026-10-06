@@ -15,6 +15,9 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ### Fixed
 
+- **Billing period end (Stripe dahlia)** — `checkout.session.completed` stored a null `stripe_current_period_end` because the stripe@22 SDK default API (`2026-03-25.dahlia`) only returns the period end on subscription items. The period end now uses the top-level `current_period_end` when present (older webhook payloads) and otherwise the latest `items.data[].current_period_end`; this also covers `customer.subscription.updated` / `.deleted` payloads on basil+ endpoint versions.
+- **Dashboard `NEXT_PUBLIC_*` at build** — The dashboard Docker build now declares every `NEXT_PUBLIC_*` the dashboard reads as a build `ARG`, so Railway passes them into `next build`. Browser Sentry (`NEXT_PUBLIC_SENTRY_DSN`) and dashboard product telemetry (`NEXT_PUBLIC_TELEMETRY_*`), which were configured but never reached the browser bundle, start working on the next dashboard rebuild. Unset variables behave as before.
+
 ### Changed
 
 ---

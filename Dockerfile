@@ -29,11 +29,31 @@ COPY CHANGELOG.md CHANGELOG.md
 COPY eslint.config.mjs ./eslint.config.mjs
 
 # Next.js inlines NEXT_PUBLIC_* into the bundle at `next build`, and Railway only passes
-# service variables into a Dockerfile build when they are declared as ARG. Unset ARG →
-# empty string → flag off (same as before). Changing it requires a rebuild, not a
-# cached-image redeploy. See docs/AFFILIATES.md.
+# service variables into a Dockerfile build when they are declared as ARG. Keep this list
+# in sync with every NEXT_PUBLIC_* the dashboard code reads (see DEPLOYMENT.md).
+# Unset ARG → empty string → same as unset (feature off / default). These are
+# browser-exposed by design: never add secrets here (no SENTRY_AUTH_TOKEN, R2_*, etc.).
+# Changing any of them requires a rebuild, not a cached-image redeploy.
 ARG NEXT_PUBLIC_AFFILIATES_ENABLED
-ENV NEXT_PUBLIC_AFFILIATES_ENABLED=$NEXT_PUBLIC_AFFILIATES_ENABLED
+ARG NEXT_PUBLIC_DASHBOARD_DEBUG
+ARG NEXT_PUBLIC_GA_MEASUREMENT_ID
+ARG NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION
+ARG NEXT_PUBLIC_SENTRY_DSN
+ARG NEXT_PUBLIC_SITE_URL
+ARG NEXT_PUBLIC_TELEMETRY_API_KEY
+ARG NEXT_PUBLIC_TELEMETRY_APP
+ARG NEXT_PUBLIC_TELEMETRY_INGEST_URL
+ARG NEXT_PUBLIC_TELEMETRY_PUBLIC_DASHBOARD
+ENV NEXT_PUBLIC_AFFILIATES_ENABLED=$NEXT_PUBLIC_AFFILIATES_ENABLED \
+    NEXT_PUBLIC_DASHBOARD_DEBUG=$NEXT_PUBLIC_DASHBOARD_DEBUG \
+    NEXT_PUBLIC_GA_MEASUREMENT_ID=$NEXT_PUBLIC_GA_MEASUREMENT_ID \
+    NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION=$NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION \
+    NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN \
+    NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL \
+    NEXT_PUBLIC_TELEMETRY_API_KEY=$NEXT_PUBLIC_TELEMETRY_API_KEY \
+    NEXT_PUBLIC_TELEMETRY_APP=$NEXT_PUBLIC_TELEMETRY_APP \
+    NEXT_PUBLIC_TELEMETRY_INGEST_URL=$NEXT_PUBLIC_TELEMETRY_INGEST_URL \
+    NEXT_PUBLIC_TELEMETRY_PUBLIC_DASHBOARD=$NEXT_PUBLIC_TELEMETRY_PUBLIC_DASHBOARD
 
 # Rebuild workspace packages so dashboard never relies on incomplete committed dist.
 RUN pnpm --filter @telemetry-tracker/core build && \

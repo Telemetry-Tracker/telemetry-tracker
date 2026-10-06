@@ -36,7 +36,7 @@ STRIPE_SECRET_KEY=sk_...
 
 Dashboard forwarding uses `NEXT_PUBLIC_AFFILIATES_ENABLED=true` independently. Leave both unset unless you intend to enable the program.
 
-`NEXT_PUBLIC_AFFILIATES_ENABLED` is a **build-time** flag: Next.js inlines it into the dashboard bundle during `next build` (the client-side `?ref=` capture reads it in the browser). The root `Dockerfile` declares it as an `ARG` so Railway passes the dashboard service variable into the build; unset means OFF. Changing it requires a **rebuild** of the dashboard (Railway's deploy on variable change, or a new commit) — redeploying an existing/cached image (e.g. `redeploy` of a previous build, or Skipped Builds) keeps the old value.
+`NEXT_PUBLIC_AFFILIATES_ENABLED` is a **build-time** flag: Next.js inlines it into the dashboard bundle during `next build` (the client-side `?ref=` capture reads it in the browser). The root `Dockerfile` declares it (with the dashboard's other `NEXT_PUBLIC_*` — see [DEPLOYMENT.md](../DEPLOYMENT.md#dashboard)) as an `ARG` so Railway passes the dashboard service variable into the build; unset means OFF. Changing it requires a **rebuild** of the dashboard (Railway's deploy on variable change, or a new commit) — redeploying an existing/cached image (e.g. `redeploy` of a previous build, or Skipped Builds) keeps the old value.
 
 When OFF:
 

@@ -20,6 +20,7 @@ let mockCustomersCreate: ReturnType<typeof vi.fn>;
 let mockCustomersRetrieve: ReturnType<typeof vi.fn>;
 let mockCustomersUpdate: ReturnType<typeof vi.fn>;
 let mockSubscriptionsRetrieve: ReturnType<typeof vi.fn>;
+let subscriptionPeriodEndUnix: number;
 
 vi.mock("stripe", () => {
   const mockStripe = vi.fn().mockImplementation(() => ({
@@ -91,10 +92,17 @@ testSuite("Billing Checkout Integration", () => {
       ...params,
     }));
     
+    // stripe@22 SDK default API (2026-03-25.dahlia): period end lives only on
+    // subscription items, not on the Subscription itself.
+    subscriptionPeriodEndUnix = Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60;
     mockSubscriptionsRetrieve = vi.fn().mockResolvedValue({
       id: "sub_test",
+      object: "subscription",
       status: "active",
-      current_period_end: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
+      items: {
+        object: "list",
+        data: [{ id: "si_test", current_period_end: subscriptionPeriodEndUnix }],
+      },
     });
 
     // Create app for each test to pick up env changes
@@ -247,6 +255,12 @@ testSuite("Billing Checkout Integration", () => {
       expect(upgraded?.plan_tier).toBe("PRO");
       expect(upgraded?.stripe_customer_id).toBeTruthy();
       expect(upgraded?.stripe_subscription_id).toBeTruthy();
+      // Status + period end come from subscriptions.retrieve (dahlia shape: items only)
+      expect(mockSubscriptionsRetrieve).toHaveBeenCalledWith(session.subscription);
+      expect(upgraded?.stripe_subscription_status).toBe("active");
+      expect(upgraded?.stripe_current_period_end?.getTime()).toBe(
+        subscriptionPeriodEndUnix * 1000
+      );
     });
   });
 
