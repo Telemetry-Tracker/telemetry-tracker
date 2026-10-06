@@ -28,6 +28,13 @@ COPY packages packages
 COPY CHANGELOG.md CHANGELOG.md
 COPY eslint.config.mjs ./eslint.config.mjs
 
+# Next.js inlines NEXT_PUBLIC_* into the bundle at `next build`, and Railway only passes
+# service variables into a Dockerfile build when they are declared as ARG. Unset ARG →
+# empty string → flag off (same as before). Changing it requires a rebuild, not a
+# cached-image redeploy. See docs/AFFILIATES.md.
+ARG NEXT_PUBLIC_AFFILIATES_ENABLED
+ENV NEXT_PUBLIC_AFFILIATES_ENABLED=$NEXT_PUBLIC_AFFILIATES_ENABLED
+
 # Rebuild workspace packages so dashboard never relies on incomplete committed dist.
 RUN pnpm --filter @telemetry-tracker/core build && \
     pnpm --filter @telemetry-tracker/next build && \
