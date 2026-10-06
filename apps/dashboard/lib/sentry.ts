@@ -1,5 +1,6 @@
 import type { ErrorEvent } from "@sentry/nextjs";
 import { safeSanitizeSentryEvent } from "./sentry-privacy";
+import { getDashboardSentryRelease } from "./sentry-release";
 
 /**
  * Next.js 10.66.0 installs Http with only `disableIncomingRequestSpans: true`.
@@ -48,8 +49,10 @@ export function isClientSentryEnabled(): boolean {
  * `@sentry/node`. Browser init still runs only when `NEXT_PUBLIC_SENTRY_DSN` is set.
  */
 export function sentryInitOptions(dsn: string) {
+  const release = getDashboardSentryRelease();
   return {
     dsn,
+    ...(release ? { release } : {}),
     environment: process.env.NODE_ENV ?? "development",
     sendDefaultPii: false,
     includeLocalVariables: false,
