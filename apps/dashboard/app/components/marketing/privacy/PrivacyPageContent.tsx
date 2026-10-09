@@ -64,7 +64,7 @@ const hostedServices = [
   {
     name: "Railway",
     role: "API hosting and primary PostgreSQL database",
-    note: "API, database and database volume: EU West (Amsterdam, Netherlands).",
+    note: "API, dashboard, database and its attached volume, and scheduled jobs (retention, alert-rule evaluation, alert webhook delivery): EU West (Amsterdam, Netherlands). Until 9 October 2026 the alert-rule evaluator ran in Southeast Asia (Singapore). An older, unattached database volume remains in Southeast Asia (Singapore). Backup locations unverified.",
   },
   {
     name: "Cloudflare",
@@ -228,7 +228,11 @@ export function PrivacyPageContent() {
                     column. Cloudflare R2 object storage is used for avatars only. The
                     telemetry-avatars bucket has an Eastern Europe (EEUR) location hint; its EU
                     jurisdiction setting has not been verified. Retention follows your plan tier
-                    and runs on a scheduled job. See Section 5 for third-party services.
+                    and runs on a scheduled job. The scheduled jobs (retention, alert-rule
+                    evaluation and alert webhook delivery) also run on Railway in EU West; until 9
+                    October 2026 the alert-rule evaluator, which reads alert rules and project data
+                    from the database and sends alert emails, ran in Railway&apos;s Southeast Asia
+                    (Singapore) region. See Section 5 for third-party services.
                   </p>
                   <p>
                     Customer telemetry you send through ingest is stored by Telemetry Tracker.
@@ -396,6 +400,9 @@ export function PrivacyPageContent() {
                     Cloudflare R2 with an Eastern Europe (EEUR) location hint. These facts describe
                     the API, primary database and avatar storage; they do not establish the location
                     of backups or processing by the edge network and other third-party services.
+                    The dashboard and scheduled jobs also run in EU West. Until 9 October 2026 the
+                    alert-rule evaluator ran in Southeast Asia (Singapore), and an older, unattached
+                    database volume is still stored in that region.
                     Operational error events are submitted to Sentry at{" "}
                     <code className="font-mono text-[12px]">ingest.de.sentry.io</code>. Third-party
                     services may process data in regions described by those providers.

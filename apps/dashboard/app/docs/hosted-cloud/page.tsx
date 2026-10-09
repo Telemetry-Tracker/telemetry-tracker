@@ -178,7 +178,10 @@ trackEvent("app.started");`}</DocsCodeBlock>
           maps are stored in PostgreSQL; source map contents are stored in a TEXT column.
           Cloudflare provides the CDN / edge network and R2 storage for avatars only. The
           telemetry-avatars bucket has an Eastern Europe (EEUR) location hint; its EU
-          jurisdiction setting has not been verified.
+          jurisdiction setting has not been verified. The dashboard and scheduled jobs
+          (retention, alert-rule evaluation, alert webhook delivery) also run in EU West. Until 9
+          October 2026 the alert-rule evaluator ran in Railway&apos;s Southeast Asia (Singapore)
+          region, and an older, unattached database volume is still stored there.
         </p>
         <p className="mt-4">
           These locations describe the API, primary database and avatar storage. Backup locations
