@@ -7,6 +7,11 @@ const features = [
     icon: <path d="M8 2 L14 13 L2 13 Z M8 6.5 v3 M8 11 v0.5" />,
   },
   {
+    title: "Real-user Web Vitals",
+    desc: "LCP, INP, CLS and TTFB from real browser visits, enabled by default in the same SDK. See p75 trends and slow pages in Performance.",
+    icon: <path d="M2 12h12M3 10l3-4 3 2 4-5" />,
+  },
+  {
     title: "Event tracking",
     desc: "Typed events with custom properties. Query by user, route, app or anything you instrument.",
     icon: <path d="M2 8h3l2-4 2 8 2-4h3" />,

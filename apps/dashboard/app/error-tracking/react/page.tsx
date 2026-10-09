@@ -106,6 +106,29 @@ export default function ReactErrorTrackingPage() {
           </li>
         </ul>
 
+        <h2>Real-user Web Vitals in the same SDK</h2>
+        <p>
+          Browser apps collect LCP, INP, CLS and TTFB by default after SDK initialization, where
+          supported by the browser. Next.js uses <code>@telemetry-tracker/next</code>; React uses
+          <code>@telemetry-tracker/core</code>. No extra package or separate Web Vitals setup is
+          needed. This gives small teams error tracking with Web Vitals from real visits in one
+          dashboard.
+        </p>
+        <p>
+          Open <strong>Performance</strong> for p75 values, ratings and trends, plus the Slow pages
+          table with LCP and CLS by page path. <strong>Overview</strong> includes a Web Vitals
+          snapshot. Set <code>webVitals: false</code> in <code>init()</code> config to turn capture off.
+          Each reported metric is an event and counts as one ingest unit toward your plan limit.
+          These are browser measurements, not native React Native or Node.js server metrics.
+        </p>
+        <p>
+          See the{" "}
+          <Link href="/docs/sdk#sdk-web-vitals-heading" className="text-brand hover:underline">
+            Web Vitals configuration and limitations
+          </Link>
+          .
+        </p>
+
         <h2>Install</h2>
         <CodeBlock code={reactInstall} lang="bash" caption="Install" />
 
