@@ -13,9 +13,9 @@ Deploy **Postgres + API + dashboard** as separate Railway services. Core env var
 | **PostgreSQL** | — | Railway Postgres |
 | **API** | **empty** (repo root) | **Dockerfile**, path `apps/api/Dockerfile` (pnpm, frozen lockfile) |
 | **Dashboard** | **empty** (repo root) | **Dockerfile** (repo root) — **only on this service** |
-| **Retention cron** (optional) | `apps/api` | Cron job |
-| **Alert rules evaluator cron** (optional) | `apps/api` | Cron job (scheduled AlertRule conditions) |
-| **Alert webhook worker** (optional) | `apps/api` | Continuous poll loop (not cron) |
+| **Retention cron** (optional) | **empty** (repo root) | Cron job — Dockerfile `apps/api/Dockerfile` |
+| **Alert rules evaluator cron** (optional) | **empty** (repo root) | Cron job (scheduled AlertRule conditions) — Dockerfile `apps/api/Dockerfile` |
+| **Alert webhook worker** (optional) | **empty** (repo root) | Continuous poll loop (not cron) — Dockerfile `apps/api/Dockerfile` |
 
 ---
 
@@ -78,8 +78,8 @@ Nightly retention prevents telemetry from growing unbounded. The job is implemen
 Railway cron is configured per service in the dashboard — it cannot be declared in a repo-root `railway.toml` without affecting other services.
 
 1. In your Railway project, click **+ New** → **Empty Service** (name it e.g. `retention-cron`).
-2. **Settings → Source** → **Root Directory** = `apps/api`.
-3. **Settings → Build** → leave **Railpack** (default Node builder), same as the API service.
+2. **Settings → Source** → **Root Directory** = **empty** (repo root).
+3. **Settings → Build** → **Builder** = **Dockerfile**, path `apps/api/Dockerfile`; add variable `RAILWAY_DOCKERFILE_PATH=apps/api/Dockerfile`; Watch Paths `/apps/api/**`, `/pnpm-lock.yaml`, `/package.json` (same as the API service).
 4. **Settings → Deploy** → **Start Command** = `node dist/jobs/run-retention.js`
    - Use `node …` directly, **not** `npm run retention`. Package managers can intercept exit signals and leave the cron container running; Railway skips the next run if a previous one is still active.
 5. **Settings → Cron Schedule** = `0 3 * * *` (03:00 UTC daily).
@@ -94,7 +94,7 @@ Railway cron is configured per service in the dashboard — it cannot be declare
 
 | Setting | Value |
 |---------|--------|
-| Root Directory | `apps/api` |
+| Root Directory | **empty** (repo root); Dockerfile `apps/api/Dockerfile` |
 | Start command | `node dist/jobs/run-retention.js` |
 | Cron schedule | `0 3 * * *` (03:00 UTC daily) |
 | `DATABASE_URL` | Same as API |
@@ -123,7 +123,7 @@ This service is **not** auto-provisioned — add it manually in Railway when you
 ### Railway setup (manual)
 
 1. **+ New** → **Empty Service** (e.g. `alert-rules-evaluator`).
-2. **Settings → Source** → **Root Directory** = `apps/api`.
+2. **Settings → Source** → **Root Directory** = **empty** (repo root). **Settings → Build** → **Builder** = **Dockerfile**, path `apps/api/Dockerfile`; add variable `RAILWAY_DOCKERFILE_PATH=apps/api/Dockerfile`; Watch Paths `/apps/api/**`, `/pnpm-lock.yaml`, `/package.json`.
 3. **Settings → Deploy** → **Start Command** = `node dist/jobs/run-alert-rules-evaluator.js`
    - Use `node …` directly (same reason as retention cron).
 4. **Settings → Cron Schedule** = `*/5 * * * *` (every 5 minutes UTC), or match your `ALERT_RULES_SCHEDULE_INTERVAL_MINUTES`.
@@ -146,7 +146,7 @@ This service is **not** auto-provisioned — add it manually in Railway when you
 
 | Setting | Value |
 |---------|--------|
-| Root Directory | `apps/api` |
+| Root Directory | **empty** (repo root); Dockerfile `apps/api/Dockerfile` |
 | Start command | `node dist/jobs/run-alert-rules-evaluator.js` |
 | Cron schedule | `*/5 * * * *` (default) |
 | `DATABASE_URL` | Same as API |
@@ -169,20 +169,19 @@ webhooks. Product details: [ALERT-WEBHOOKS.md](./ALERT-WEBHOOKS.md).
 ### Railway setup (manual)
 
 Same pattern as the API / retention job: **Empty Service** first, configure
-Railpack + root directory + start command, **then** connect the GitHub repo.
-Connecting the repo before clearing Dockerfile settings can pick up the dashboard
-Dockerfile and fail at runtime.
+Dockerfile path (`apps/api/Dockerfile`) + empty root directory + start command, **then** connect the GitHub repo.
+Connecting the repo first can pick up the repo-root dashboard Dockerfile and fail.
 
 1. In your Railway project, click **+ New** → **Empty Service** (name it
    `alert-webhook-worker`).
-2. **Settings → Source** → **Root Directory** = `apps/api`.
-3. **Settings → Build** → **Railpack** (not Dockerfile). Leave Dockerfile path empty.
+2. **Settings → Source** → **Root Directory** = **empty** (repo root).
+3. **Settings → Build** → **Builder** = **Dockerfile**, path `apps/api/Dockerfile`; add variable `RAILWAY_DOCKERFILE_PATH=apps/api/Dockerfile`; Watch Paths `/apps/api/**`, `/pnpm-lock.yaml`, `/package.json`. Never use the repo-root (dashboard) `Dockerfile`.
 4. **Settings → Deploy** → **Start Command** =
    `node dist/jobs/run-alert-webhook-worker.js`
    - Use `node …` directly (same as retention). Do **not** set a Cron Schedule —
      this is a continuous poll loop.
 5. **Settings → Source** → connect repo `Telemetry-Tracker/telemetry-tracker`,
-   branch **`main`**. Optional watch paths: `apps/api/**`.
+   branch **`main`**. Watch paths: `/apps/api/**`, `/pnpm-lock.yaml`, `/package.json`.
 6. **Variables** → add **`DATABASE_URL`** (Reference from the Postgres / `DB`
    service, same as API). Optional:
    - `ALERT_WEBHOOK_WORKER_POLL_MS` (default `1000`)
@@ -195,8 +194,8 @@ Dockerfile and fail at runtime.
 
 | Setting | Value |
 |---------|--------|
-| Root Directory | `apps/api` |
-| Builder | Railpack (not Dockerfile) |
+| Root Directory | **empty** (repo root); Dockerfile `apps/api/Dockerfile` |
+| Builder | Dockerfile, path `apps/api/Dockerfile` |
 | Start command | `node dist/jobs/run-alert-webhook-worker.js` |
 | Cron schedule | none (always-on) |
 | Branch | `main` |
@@ -267,6 +266,29 @@ See also [PRODUCTION-READINESS.md](./PRODUCTION-READINESS.md) and GitHub issue *
 ---
 
 ## Troubleshooting
+
+### API / cron / worker: build fails with `"/apps/api": not found` (upgrading to v1.18.5+)
+
+Since v1.18.5 the repo contains **`apps/api/Dockerfile`**. Railway **automatically builds with a file named `Dockerfile` in the service's Root Directory**, even when the builder is set to Railpack. A service that still has Root Directory = `apps/api` therefore builds that Dockerfile with `apps/api` as the build context, and the build fails at `COPY apps/api apps/api` (`failed to compute cache key … "/apps/api": not found`). The previous successful deployment keeps running, but no new code ships.
+
+**Required settings** for the API **and** every service built from it (retention cron, alert-rules evaluator, alert webhook worker):
+
+| Setting | Value |
+|---------|--------|
+| Root Directory | **empty** (repo root) |
+| Builder | **Dockerfile** |
+| Dockerfile path | `apps/api/Dockerfile` (Settings → Build), and the service variable `RAILWAY_DOCKERFILE_PATH=apps/api/Dockerfile` |
+| Watch Paths | `/apps/api/**`, `/pnpm-lock.yaml`, `/package.json` |
+| Start command | unchanged: empty for the API (the image runs `node dist/index.js`); `node dist/jobs/…` for cron/worker services |
+| Cron schedule / restart policy / variables | unchanged |
+
+**Recovery:**
+1. Apply the settings above to one service.
+2. Trigger a **new** deployment (changing a variable or pushing a commit does this; "Redeploy" of the failed deployment may reuse its old settings).
+3. Check that the build log shows `pnpm install --frozen-lockfile --filter api...`, and for the API that `GET /health` returns your new version with `"database":"ok"`.
+4. Repeat for each cron/worker service. For the evaluator, `/health` → `alert_rules_evaluator: "ok"` within 10 minutes confirms a run.
+
+**Rollback:** redeploy the last successful deployment from **Deployments**. Going back to Railpack with Root Directory `apps/api` only works on commits before v1.18.5, because the Dockerfile is auto-detected.
 
 ### API: Docker build fails — `eslint.config.mjs` not found
 
