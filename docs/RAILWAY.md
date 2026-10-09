@@ -11,7 +11,7 @@ Deploy **Postgres + API + dashboard** as separate Railway services. Core env var
 | Service | Root directory | Builder |
 |---------|----------------|---------|
 | **PostgreSQL** | — | Railway Postgres |
-| **API** | `apps/api` | **Railpack** (default Node) — **not** Dockerfile |
+| **API** | **empty** (repo root) | **Dockerfile**, path `apps/api/Dockerfile` (pnpm, frozen lockfile) |
 | **Dashboard** | **empty** (repo root) | **Dockerfile** (repo root) — **only on this service** |
 | **Retention cron** (optional) | `apps/api` | Cron job |
 | **Alert rules evaluator cron** (optional) | `apps/api` | Cron job (scheduled AlertRule conditions) |
@@ -30,10 +30,12 @@ Deploy **Postgres + API + dashboard** as separate Railway services. Core env var
 
 | Setting | Value |
 |---------|--------|
-| Root Directory | `apps/api` |
-| Build | `npm install` → `npm run build` |
-| Start | `npm run start` (`node dist/index.js`) |
-| Watch Paths (optional) | `apps/api/**` |
+| Root Directory | **empty** (repo root, so `pnpm-lock.yaml` is in the build context) |
+| Builder | **Dockerfile**, path `apps/api/Dockerfile` (or variable `RAILWAY_DOCKERFILE_PATH=apps/api/Dockerfile`) |
+| Build / Start command | **none** (no custom overrides; the image runs `node dist/index.js`) |
+| Watch Paths (optional) | `/apps/api/**`, `/pnpm-lock.yaml`, `/package.json` |
+
+The image installs with `pnpm install --frozen-lockfile --filter api...`, so production runs exactly the versions in `pnpm-lock.yaml` (and the root `pnpm.overrides`). The previous Railpack build ran `npm install` in `apps/api` with no lockfile. The retention cron, alert-rules evaluator and alert webhook worker should use the same Root Directory / Dockerfile settings and keep their own start commands (`node dist/jobs/...`; working directory is `/app`).
 
 **Env (minimum):** `DATABASE_URL`, `NODE_ENV=production`, `HOST=0.0.0.0`, `HEALTH_CHECK_DATABASE=true`, `CORS_ORIGINS` or `DASHBOARD_ORIGIN`, `TELEMETRY_DASHBOARD_ORIGIN`.
 
@@ -270,7 +272,7 @@ See also [PRODUCTION-READINESS.md](./PRODUCTION-READINESS.md) and GitHub issue *
 
 The API service is using the **dashboard Dockerfile** or a repo-root Docker setting.
 
-**Fix:** API → **Build** → **Builder** = **Railpack** (not Dockerfile). **Root Directory** = `apps/api`. Redeploy.
+**Fix:** API → **Root Directory** = empty → **Builder** = **Dockerfile** with path **`apps/api/Dockerfile`** (never the repo-root `Dockerfile`). Redeploy.
 
 ### Dashboard: `EUNSUPPORTEDPROTOCOL` / `workspace:`
 
