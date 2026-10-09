@@ -170,6 +170,28 @@ trackEvent("app.started");`}</DocsCodeBlock>
         </ol>
       </section>
 
+      <section className="mb-10" aria-labelledby="hosted-location-heading">
+        <h2 id="hosted-location-heading">Hosting and data location</h2>
+        <p>
+          The Hosted Cloud API and primary PostgreSQL database, including its volume, run on
+          Railway in EU West (Amsterdam, Netherlands). Accounts, customer telemetry and source
+          maps are stored in PostgreSQL; source map contents are stored in a TEXT column.
+          Cloudflare provides the CDN / edge network and R2 storage for avatars only. The
+          telemetry-avatars bucket has an Eastern Europe (EEUR) location hint; its EU
+          jurisdiction setting has not been verified.
+        </p>
+        <p className="mt-4">
+          These locations describe the API, primary database and avatar storage. Backup locations
+          and processing regions for other services are not established by these facts. Sentry is
+          enabled for operational error monitoring; the AI brief worker is not enabled in
+          production. See the{" "}
+          <Link href="/privacy#subprocessors" className="text-brand hover:underline">
+            privacy policy&apos;s third-party services list
+          </Link>{" "}
+          for roles and verification limits.
+        </p>
+      </section>
+
       <section className="mb-10" aria-labelledby="hosted-plans-heading">
         <h2 id="hosted-plans-heading">Plans & billing</h2>
         <p>
