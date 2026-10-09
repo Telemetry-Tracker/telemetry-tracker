@@ -9,6 +9,8 @@
 # Replaces the Railpack build (root apps/api), which ran `npm install` without any
 # lockfile, ignored the root pnpm.overrides and resolved versions at deploy time.
 
+# Matches production (railway ssh api: node -v = v22.23.3, 2026-10-09).
+# Matches production Railpack runtime (railway ssh api: node -v = v22.23.3, 2026-10-09).
 ARG NODE_VERSION=22
 FROM node:${NODE_VERSION}-slim AS base
 # Prisma needs OpenSSL at generate time and at runtime.
