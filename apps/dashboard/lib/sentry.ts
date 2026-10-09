@@ -1,5 +1,6 @@
+import { sentryPrivacyOptions } from "./sentry-policy";
 import type { ErrorEvent } from "@sentry/nextjs";
-import { safeSanitizeSentryEvent } from "./sentry-privacy";
+import { safeSanitizeSentryEvent, sanitizeSentryBreadcrumb } from "./sentry-privacy";
 import { getDashboardSentryRelease } from "./sentry-release";
 
 /**
@@ -16,7 +17,7 @@ export function replaceHttpIntegration<T extends { name: string }>(
   integrations: T[],
   httpIntegration: T
 ): T[] {
-  return integrations.map((integration) =>
+  return integrations.filter((integration) => !integration.name.startsWith("Replay")).map((integration) =>
     integration.name === "Http" ? httpIntegration : integration
   );
 }
@@ -54,9 +55,10 @@ export function sentryInitOptions(dsn: string) {
     dsn,
     ...(release ? { release } : {}),
     environment: process.env.NODE_ENV ?? "development",
-    sendDefaultPii: false,
-    includeLocalVariables: false,
-    tracesSampleRate: 0,
+    ...sentryPrivacyOptions,
+    beforeBreadcrumb: sanitizeSentryBreadcrumb,
+    integrations: (integrations: { name: string }[]) =>
+      integrations.filter((integration) => !integration.name.startsWith("Replay")),
     beforeSend(event: ErrorEvent) {
       return safeSanitizeSentryEvent(event);
     },
