@@ -23,6 +23,12 @@ export default function DocsReactNativePage() {
         </p>
       }
     >
+      <p>
+        For Hermes and OTA releases, follow the <a href="https://github.com/Telemetry-Tracker/telemetry-tracker/blob/develop/docs/expo-hermes-source-maps.md">Expo/EAS source-map guide</a>.
+        Use a unique release for every JS bundle and separate app labels for Android and iOS.
+        Native version alone is insufficient for OTA updates. JavaScript errors only; native crashes are not captured.
+      </p>
+
       <h2>Install</h2>
       <CodeBlock
         code={`pnpm add @telemetry-tracker/react-native
@@ -40,7 +46,7 @@ npm install @telemetry-tracker/react-native`}
       <p>
         Set <code>platform</code> from <code>Platform.OS</code> so the dashboard can filter by
         device family. Map <code>ios</code>, <code>android</code>, and <code>web</code> (when
-        running in a browser). Set <code>release</code> to your app version (e.g. from{" "}
+        running in a browser). Set <code>release</code> to a unique JS bundle identity (combine metadata from{" "}
         <code>expo-constants</code> or native build metadata) and <code>environment</code> to
         distinguish production from staging or development builds.
       </p>
