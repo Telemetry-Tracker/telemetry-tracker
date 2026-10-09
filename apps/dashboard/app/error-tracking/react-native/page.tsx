@@ -146,6 +146,17 @@ export default function ReactNativeErrorTrackingPage() {
           .
         </p>
 
+        <h2>Browser Web Vitals</h2>
+        <p>
+          LCP, INP, CLS and TTFB are browser measurements and are not collected from native
+          React Native apps. If your project also has a web frontend, the browser SDK collects them by default
+          in the same dashboard. See the{" "}
+          <Link href="/docs/sdk#sdk-web-vitals-heading" className="text-brand hover:underline">
+            Web Vitals configuration
+          </Link>
+          .
+        </p>
+
         <GuideCta />
         <GuideRelatedLinks
           links={[

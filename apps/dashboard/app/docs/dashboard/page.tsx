@@ -118,12 +118,18 @@ export default function DocsDashboardPage() {
         <h2 id="dash-performance-heading">Performance / Web Vitals</h2>
         <p>
           The <strong className="text-foreground">Performance</strong> page summarizes Core Web
-          Vitals (LCP, INP/FID, CLS, TTFB) with Good / Needs improvement / Poor ratings, distribution
-          bars, and trend charts. Tables list slowest{" "}
+          Vitals (LCP, INP, CLS, TTFB) with p75 values, Good / Needs improvement / Poor ratings,
+          distribution bars, and trend charts. Tables list slowest{" "}
           <code className="text-foreground">$request</code> routes (method, path, count, p50/p95,
           error rate) and slowest <code className="text-foreground">$web_vital</code> pages (path,
           LCP p75, CLS, samples), with deep links back to Events. Overview also shows a scoped
-          vitals snapshot with a link into the full report.
+          vitals snapshot with a link into the full report. The INP / FID label also accepts
+          legacy FID events; the current browser SDK reports INP. Enable capture (on by default)
+          or disable it with <code>webVitals: false</code> as described in the{" "}
+          <Link href="/docs/sdk#sdk-web-vitals-heading" className="text-link font-medium">
+            SDK reference
+          </Link>
+          .
         </p>
       </section>
 
