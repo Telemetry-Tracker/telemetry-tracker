@@ -111,14 +111,6 @@ Sentry does **not** replace uptime checks — it captures application exceptions
 
 The hosted dashboard can send **visits, sessions, and browser errors** from **`/dashboard/*`** into Telemetry Tracker itself via `@telemetry-tracker/next` ([`ProductTelemetry`](../apps/dashboard/app/components/analytics/ProductTelemetry.tsx)). Marketing and docs routes are not instrumented (they use Google Analytics + cookie consent).
 
-### Operator privacy policy
-
-API and dashboard server, edge, and browser initialization use mirrored `sentry-policy.ts` options, with parity tests. The complete `dataCollection` object disables user/IP inference, cookies, request/response headers and bodies, URL queries, database query data, GraphQL documents/variables, AI inputs/outputs, and frame variables. Tracing, propagation, replay, and Sentry logs are disabled. Seven source context lines are retained, matching the v10 baseline. `beforeSendTransaction` drops transactions defensively, and Replay integrations are filtered out.
-
-The existing event scrubber additionally removes nested users/IP fields, response/DB/AI/GraphQL contexts and attributes, and stack-frame variables. Breadcrumbs are scrubbed before storage; console, database/query, AI, and GraphQL breadcrumbs are dropped because their free text may contain payloads. Error type/message, stack location, environment, and dashboard release remain, with `tt_live_*` values redacted. This is a structured-data filter, not a guarantee that arbitrary error messages contain no personal data.
-
-Sentry 10.66 supports `dataCollection`, but **partial objects enable permissive defaults**. See the [10.66 resolver](https://github.com/getsentry/sentry-javascript/blob/10.66.0/packages/core/src/utils/data-collection/resolveDataCollectionOptions.ts) and [v11 migration guide](https://github.com/getsentry/sentry-javascript/blob/develop/MIGRATION.md#senddefaultpii-is-replaced-by-datacollection). The policy includes v10 `queryParams` and v11 `urlQueryParams`/`queues`; v10 ignores the latter fields. Tests resolve the real installed SDK policy and capture a synthetic error with an in-memory transport. Both installed SDK majors must remain 10 until a privacy review updates the guard. A future major upgrade still needs runtime/transport review, including v11 span streaming.
-
 ### Railway setup
 
 1. In the hosted cloud org, create (or reuse) a project and an API key under **Settings → API keys**.
