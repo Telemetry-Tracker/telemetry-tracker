@@ -19,6 +19,19 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ---
 
+## [1.18.5] - 2026-10-09
+
+### Changed
+
+- **API: reproducible builds from `pnpm-lock.yaml`.** New `apps/api/Dockerfile` (Node 22, pnpm 9.15.9 via corepack, `pnpm install --frozen-lockfile`, `pnpm deploy --prod`). Railway API/cron/worker services previously ran `npm install` without a lockfile. Takes effect once each Railway service is switched to the Dockerfile builder (see [docs/RAILWAY.md](docs/RAILWAY.md)) ([#759](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/759)).
+
+### Security
+
+- **API: fastify 5.8.5 → 5.12.5, find-my-way → 9.9.0, fast-uri → 3.1.8 / 4.2.1, Prisma → 6.19.3** in the lockfile, so self-hosters and the locked build are at least as patched as the hosted API ([#759](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/759)).
+- No migrations. No env var changes.
+
+---
+
 ## [1.18.4] - 2026-10-09
 
 ### Security

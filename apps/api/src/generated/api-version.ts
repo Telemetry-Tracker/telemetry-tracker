@@ -1,2 +1,2 @@
-/** Generated at build time from CHANGELOG (/Users/unjica/Documents/GitHub/.codex-worktrees/release-v1.18.4/CHANGELOG.md). Do not edit manually. */
-export const API_VERSION = "1.18.4";
+/** Generated at build time from CHANGELOG (/Users/unjica/Documents/GitHub/.codex-worktrees/release-v1.18.5/CHANGELOG.md). Do not edit manually. */
+export const API_VERSION = "1.18.5";
