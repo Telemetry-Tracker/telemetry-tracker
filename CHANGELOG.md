@@ -19,6 +19,16 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ---
 
+## [1.18.4] - 2026-10-09
+
+### Security
+
+- **Dashboard: Next.js 15.5.18 → 15.5.27, sharp 0.34.5 → 0.35.5** — fixes the App Router Server Actions denial of service ([GHSA-m99w-x7hq-7vfj](https://github.com/advisories/GHSA-m99w-x7hq-7vfj)), Image Optimization AVIF RCE ([GHSA-2xp9-vwfh-vxw4](https://github.com/advisories/GHSA-2xp9-vwfh-vxw4)), SSRF, cache-confusion and image DoS advisories, and sharp libvips/libheif advisories ([#754](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/754)).
+- **Windows self-hosters must upgrade** — Next.js < 15.5.24 allows unauthenticated remote code execution on Windows-hosted servers (CVE-2026-75604 / [GHSA-p293-qw3h-jr36](https://github.com/advisories/GHSA-p293-qw3h-jr36)). Linux/Docker deployments (including hosted) are not affected by this one, but should still upgrade for the other fixes.
+- No migrations. No env var changes.
+
+---
+
 ## [1.18.3] - 2026-10-06
 
 ### Added
