@@ -57,6 +57,13 @@ model OrganizationAuditEvent {
 
 /// Dashboard user (email + password). Ingest remains API-key only.
 model User {
+  utm_source String? @db.VarChar(100)
+  utm_medium String? @db.VarChar(100)
+  utm_campaign String? @db.VarChar(100)
+  utm_content String? @db.VarChar(100)
+  utm_term String? @db.VarChar(100)
+  referrer_host String? @db.VarChar(253)
+
   id             String                     @id @default(uuid())
   email          String                     @unique
   password_hash  String                     @map("password_hash")

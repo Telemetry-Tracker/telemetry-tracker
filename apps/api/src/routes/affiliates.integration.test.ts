@@ -302,9 +302,13 @@ testSuite("Native affiliate integration", () => {
       const { user } = await registerUser({
         email: `user${Date.now()}@example.com`,
         referralCode: "Alice",
+        signupAttribution: { utm_source: "newsletter", utm_campaign: "launch" },
       });
       const referral = await prisma.userReferral.findUnique({ where: { user_id: user.id } });
       expect(referral?.affiliate_id).toBe(affiliate.id);
+      const acquired = await prisma.user.findUnique({ where: { id: user.id } });
+      expect(acquired?.utm_source).toBe("newsletter");
+      expect(acquired?.utm_campaign).toBe("launch");
       expect(referral?.referral_code).toBe("alice");
       expect(referral?.status).toBe("ACTIVE");
     });

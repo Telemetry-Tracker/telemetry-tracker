@@ -13,6 +13,8 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ### Added
 
+- **Signup acquisition attribution:** consent-gated first-touch UTM tags and external referrer hostname are preserved at email/password and invite registration. Existing accounts retain null attribution; affiliate referral behavior is unchanged.
+
 ### Fixed
 
 - **Docs: Railway self-hosters upgrading to v1.18.5+.** `apps/api/Dockerfile` is auto-detected when a service's Root Directory is `apps/api`, which makes builds fail. Switch API/cron/worker services to Root Directory empty + Dockerfile `apps/api/Dockerfile` ([docs/RAILWAY.md](docs/RAILWAY.md#api--cron--worker-build-fails-with-appsapi-not-found-upgrading-to-v1185)).

@@ -6,6 +6,8 @@ import { describe, expect, it, vi, beforeEach, afterEach, type Mock } from "vite
 import { RegisterPageForm } from "@/app/components/auth/RegisterPageForm";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as authActions from "@/app/auth/actions";
+import { attributionCookie, sanitizeSignupAttribution, SIGNUP_ATTRIBUTION_COOKIE } from "@/lib/signup-attribution";
+import { COOKIE_CONSENT_STORAGE_KEY } from "@/lib/cookie-consent";
 import { AFFILIATE_REFERRAL_STORAGE_KEY } from "@/lib/affiliate-referral";
 
 vi.mock("next/navigation", () => ({
@@ -32,6 +34,9 @@ describe("RegisterPageForm - Referral Forwarding", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     window.sessionStorage.clear();
+    localStorage.clear();
+    document.cookie = `${SIGNUP_ATTRIBUTION_COOKIE}=; Path=/; Max-Age=0`;
+    document.cookie = `${COOKIE_CONSENT_STORAGE_KEY}=; Path=/; Max-Age=0`;
     mockRouter = {
       push: vi.fn(),
       refresh: vi.fn(),
@@ -113,4 +118,22 @@ describe("RegisterPageForm - Referral Forwarding", () => {
     expect(formData.get("referralCapturedAt")).toBe("2026-09-01T00:00:00.000Z");
     unmount();
   });
+  for (const choice of ["accepted", "rejected"] as const) {
+    it(`forwards signup attribution only with accepted consent (${choice})`, async () => {
+      localStorage.setItem(COOKIE_CONSENT_STORAGE_KEY, choice);
+      document.cookie = attributionCookie(sanitizeSignupAttribution({ utm_source: "first", utm_campaign: "launch" }));
+      mockSearchParams = new URLSearchParams("invite=invite-token&ref=alice");
+      (useSearchParams as Mock).mockReturnValue(mockSearchParams);
+      render(<RegisterPageForm serverChoice={choice} />);
+      fillForm();
+      fireEvent.click(screen.getByRole("button", { name: /create account/i }));
+      await waitFor(() => expect(authActions.register).toHaveBeenCalledTimes(1));
+      const form = (authActions.register as Mock).mock.calls[0][0] as FormData;
+      expect(form.get("inviteToken")).toBe("invite-token");
+      expect(form.get("referralCode")).toBe("alice");
+      if (choice === "accepted") expect(JSON.parse(String(form.get("signupAttribution"))).utm_source).toBe("first");
+      else expect(form.get("signupAttribution")).toBeNull();
+    });
+  }
+
 });
