@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CodeBlock } from "@/app/components/docs/CodeBlock";
@@ -58,8 +59,7 @@ export default function NextJsMonitoringPage() {
         <h2>Core Web Vitals from real users</h2>
         <p>The browser SDK collects LCP (loading), INP (interaction responsiveness), CLS (layout stability) and TTFB (time to first byte) by default. Set <code>webVitals: false</code> in the provider config to opt out. Performance also supports legacy FID (first input delay) data; the current SDK does not automatically collect FID.</p>
         <p>Open <strong>Performance</strong> for metric summaries, good / needs-improvement / poor distributions, trends and slow pages. These are browser field measurements, not lab tests or traces of database calls.</p>
-        {/* TODO: Replace with a real Performance screenshot from a test project before approval. */}
-        <figure className="rounded-lg border border-dashed border-border bg-muted/30 p-6"><figcaption className="text-sm text-muted-foreground">Screenshot placeholder — Performance. TODO: capture a real test-project view with Web Vitals. No sample dashboard data is shown here.</figcaption></figure>
+        <figure className="overflow-hidden rounded-lg border border-border"><Image src="/marketing/monitoring-nextjs-performance.png" width={2400} height={1200} sizes="(max-width: 768px) 100vw, 768px" className="h-auto w-full" alt="Telemetry Tracker Performance page showing LCP, INP, CLS and TTFB p75 values, average response time, Apdex and a Good / Needs improvement / Poor rating distribution" /><figcaption className="border-t border-border px-4 py-2 text-xs text-muted-foreground">Performance page from a local test project. The data was sent with the Telemetry Tracker SDKs; it is not customer data.</figcaption></figure>
 
         <h2>Node request latency: where the middleware fits</h2>
         <p>The <code>@telemetry-tracker/node</code> request middleware emits <code>$request</code> events with <code>method</code>, <code>url</code> and <code>duration_ms</code> when the Node response finishes or closes. Performance summarizes p50 and p95 latency per route.</p>
@@ -73,8 +73,7 @@ export default function NextJsMonitoringPage() {
         <h2>Release health after each deploy</h2>
         <p>Pass a <code>release</code> tag in the provider config and the server hook config, using the same version for a deployment. Set it before telemetry initializes. The <strong>Releases</strong> page shows sessions, active users, events, errors, error rate, adoption share and deltas versus the previous release. These summaries depend on tagged telemetry; there are no suspect-commit or deploy-marker integrations.</p>
         <CodeBlock code={'// Add to both TelemetryProvider config and createOnRequestError config:\nrelease: "2026.10.11",'} lang="ts" caption="Use the same release tag on browser and server telemetry" />
-        {/* TODO: Replace with a real Releases screenshot from a test project before approval. */}
-        <figure className="rounded-lg border border-dashed border-border bg-muted/30 p-6"><figcaption className="text-sm text-muted-foreground">Screenshot placeholder — Releases. TODO: capture real release health from a test project. No invented adoption or error counts.</figcaption></figure>
+        <figure className="overflow-hidden rounded-lg border border-border"><Image src="/marketing/monitoring-nextjs-releases.png" width={2400} height={900} sizes="(max-width: 768px) 100vw, 768px" className="h-auto w-full" alt="Telemetry Tracker Releases page comparing release 1.5.0 with 1.4.0 by sessions, users, events, errors, error rate and adoption" /><figcaption className="border-t border-border px-4 py-2 text-xs text-muted-foreground">Releases page from a local test project with two releases. The data was sent with the Telemetry Tracker SDKs; it is not customer data.</figcaption></figure>
 
         <h2>Alerts with explicit editor limits</h2>
         <p>Alert channels include in-app notifications, email, generic webhooks, Slack, Discord, Telegram and Microsoft Teams. Built-in error-spike and quota rules are available.</p>
