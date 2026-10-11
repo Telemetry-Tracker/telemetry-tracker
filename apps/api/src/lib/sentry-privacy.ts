@@ -91,7 +91,7 @@ function isRequestLike(value: JsonObject): boolean {
 }
 
 function isUrlField(key: string): boolean {
-  return key === "url" || key === "url.full";
+  return key === "url" || key === "url.full" || key === "to" || key === "from";
 }
 
 function isQueryField(key: string): boolean {
@@ -170,6 +170,22 @@ function sanitizeObject(record: JsonObject, depth: number, budget: Budget): void
     if (
       SENSITIVE_HEADER_NAMES.has(key.toLowerCase()) ||
       key === "cookies" ||
+      key === "user" ||
+      key === "ip_address" ||
+      key === "REMOTE_ADDR" ||
+      key === "body" ||
+      key === "vars" ||
+      key === "response" ||
+      key === "db" ||
+      key === "database" ||
+      key === "ai" ||
+      key === "gen_ai" ||
+      key === "graphql" ||
+      key.startsWith("db.") ||
+      key.startsWith("gen_ai.") ||
+      key.startsWith("graphql.") ||
+      key.startsWith("http.request.body") ||
+      key.startsWith("http.response.body") ||
       isQueryField(key)
     ) {
       delete record[key];
@@ -283,6 +299,10 @@ export function sanitizeSentryEvent<T>(event: T, limits?: SentrySanitizeLimits):
     seen: new WeakSet(),
   };
   delete event.user;
+  if (isPlainObject(event.request)) {
+    delete event.request.data;
+    delete event.request.body;
+  }
   sanitizeObject(event, 0, budget);
   return event;
 }
@@ -305,6 +325,9 @@ export function safeSanitizeSentryEvent<T>(event: T, limits?: SentrySanitizeLimi
 function failClosedSentryEvent(event: unknown): void {
   if (!event || typeof event !== "object") return;
   const record = event as Record<string, unknown>;
+  for (const key of ["headers", "contexts", "extra", "breadcrumbs", "response"] as const) {
+    try { delete record[key]; } catch { /* ignore */ }
+  }
   try {
     delete record.user;
   } catch {
@@ -314,7 +337,7 @@ function failClosedSentryEvent(event: unknown): void {
     const request = record.request;
     if (!request || typeof request !== "object" || Array.isArray(request)) return;
     const req = request as Record<string, unknown>;
-    for (const key of ["data", "body", "cookies", "query_string", "query"] as const) {
+    for (const key of ["data", "body", "cookies", "query_string", "query", "headers", "env"] as const) {
       try {
         delete req[key];
       } catch {
@@ -334,4 +357,10 @@ function failClosedSentryEvent(event: unknown): void {
   } catch {
     /* ignore */
   }
+}
+
+/** Console/DB/AI breadcrumbs can contain unstructured customer payloads. */
+export function sanitizeSentryBreadcrumb<T extends { category?: string }>(breadcrumb: T): T | null {
+  if (/^(console|db|query|ai|gen_ai|graphql)(\.|$)/i.test(breadcrumb.category ?? "")) return null;
+  return safeSanitizeSentryEvent(breadcrumb);
 }

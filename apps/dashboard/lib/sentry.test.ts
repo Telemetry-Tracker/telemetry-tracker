@@ -1,3 +1,4 @@
+import { sentryPrivacyOptions } from "./sentry-policy";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   captureClientException,
@@ -79,11 +80,15 @@ describe("sentry env gating", () => {
 describe("sentry privacy init options", () => {
   it("strips secrets in beforeSend and does not enable replay", () => {
     const options = sentryInitOptions("https://public@o1.ingest.de.sentry.io/1");
+    expect(options).toMatchObject(sentryPrivacyOptions);
+    expect(options.beforeSendTransaction()).toBeNull();
+    expect(options.beforeBreadcrumb({ category: "console", message: "payload" })).toBeNull();
+    expect(options.integrations([{ name: "Replay" }, { name: "InboundFilters" }])).toEqual([{ name: "InboundFilters" }]);
     expect(options.sendDefaultPii).toBe(false);
     expect(options.includeLocalVariables).toBe(false);
     expect(options.tracesSampleRate).toBe(0);
-    expect(options).not.toHaveProperty("replaysSessionSampleRate");
-    expect(options).not.toHaveProperty("replaysOnErrorSampleRate");
+    expect(options.replaysSessionSampleRate).toBe(0);
+    expect(options.replaysOnErrorSampleRate).toBe(0);
 
     const event = {
       type: undefined,
