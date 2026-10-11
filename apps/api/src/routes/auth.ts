@@ -1,3 +1,4 @@
+import { sanitizeSignupAttribution } from "../lib/signup-attribution.js";
 import { randomBytes } from "node:crypto";
 import type { FastifyInstance, FastifyPluginOptions } from "fastify";
 import { Prisma } from "@prisma/client";
@@ -74,6 +75,7 @@ export async function authRoutes(
 
   app.post("/auth/register", async (request, reply) => {
     const body = (request.body ?? {}) as {
+      signupAttribution?: unknown;
       email?: string;
       password?: string;
       displayName?: string;
@@ -83,6 +85,7 @@ export async function authRoutes(
       viaToken?: string;
       referralCapturedAt?: string;
     };
+    const attribution = sanitizeSignupAttribution(body.signupAttribution);
     const email = typeof body.email === "string" ? normalizeEmail(body.email) : "";
     const password = typeof body.password === "string" ? body.password : "";
     const displayName =
@@ -137,6 +140,7 @@ export async function authRoutes(
           try {
             const u = await tx.user.create({
               data: {
+                ...attribution,
                 email,
                 password_hash: passwordHash,
                 display_name: displayName,
@@ -243,6 +247,7 @@ export async function authRoutes(
     /** Self-serve signup: no organization until the user creates one or accepts an invite. */
     const user = await prisma.user.create({
       data: {
+        ...attribution,
         email,
         password_hash: hashPassword(password),
         display_name: displayName,
