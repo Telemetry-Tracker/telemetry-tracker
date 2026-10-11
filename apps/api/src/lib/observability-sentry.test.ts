@@ -1,3 +1,4 @@
+import { sentryPrivacyOptions } from "./sentry-policy.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const init = vi.fn();
@@ -32,6 +33,7 @@ describe("initSentryIfConfigured privacy wiring", () => {
       beforeSend: (event: Record<string, unknown>) => Record<string, unknown>;
       integrations: (integrations: { name: string }[]) => { name: string }[];
     };
+    expect(options).toMatchObject({ ...sentryPrivacyOptions, beforeSendTransaction: expect.any(Function) });
     expect(options.sendDefaultPii).toBe(false);
     expect(options.includeLocalVariables).toBe(false);
     expect(options.tracesSampleRate).toBe(0);
