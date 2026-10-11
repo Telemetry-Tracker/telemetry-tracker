@@ -19,6 +19,14 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ---
 
+## [1.19.1] - 2026-10-11
+
+### Fixed
+
+- **Affiliate terms** — `/affiliates/terms` now matches the approved program rules: 30 days' email notice for material changes with already-earned commission unaffected, commission disclosure required, and payout details requested by email when the balance first reaches the €50 minimum.
+
+---
+
 ## [1.19.0] - 2026-10-11
 
 ### Added
