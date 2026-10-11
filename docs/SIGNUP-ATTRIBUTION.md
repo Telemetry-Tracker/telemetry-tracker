@@ -54,3 +54,11 @@ FROM "User"
 GROUP BY 1, 2, 3
 ORDER BY 1 DESC, 4 DESC;
 ```
+
+## Privacy disclosure
+
+The public privacy policy (`/privacy`, "What we collect" table, row "Signup attribution")
+and cookie policy (`/cookies`, `tt_signup_attribution`) disclose what is collected (UTM tags
+and referrer hostname), why (aggregate acquisition analysis), that it requires accepted
+cookie consent, and retention (cookie up to 60 days; then stored on the user record until
+the account is deleted). Update both pages if the fields, purpose or retention change.

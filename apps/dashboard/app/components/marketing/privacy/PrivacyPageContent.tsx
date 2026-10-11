@@ -5,7 +5,7 @@ import { Footer } from "@/app/components/marketing/footer";
 import { Nav } from "@/app/components/marketing/nav";
 import { HOSTED_DASHBOARD_URL, HOSTED_OPERATOR } from "@/lib/hosted-cloud";
 
-const EFFECTIVE = "October 9, 2026";
+const EFFECTIVE = "October 11, 2026";
 const VERSION = "2026.10";
 
 const principles = [
@@ -57,6 +57,13 @@ const dataTable = [
     examples: "Email address, consent timestamp, subscribe source (footer or registration).",
     purpose: "Send optional release notes and feature announcements on the Hosted Cloud.",
     retention: "Until you unsubscribe via the link in our emails.",
+  },
+  {
+    kind: "Signup attribution",
+    examples:
+      "UTM campaign tags (source, medium, campaign, content, term) from the page you first landed on, and the hostname of the referring website (no full URL, path or query). Collected only if you accepted cookies; stored with your account when you sign up.",
+    purpose: "Understand which channels and campaigns bring new users (aggregate marketing analysis).",
+    retention: "Remembered in a cookie for up to 60 days before signup; then kept with your account and deleted when the account is deleted.",
   },
 ];
 
