@@ -15,7 +15,40 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ### Fixed
 
+- **Docs: Railway self-hosters upgrading to v1.18.5+.** `apps/api/Dockerfile` is auto-detected when a service's Root Directory is `apps/api`, which makes builds fail. Switch API/cron/worker services to Root Directory empty + Dockerfile `apps/api/Dockerfile` ([docs/RAILWAY.md](docs/RAILWAY.md#api--cron--worker-build-fails-with-appsapi-not-found-upgrading-to-v1185)).
+
 ### Changed
+
+---
+
+## [1.18.6] - 2026-10-11
+
+### Fixed
+
+- **Website: factual corrections.** Vue/Nuxt (via `@telemetry-tracker/core`) and NestJS (via `@telemetry-tracker/node`) are described as supported integrations, not dedicated SDKs; Microsoft Teams listed among alert channels; marketing footer version is read from CHANGELOG at build time instead of a hardcoded `v1.2.0`; `/llms.txt` now reflects verified capabilities and limitations; dashboard-vs-API alert rule authoring and request error-rate prerequisites clarified ([#766](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/766)).
+
+---
+
+## [1.18.5] - 2026-10-09
+
+### Changed
+
+- **API: reproducible builds from `pnpm-lock.yaml`.** New `apps/api/Dockerfile` (Node 22, pnpm 9.15.9 via corepack, `pnpm install --frozen-lockfile`, `pnpm deploy --prod`). Railway API/cron/worker services previously ran `npm install` without a lockfile. Takes effect once each Railway service is switched to the Dockerfile builder (see [docs/RAILWAY.md](docs/RAILWAY.md)) ([#759](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/759)).
+
+### Security
+
+- **API: fastify 5.8.5 → 5.12.5, find-my-way → 9.9.0, fast-uri → 3.1.8 / 4.2.1, Prisma → 6.19.3** in the lockfile, so self-hosters and the locked build are at least as patched as the hosted API ([#759](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/759)).
+- No migrations. No env var changes.
+
+---
+
+## [1.18.4] - 2026-10-09
+
+### Security
+
+- **Dashboard: Next.js 15.5.18 → 15.5.27, sharp 0.34.5 → 0.35.5** — fixes the App Router Server Actions denial of service ([GHSA-m99w-x7hq-7vfj](https://github.com/advisories/GHSA-m99w-x7hq-7vfj)), Image Optimization AVIF RCE ([GHSA-2xp9-vwfh-vxw4](https://github.com/advisories/GHSA-2xp9-vwfh-vxw4)), SSRF, cache-confusion and image DoS advisories, and sharp libvips/libheif advisories ([#754](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/754)).
+- **Windows self-hosters must upgrade** — Next.js < 15.5.24 allows unauthenticated remote code execution on Windows-hosted servers (CVE-2026-75604 / [GHSA-p293-qw3h-jr36](https://github.com/advisories/GHSA-p293-qw3h-jr36)). Linux/Docker deployments (including hosted) are not affected by this one, but should still upgrade for the other fixes.
+- No migrations. No env var changes.
 
 ---
 
