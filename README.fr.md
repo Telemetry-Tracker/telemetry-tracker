@@ -69,6 +69,8 @@
 | Règles d'alerte (conditions & destinations) | ✅ |
 | Source maps | ✅ |
 
+Les alertes sont livrées par notifications dans l'application, e-mail, webhooks HTTPS, Slack, Discord, Microsoft Teams et Telegram. Slack, Discord et Microsoft Teams utilisent des URL de webhook entrant (Teams utilise les anciens webhooks Office 365 MessageCard). Telegram utilise une URL `sendMessage` de l'API Bot ainsi qu'un identifiant de chat. Il ne s'agit pas d'installations d'applications OAuth. L'éditeur de règles du tableau de bord crée actuellement des conditions basées sur le nombre d'erreurs.
+
 Configuration auto-hébergée : [DEPLOYMENT.md](DEPLOYMENT.md)
 
 ---
