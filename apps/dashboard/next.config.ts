@@ -2,7 +2,7 @@ import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
 import { readFileSync } from "node:fs";
 import path from "path";
-import { dashboardSentryReleaseFromChangelog } from "./lib/sentry-release";
+import { dashboardSentryReleaseFromChangelog, latestChangelogVersion } from "./lib/sentry-release";
 
 function readRepoChangelog(): string | null {
   for (const candidate of [
@@ -21,10 +21,15 @@ function readRepoChangelog(): string | null {
 
 // Sentry release (e.g. `telemetry-tracker-dashboard@1.18.3`) from CHANGELOG at build time.
 // Inlined into client, server, and edge bundles; omitted (release unset) if unresolved.
-const sentryRelease = dashboardSentryReleaseFromChangelog(readRepoChangelog());
+const changelog = readRepoChangelog();
+const sentryRelease = dashboardSentryReleaseFromChangelog(changelog);
+const platformVersion = changelog ? latestChangelogVersion(changelog) : null;
 
 const nextConfig: NextConfig = {
-  env: sentryRelease ? { TT_SENTRY_RELEASE: sentryRelease } : {},
+  env: {
+    ...(sentryRelease ? { TT_SENTRY_RELEASE: sentryRelease } : {}),
+    ...(platformVersion ? { TT_PLATFORM_VERSION: platformVersion } : {}),
+  },
   // Put <title> and other metadata in <head> for crawlers instead of streaming them into <body>.
   htmlLimitedBots: /.*/,
   // Avoid duplicate server/API work in dev (Strict Mode renders Server Components twice).

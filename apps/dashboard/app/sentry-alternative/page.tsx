@@ -84,8 +84,8 @@ export default function SentryAlternativePage() {
             <strong>Sessions</strong> — start/end of a visit, not video replay.
           </li>
           <li>
-            <strong>Alerts</strong> — in-app notifications, email, HTTPS webhooks, Slack, Discord
-            and Telegram. Slack, Discord, and Telegram use incoming webhook or bot URLs, not OAuth
+            <strong>Alerts</strong> — in-app notifications, email, HTTPS webhooks, Slack, Discord,
+            Microsoft Teams and Telegram. Chat channels use incoming webhook or bot URLs, not OAuth
             apps. The dashboard rule editor currently authors error-count conditions.
           </li>
           <li>
@@ -96,7 +96,7 @@ export default function SentryAlternativePage() {
 
         <h2>Supported SDKs</h2>
         <p>
-          First-class packages today: Next.js (client-side and App Router server errors when
+          Supported SDKs and integrations today: Next.js (client-side and App Router server errors when
           configured), React (core), Node.js, NestJS (via the Node package), Vue and Nuxt (core),
           and React Native. There is no Python, Go, PHP, Ruby, or native iOS/Android SDK.
         </p>
