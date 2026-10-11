@@ -21,6 +21,14 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ---
 
+## [1.18.6] - 2026-10-11
+
+### Fixed
+
+- **Website: factual corrections.** Vue/Nuxt (via `@telemetry-tracker/core`) and NestJS (via `@telemetry-tracker/node`) are described as supported integrations, not dedicated SDKs; Microsoft Teams listed among alert channels; marketing footer version is read from CHANGELOG at build time instead of a hardcoded `v1.2.0`; `/llms.txt` now reflects verified capabilities and limitations; dashboard-vs-API alert rule authoring and request error-rate prerequisites clarified ([#766](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/766)).
+
+---
+
 ## [1.18.5] - 2026-10-09
 
 ### Changed
