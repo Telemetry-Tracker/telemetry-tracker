@@ -16,9 +16,10 @@ export default function DocsAlertsPage() {
       lede={
         <p>
           Custom rules are AND groups of conditions. The dashboard rule editor currently authors
-          error-count conditions. Delivery is in-app notifications, email, HTTPS webhooks, Slack,
-          Discord and Telegram. Slack and Discord use incoming webhook URLs. Telegram uses a bot{" "}
-          <code>sendMessage</code> URL. The Email channel in notification settings must be on or
+          error-count conditions; other condition types are API-only. Delivery is in-app notifications, email, HTTPS webhooks, Slack,
+          Discord, Microsoft Teams and Telegram. Slack, Discord and Microsoft Teams use incoming
+          webhook URLs (Teams uses legacy Office 365 MessageCard webhooks). Telegram uses a bot{" "}
+          <code>sendMessage</code> URL. These are not OAuth app installs. The Email channel in notification settings must be on or
           email is skipped.
         </p>
       }
