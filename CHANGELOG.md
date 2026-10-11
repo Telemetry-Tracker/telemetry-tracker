@@ -17,9 +17,32 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ### Fixed
 
+### Changed
+
+---
+
+## [1.18.7] - 2026-10-11
+
+### Fixed
+
+- **API: Hermes symbolication.** React Native/Hermes stacks (including composed Hermes + packager source maps) now resolve to original source lines (#756).
+- **Monitoring: Sentry privacy guard.** Our own operator Sentry setup (API and dashboard) pins privacy-preserving data collection so a future Sentry SDK v11 default change cannot broaden what is sent (#752).
 - **Docs: Railway self-hosters upgrading to v1.18.5+.** `apps/api/Dockerfile` is auto-detected when a service's Root Directory is `apps/api`, which makes builds fail. Switch API/cron/worker services to Root Directory empty + Dockerfile `apps/api/Dockerfile` ([docs/RAILWAY.md](docs/RAILWAY.md#api--cron--worker-build-fails-with-appsapi-not-found-upgrading-to-v1185)).
 
 ### Changed
+
+- **Docs: Expo/EAS source maps guide** for Hermes builds, and React Native SDK docs updates (#756).
+- **Docs and site: Web Vitals.** LCP/INP/CLS/TTFB capture, `webVitals: false`, p75 and slow pages are now documented across SDK, Next.js and error-tracking pages (#757).
+- **Site: privacy copy.** Privacy-by-default section on the Sentry alternative and migration pages (#753); privacy page lists the verified hosting region and processors (#755).
+- No migrations. No env var changes.
+
+---
+
+## [1.18.6] - 2026-10-11
+
+### Fixed
+
+- **Website: factual corrections.** Vue/Nuxt (via `@telemetry-tracker/core`) and NestJS (via `@telemetry-tracker/node`) are described as supported integrations, not dedicated SDKs; Microsoft Teams listed among alert channels; marketing footer version is read from CHANGELOG at build time instead of a hardcoded `v1.2.0`; `/llms.txt` now reflects verified capabilities and limitations; dashboard-vs-API alert rule authoring and request error-rate prerequisites clarified ([#766](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/766)).
 
 ---
 

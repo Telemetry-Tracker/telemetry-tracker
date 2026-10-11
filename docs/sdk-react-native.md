@@ -86,6 +86,10 @@ Call `useTelemetryScreenTracking()` inside a component that’s mounted when the
 If React Native’s `ErrorUtils.setGlobalHandler` is available, `init()` replaces it with a handler that:
 
 1. Reports the error via `trackError(error, { source: "globalHandler" })`.
-2. Does not re-invoke the previous handler (to avoid duplicate reports from this SDK).
+2. Calls the previous handler, preserving React Native’s error UI/crash behavior. Fatal errors attempt delivery for at most one second first. Core deduplicates reports of the same Error object; repeated init does not install another wrapper.
 
 Use `trackError` in your own try/catch or error boundaries for additional context.
+
+## Hermes and Expo/EAS
+
+See the [Expo/EAS + Hermes source-map guide](expo-hermes-source-maps.md) for bundle-specific releases, map generation, upload and unverified device QA. `buildBundleRelease(nativeVersion, bundleId)` requires a unique JS bundle identity; native version alone is insufficient for OTA updates.

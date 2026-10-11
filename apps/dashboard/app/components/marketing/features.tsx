@@ -7,13 +7,18 @@ const features = [
     icon: <path d="M8 2 L14 13 L2 13 Z M8 6.5 v3 M8 11 v0.5" />,
   },
   {
+    title: "Real-user Web Vitals",
+    desc: "LCP, INP, CLS and TTFB from real browser visits, enabled by default in the same SDK. See p75 trends and slow pages in Performance.",
+    icon: <path d="M2 12h12M3 10l3-4 3 2 4-5" />,
+  },
+  {
     title: "Event tracking",
     desc: "Typed events with custom properties. Query by user, route, app or anything you instrument.",
     icon: <path d="M2 8h3l2-4 2 8 2-4h3" />,
   },
   {
     title: "Session monitoring",
-    desc: "Follow anonymous and identified sessions from first touch through logout.",
+    desc: "Follow anonymous and identified session activity, with login and logout linked when you instrument them.",
     icon: (
       <>
         <circle cx="8" cy="8" r="6" />
@@ -23,7 +28,7 @@ const features = [
   },
   {
     title: "Alerting",
-    desc: "Alerts via in-app notifications, email, HTTPS webhooks, Slack, Discord and Telegram. Chat destinations use incoming webhook or bot URLs.",
+    desc: "Alerts via in-app notifications, email, HTTPS webhooks, Slack, Discord, Microsoft Teams and Telegram. Chat destinations use incoming webhook or bot URLs.",
     icon: (
       <>
         <path d="M8 2.5a4 4 0 0 1 4 4v2.5l1.2 2.4H2.8L4 9V6.5a4 4 0 0 1 4-4z" />

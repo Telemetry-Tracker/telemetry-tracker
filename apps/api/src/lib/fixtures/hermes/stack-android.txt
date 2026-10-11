@@ -1,0 +1,5 @@
+Error: Checkout total exceeded: 160
+    at r (address at index.android.bundle:1:165)
+    at c (address at index.android.bundle:1:202)
+    at anonymous (address at index.android.bundle:1:36)
+    at global (address at index.android.bundle:1:9)
