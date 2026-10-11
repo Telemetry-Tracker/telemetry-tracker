@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getBuildPlatformVersion } from "@/lib/platform-version";
 import { Logo } from "./logo";
 import { MarketingSubscribeForm } from "./MarketingSubscribeForm";
 import { AFFILIATE_COMMISSION_PERCENT, isAffiliateProgramEnabled } from "@/lib/affiliate-program";
@@ -66,6 +67,7 @@ export function footerColumns(affiliatesEnabled = isAffiliateProgramEnabled()): 
 
 export function Footer() {
   const columns = footerColumns();
+  const version = getBuildPlatformVersion();
   return (
     <footer className="border-t border-border">
       <div className="mx-auto max-w-6xl px-6 py-16">
@@ -119,7 +121,10 @@ export function Footer() {
 
         <div className="mt-14 flex flex-col items-start justify-between gap-4 border-t border-border pt-8 text-xs text-muted-foreground sm:flex-row sm:items-center">
           <p>© {new Date().getFullYear()} Telemetry Tracker. Built by engineers, for engineers.</p>
-          <p className="font-mono">v1.2.0 · {new Date().toISOString().slice(0, 10)}</p>
+          <p className="font-mono">
+            {version ? `v${version} · ` : ""}
+            {new Date().toISOString().slice(0, 10)}
+          </p>
         </div>
       </div>
     </footer>

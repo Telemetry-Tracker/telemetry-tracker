@@ -15,7 +15,7 @@ import {
 export const metadata: Metadata = {
   title: "Migrate from Sentry",
   description:
-    "Sentry migration guide: replace the Sentry SDK with Telemetry Tracker, including Next.js App Router setup, source maps, and what does not migrate.",
+    "Sentry migration guide: replace the Sentry SDK with Telemetry Tracker, including privacy and collection defaults, Next.js App Router setup, source maps, and what does not migrate.",
   alternates: { canonical: "./" },
 };
 
@@ -62,6 +62,59 @@ export default function DocsMigrateFromSentryPage() {
         </p>
       }
     >
+      <h2>What Telemetry Tracker collects by default</h2>
+      <p>
+        If you are evaluating a Sentry alternative for privacy or planning to migrate from Sentry,
+        review the payloads as well as the SDK setup. Telemetry Tracker’s SDKs do not automatically
+        capture your application’s HTTP request headers, cookies, or request bodies. Node middleware
+        can include request bodies if you explicitly enable <code>trackRequestBody</code>.
+      </p>
+      <ul>
+        <li>
+          Errors include messages and stack traces; custom error context and event properties you
+          send are stored after ingest scrubbing. App, environment, and release metadata accompany
+          payloads when configured. Browser initialization also captures unhandled errors and, by default,
+          Web Vitals performance events.
+        </li>
+        <li>
+          Browser sessions include an SDK-generated anonymous id (persisted in localStorage when available),
+          start/end markers, coarse browser and OS hints, and a country hint derived from locale, not IP geolocation. A user id and
+          optional user email are stored when you send them with <code>identify</code>.
+        </li>
+        <li>
+          There is no dedicated IP address field in the telemetry ingest schema or session storage.
+          Source maps are stored when you upload them and may contain source paths and code.
+        </li>
+        <li>
+          Server-side PII scrubbing at ingest is on by default for error messages, stacks, context,
+          and event properties. Self-hosters can disable it. Client-side <code>piiScrub</code> is
+          available in the core SDK but is off by default.
+        </li>
+      </ul>
+      <p>
+        <strong>Scrubbing is best effort.</strong> It cannot detect every personal identifier or
+        secret. Session identity fields are not scrubbed by default; session email redaction requires
+        the separate project setting <code>scrubSessionUserEmail</code> and enabled ingest scrubbing.
+        Source map contents are not passed through the ingest PII scrubber. Client-side scrubbing
+        does not currently remove URL query strings in full, although it redacts recognized sensitive
+        parameters. Node middleware records request URLs, so avoid sending sensitive values in URLs,
+        messages, stacks, or custom properties. Review what you send before enabling capture.
+      </p>
+      <p>
+        Sentry’s JavaScript v11 migration guide lists broader defaults when <code>dataCollection</code>
+        is unset: user information, cookies, request/response bodies, database query data, and GenAI
+        inputs/outputs are enabled. Actual capture depends on runtime and integrations. Sentry retains
+        sensitive-data filtering and lets you configure each category, including settings to preserve
+        v10’s defaults. See the{" "}
+        <a
+          href="https://github.com/getsentry/sentry-javascript/blob/develop/MIGRATION.md#senddefaultpii-is-replaced-by-datacollection"
+          className="text-brand hover:underline"
+        >
+          Sentry v11 migration guide
+        </a>
+        {" "}before upgrading or comparing collection settings.
+      </p>
+
       <h2>What changes</h2>
       <ul>
         <li>
