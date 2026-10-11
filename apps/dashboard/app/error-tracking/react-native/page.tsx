@@ -87,12 +87,18 @@ export default function ReactNativeErrorTrackingPage() {
           JavaScript errors in the React Native runtime. There is no dedicated Swift or Kotlin SDK.
         </p>
 
+        <p>
+          For Hermes and OTA releases, follow the <a href="https://github.com/Telemetry-Tracker/telemetry-tracker/blob/develop/docs/expo-hermes-source-maps.md">Expo/EAS source-map guide</a>.
+          Use a unique release for every JS bundle and separate app labels for Android and iOS.
+          Native version alone is insufficient for OTA updates. JavaScript errors only; native crashes are not captured.
+        </p>
+
         <h2>What the integration does</h2>
         <ul>
           <li>Creates a session on init (<code>POST /ingest/session</code>).</li>
           <li>
-            Sets a global ErrorUtils handler so unhandled JS errors are sent (previous handler is not
-            re-invoked, to avoid duplicate reports).
+            Sets a global ErrorUtils handler so unhandled JS errors are sent (previous handler is
+            invoked after capture; fatal delivery is best effort).
           </li>
           <li>
             <code>screen()</code> for navigator screen names; <code>endSession()</code> if you want
@@ -107,8 +113,8 @@ export default function ReactNativeErrorTrackingPage() {
         <p>
           Call init in the root component or entry file. Set <code>platform</code> from{" "}
           <code>Platform.OS</code> so the dashboard can filter by device family. The{" "}
-          <code>expo-constants</code> <code>release</code> line is optional — any version string
-          works.
+          <code>release</code> must identify the exact JS bundle for source maps; follow the guide
+          above for OTA update and embedded-build identities.
         </p>
         <CodeBlock code={reactNativeSetup} lang="typescript" caption="init" />
 

@@ -23,7 +23,8 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "prepublishOnly": "node ../../scripts/assert-sdk-publish-context.mjs && pnpm run build"
+    "prepublishOnly": "node ../../scripts/assert-sdk-publish-context.mjs && pnpm run build",
+    "test": "vitest run"
   },
   "keywords": [
     "telemetry",
@@ -39,6 +40,7 @@
     "@telemetry-tracker/core": "workspace:*"
   },
   "devDependencies": {
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "vitest": "^3.2.6"
   }
 }
