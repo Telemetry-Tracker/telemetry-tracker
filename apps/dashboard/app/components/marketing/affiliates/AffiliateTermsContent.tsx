@@ -176,8 +176,8 @@ export function AffiliateTermsContent({ isAuthenticated = false }: { isAuthentic
                       yourself as Telemetry Tracker or {HOSTED_OPERATOR}.
                     </li>
                     <li>
-                      Disclose that you earn a commission wherever the law or the platform you
-                      publish on requires it.
+                      <strong>Disclose that you earn a commission</strong> clearly, wherever you
+                      promote Telemetry Tracker with your referral link.
                     </li>
                   </ul>
                 </LegalSection>
@@ -203,8 +203,9 @@ export function AffiliateTermsContent({ isAuthenticated = false }: { isAuthentic
                       <strong>{AFFILIATE_PAYOUT_MINIMUM_LABEL}</strong>. Smaller balances roll over.
                     </li>
                     <li>
-                      <strong>Payouts are manual</strong> for now. We&apos;ll confirm payout details
-                      with you by email and may ask for information we need to pay you lawfully.
+                      <strong>Payouts are manual</strong> for now. When your balance first reaches
+                      the minimum, we&apos;ll ask for your payout details by email, and may ask for
+                      information we need to pay you lawfully.
                     </li>
                     <li>You are responsible for your own taxes on commissions you receive.</li>
                   </ul>
@@ -222,10 +223,11 @@ export function AffiliateTermsContent({ isAuthenticated = false }: { isAuthentic
 
                 <LegalSection id="changes" title={title("changes")}>
                   <p>
-                    We may change these Terms or the program. We&apos;ll give notice of material
-                    changes — by email to approved affiliates and by updating the date at the top of
-                    this page — before they take effect. Continuing to participate after a change
-                    takes effect means you accept it.
+                    We may change these Terms or the program. We&apos;ll give approved affiliates{" "}
+                    <strong>30 days&apos; notice by email</strong> of material changes and update the
+                    date at the top of this page. Changes never affect commission you have already
+                    earned. Continuing to participate after a change takes effect means you accept
+                    it.
                   </p>
                 </LegalSection>
 
