@@ -641,7 +641,9 @@ export default function ServerComponentsRenderErrorPage() {
 
         <h2>Get told before your users tell you</h2>
         <p>
-          Create a new-error-group alert (email, Slack, or Discord) under Alerts. It fires when
+          Configure a NEW_ERROR_GROUP rule through the alert rules API, then bind delivery channels
+          (in-app, email, HTTPS webhooks, Slack, Discord, Microsoft Teams, or Telegram). The dashboard
+          editor currently authors error-count rules only. A new-error-group rule fires when
           ingest opens a new issue, which is the first time this server error is reported. Later
           occurrences of the same message and stack join that issue. See{" "}
           <Link href="/docs/alerts" className="text-brand hover:underline">
@@ -777,7 +779,7 @@ export default function ServerComponentsRenderErrorPage() {
             {
               href: "/docs/alerts",
               label: "Alerts",
-              description: "New error group, email, Slack, and Discord.",
+              description: "Error-count rules in the dashboard; other conditions via the API. All supported delivery channels.",
             },
             {
               href: "/docs/source-maps",
