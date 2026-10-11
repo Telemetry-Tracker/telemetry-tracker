@@ -27,10 +27,10 @@ const sdks = [
 
 export function SupportedSdks() {
   return (
-    <section aria-label="Supported SDKs" className="border-y border-border bg-surface/30">
+    <section aria-label="Supported SDKs and integrations" className="border-y border-border bg-surface/30">
       <div className="mx-auto max-w-6xl px-6 py-10">
         <p className="text-center text-xs uppercase tracking-[0.18em] text-muted-foreground">
-          Supported SDKs
+          Supported SDKs and integrations
         </p>
         <h2 className="mt-2 text-center text-2xl font-semibold tracking-tight text-foreground">
           Works with your stack
@@ -52,7 +52,8 @@ export function SupportedSdks() {
           ))}
         </ul>
         <p className="mt-8 text-center text-sm text-muted-foreground">
-          First-class SDKs for modern JavaScript applications.
+          JavaScript SDKs and supported integrations: Vue and Nuxt use @telemetry-tracker/core;
+          NestJS uses @telemetry-tracker/node.
         </p>
       </div>
     </section>
