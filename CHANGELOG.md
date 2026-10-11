@@ -13,6 +13,16 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ### Added
 
+### Fixed
+
+### Changed
+
+---
+
+## [1.19.0] - 2026-10-11
+
+### Added
+
 - **Public affiliate program page** — `/affiliates` ("Earn 30% recurring commission with Telemetry Tracker") with audiences, earning examples computed from the pricing source of truth (Pro €15/mo, Business €99/mo), how it works, rules, FAQ and an application form; `/affiliates/terms` with every number rendered from the program constants. Indexable (canonical, Open Graph, sitemap). Footer link "Affiliate Program — Earn 30%" plus one mention on pricing and docs. All of it follows `NEXT_PUBLIC_AFFILIATES_ENABLED`; off = 404 and no links.
 - **Affiliate applications** — No-account application form stored in Postgres (pending / approved / rejected) with validation, length limits, honeypot, per-IP rate limit, a global hourly cap and dedupe of pending applications by normalized email. Applicants are never emailed; optional founder notification via `AFFILIATE_APPLICATION_NOTIFY_EMAILS`.
 - **Founder affiliate admin** — Settings → Founder → Affiliates (only for `AFFILIATE_ADMIN_EMAILS`, server-side gate): review / approve (editable suggested code) / reject applications, copy referral URL and deep links, create an affiliate directly, disable / re-enable, reporting (referred orgs, paying orgs, pending, payable, paid), record payouts and resolve needs-attention holds.
@@ -26,9 +36,15 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ### Changed
 
+- **Docs: French README** (`README.fr.md`, community contribution, #642).
+
 ### Database
 
 - Additive migration `20261006120000_add_affiliate_applications` (new `AffiliateApplication` table; no existing tables changed). New optional API env: `AFFILIATE_APPLICATIONS_ENABLED`, `RATE_LIMIT_AFFILIATE_APPLICATION_MAX`, `AFFILIATE_APPLICATIONS_MAX_PER_HOUR`, `AFFILIATE_APPLICATION_NOTIFY_EMAILS`.
+
+### SDK
+
+- **`@telemetry-tracker/react-native` 1.3.1** — Hermes frame symbolication and preserved fatal handlers from #756 (npm publish follows the SDK release process).
 
 ### Security
 
