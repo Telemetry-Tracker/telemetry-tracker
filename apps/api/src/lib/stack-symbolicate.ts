@@ -4,6 +4,7 @@ import {
   getSourceMapArtifactContentById,
   listSourceMapArtifactRefsForRelease,
   MAX_SOURCE_MAP_CONTENT_LOADS_PER_DETAIL,
+  MAX_SOURCE_MAP_BUNDLES_PER_RELEASE,
   normalizeBundleUrl,
   normalizeMapAppLabel,
   normalizeMapReleaseLabel,
@@ -30,7 +31,7 @@ export function parseStackFrame(line: string): ParsedStackFrame {
     return {
       raw: line,
       functionName: v8Fn[2],
-      file: v8Fn[3],
+      file: v8Fn[3].replace(/^address at /, ""),
       line: Number(v8Fn[4]),
       column: Number(v8Fn[5]),
     };
@@ -39,7 +40,7 @@ export function parseStackFrame(line: string): ParsedStackFrame {
   if (v8NoFn) {
     return {
       raw: line,
-      file: v8NoFn[2],
+      file: v8NoFn[2].replace(/^address at /, ""),
       line: Number(v8NoFn[3]),
       column: Number(v8NoFn[4]),
     };
@@ -62,58 +63,38 @@ export function frameMatchesBundle(frameFile: string, bundleUrl: string): boolea
   const bundle = normalizeBundleUrl(bundleUrl);
   if (frame === bundle) return true;
 
-  if (frame.includes("://") && bundle.includes("://")) {
+  const isHttp = (value: string) => /^https?:\/\//i.test(value);
+  if (isHttp(frame) && isHttp(bundle)) {
     try {
-      const frameUrl = new URL(frame);
-      const bundleUrlObj = new URL(bundle);
-      return (
-        frameUrl.origin === bundleUrlObj.origin &&
-        frameUrl.pathname === bundleUrlObj.pathname
-      );
+      const a = new URL(frame);
+      const b = new URL(bundle);
+      return a.origin === b.origin && a.pathname === b.pathname;
     } catch {
       return false;
     }
   }
 
-  if (!frame.includes("://") && bundle.includes("://")) {
-    const frameBase = frame.split(/[/?#]/).pop() ?? frame;
-    if (frameBase.length === 0) return false;
-    try {
-      const bundlePathBase =
-        new URL(bundle).pathname.split("/").filter(Boolean).pop() ?? "";
-      return frameBase === bundlePathBase;
-    } catch {
-      return false;
-    }
-  }
-
-  if (!frame.includes("://") && !bundle.includes("://")) {
-    const frameBase = frame.split(/[/?#]/).pop() ?? frame;
-    const bundleBase = bundle.split(/[/?#]/).pop() ?? bundle;
-    return frameBase.length > 0 && frameBase === bundleBase;
-  }
-
-  return false;
+  // Native URL hosts can themselves be the filename (assets://index.android.bundle).
+  const basename = (value: string) => value.replace(/^[a-z][a-z\d+.-]*:\/\//i, "")
+    .split(/[?#]/)[0].split("/").filter(Boolean).pop() ?? "";
+  const frameBase = basename(frame);
+  return frameBase.length > 0 && frameBase === basename(bundle);
 }
 
 export function findMatchingArtifact(
   frameFile: string,
   artifacts: Pick<SourceMapArtifact, "bundle_url" | "content">[]
 ): Pick<SourceMapArtifact, "bundle_url" | "content"> | null {
-  for (const artifact of artifacts) {
-    if (frameMatchesBundle(frameFile, artifact.bundle_url)) return artifact;
-  }
-  return null;
+  const matches = artifacts.filter((artifact) => frameMatchesBundle(frameFile, artifact.bundle_url));
+  return matches.length === 1 ? matches[0] : null;
 }
 
 export function findMatchingArtifactRef(
   frameFile: string,
   refs: SourceMapArtifactRef[]
 ): SourceMapArtifactRef | null {
-  for (const ref of refs) {
-    if (frameMatchesBundle(frameFile, ref.bundle_url)) return ref;
-  }
-  return null;
+  const matches = refs.filter((ref) => frameMatchesBundle(frameFile, ref.bundle_url));
+  return matches.length === 1 ? matches[0] : null;
 }
 
 function formatSymbolicatedLine(
@@ -250,7 +231,8 @@ function createSymbolicateContext(
     release: string
   ): Promise<Pick<SourceMapArtifact, "bundle_url" | "content">[]> {
     const refs = await refsForRelease(release);
-    if (refs.length === 0) return [];
+    // A capped list cannot prove basename uniqueness; refuse to guess.
+    if (refs.length === 0 || refs.length >= MAX_SOURCE_MAP_BUNDLES_PER_RELEASE) return [];
 
     const artifacts: Pick<SourceMapArtifact, "bundle_url" | "content">[] = [];
     const seenIds = new Set<string>();
