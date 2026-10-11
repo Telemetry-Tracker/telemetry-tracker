@@ -114,14 +114,23 @@ describe("referral links and codes", () => {
 
 describe("feature flag", () => {
   const original = process.env.NEXT_PUBLIC_AFFILIATES_ENABLED;
+  const originalPublic = process.env.NEXT_PUBLIC_AFFILIATE_PROGRAM_PUBLIC;
   afterEach(() => {
     if (original === undefined) delete process.env.NEXT_PUBLIC_AFFILIATES_ENABLED;
     else process.env.NEXT_PUBLIC_AFFILIATES_ENABLED = original;
+    if (originalPublic === undefined) delete process.env.NEXT_PUBLIC_AFFILIATE_PROGRAM_PUBLIC;
+    else process.env.NEXT_PUBLIC_AFFILIATE_PROGRAM_PUBLIC = originalPublic;
   });
-  it("is on only for the literal 'true'", () => {
+  it("is on only when both flags are the literal 'true'", () => {
     process.env.NEXT_PUBLIC_AFFILIATES_ENABLED = "true";
+    process.env.NEXT_PUBLIC_AFFILIATE_PROGRAM_PUBLIC = "true";
     expect(isAffiliateProgramEnabled()).toBe(true);
     process.env.NEXT_PUBLIC_AFFILIATES_ENABLED = "1";
+    expect(isAffiliateProgramEnabled()).toBe(false);
+  });
+  it("stays off when only referral capture is enabled", () => {
+    process.env.NEXT_PUBLIC_AFFILIATES_ENABLED = "true";
+    delete process.env.NEXT_PUBLIC_AFFILIATE_PROGRAM_PUBLIC;
     expect(isAffiliateProgramEnabled()).toBe(false);
   });
 });

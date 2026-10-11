@@ -17,6 +17,7 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 - **Affiliate applications** — No-account application form stored in Postgres (pending / approved / rejected) with validation, length limits, honeypot, per-IP rate limit, a global hourly cap and dedupe of pending applications by normalized email. Applicants are never emailed; optional founder notification via `AFFILIATE_APPLICATION_NOTIFY_EMAILS`.
 - **Founder affiliate admin** — Settings → Founder → Affiliates (only for `AFFILIATE_ADMIN_EMAILS`, server-side gate): review / approve (editable suggested code) / reject applications, copy referral URL and deep links, create an affiliate directly, disable / re-enable, reporting (referred orgs, paying orgs, pending, payable, paid), record payouts and resolve needs-attention holds.
 - **Privacy policy** — Short "Affiliate program applications" paragraph (shown when the program is enabled).
+- **Launch flags (default off)** — The public program, application form and founder admin additionally require `NEXT_PUBLIC_AFFILIATE_PROGRAM_PUBLIC=true` (dashboard, build-time, new Dockerfile `ARG`) and `AFFILIATE_APPLICATIONS_ENABLED=true` (API), so existing `?ref=` capture can stay on while the program stays dark.
 
 ### Fixed
 
@@ -26,7 +27,7 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ### Database
 
-- Additive migration `20261006120000_add_affiliate_applications` (new `AffiliateApplication` table; no existing tables changed). New optional API env: `RATE_LIMIT_AFFILIATE_APPLICATION_MAX`, `AFFILIATE_APPLICATIONS_MAX_PER_HOUR`, `AFFILIATE_APPLICATION_NOTIFY_EMAILS`.
+- Additive migration `20261006120000_add_affiliate_applications` (new `AffiliateApplication` table; no existing tables changed). New optional API env: `AFFILIATE_APPLICATIONS_ENABLED`, `RATE_LIMIT_AFFILIATE_APPLICATION_MAX`, `AFFILIATE_APPLICATIONS_MAX_PER_HOUR`, `AFFILIATE_APPLICATION_NOTIFY_EMAILS`.
 
 ---
 

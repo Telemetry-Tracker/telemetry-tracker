@@ -66,7 +66,7 @@ Do not set `NEXT_PUBLIC_TELEMETRY_PUBLIC_DASHBOARD=true` on a public production 
 
 **Sentry release (dashboard):** browser, server, and edge Sentry report `release` = `telemetry-tracker-dashboard@<version>`, where `<version>` is the newest versioned section of the repo-root `CHANGELOG.md` (same source as the API's `API_VERSION`). It is derived in `apps/dashboard/next.config.ts` at build time and inlined — no Railway variable or build arg is needed (the root `Dockerfile` already copies `CHANGELOG.md` into the build). If the version cannot be resolved, `release` is left unset (errors still report; release-health sessions need a release). Source maps are not uploaded for this release (no `SENTRY_AUTH_TOKEN` in the image build).
 
-Declared build args: `NEXT_PUBLIC_AFFILIATES_ENABLED`, `NEXT_PUBLIC_DASHBOARD_DEBUG`, `NEXT_PUBLIC_GA_MEASUREMENT_ID`, `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION`, `NEXT_PUBLIC_SENTRY_DSN`, `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_TELEMETRY_API_KEY`, `NEXT_PUBLIC_TELEMETRY_APP`, `NEXT_PUBLIC_TELEMETRY_INGEST_URL`, `NEXT_PUBLIC_TELEMETRY_PUBLIC_DASHBOARD`.
+Declared build args: `NEXT_PUBLIC_AFFILIATES_ENABLED`, `NEXT_PUBLIC_AFFILIATE_PROGRAM_PUBLIC`, `NEXT_PUBLIC_DASHBOARD_DEBUG`, `NEXT_PUBLIC_GA_MEASUREMENT_ID`, `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION`, `NEXT_PUBLIC_SENTRY_DSN`, `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_TELEMETRY_API_KEY`, `NEXT_PUBLIC_TELEMETRY_APP`, `NEXT_PUBLIC_TELEMETRY_INGEST_URL`, `NEXT_PUBLIC_TELEMETRY_PUBLIC_DASHBOARD`.
 
 ---
 

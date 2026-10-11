@@ -34,9 +34,17 @@ export const AFFILIATE_PLAN_LABELS: Record<AffiliateEligiblePlanTier, string> = 
 export const AFFILIATE_TERMS_VERSION = "2026-10-06";
 export const AFFILIATE_TERMS_UPDATED = "October 6, 2026";
 
-/** Same build-time flag as `?ref=` capture. The program pages 404 when it is off. */
+/**
+ * Public affiliate program (pages, links, application form, founder admin).
+ * Requires the `?ref=` capture flag AND the separate launch flag
+ * `NEXT_PUBLIC_AFFILIATE_PROGRAM_PUBLIC=true`, so the program stays dark until launch
+ * even where referral capture is already on. The program pages 404 when it is off.
+ */
 export function isAffiliateProgramEnabled(): boolean {
-  return process.env.NEXT_PUBLIC_AFFILIATES_ENABLED === "true";
+  return (
+    process.env.NEXT_PUBLIC_AFFILIATES_ENABLED === "true" &&
+    process.env.NEXT_PUBLIC_AFFILIATE_PROGRAM_PUBLIC === "true"
+  );
 }
 
 const eurFormatter = (fractionDigits: 0 | 2) =>

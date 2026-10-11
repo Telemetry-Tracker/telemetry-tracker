@@ -40,7 +40,7 @@ export async function affiliateApplicationRoutes(
       },
     },
     async (request, reply) => {
-      if (!isAffiliateFeatureEnabled()) {
+      if (!isAffiliateFeatureEnabled() || process.env.AFFILIATE_APPLICATIONS_ENABLED !== "true") {
         return reply.status(404).send({ error: "Not found" });
       }
       const body =

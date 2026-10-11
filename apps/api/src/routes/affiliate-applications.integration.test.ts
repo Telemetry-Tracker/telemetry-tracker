@@ -36,6 +36,7 @@ vi.mock("stripe", () => {
 
 const ENV_KEYS = [
   "AFFILIATES_ENABLED",
+  "AFFILIATE_APPLICATIONS_ENABLED",
   "STRIPE_SECRET_KEY",
   "STRIPE_WEBHOOK_SECRET",
   "STRIPE_PRICE_PRO",
@@ -126,6 +127,7 @@ testSuite("Affiliate applications (public form + founder review)", () => {
 
   beforeEach(async () => {
     process.env.AFFILIATES_ENABLED = "true";
+    process.env.AFFILIATE_APPLICATIONS_ENABLED = "true";
     process.env.AFFILIATE_APPLICATIONS_MAX_PER_HOUR = "1000";
     await cleanupApplications();
   });
@@ -138,6 +140,12 @@ testSuite("Affiliate applications (public form + founder review)", () => {
   });
 
   describe("public submission", () => {
+    it("returns 404 when the applications launch flag is off", async () => {
+      delete process.env.AFFILIATE_APPLICATIONS_ENABLED;
+      const response = await apply(applicationPayload());
+      expect(response.statusCode).toBe(404);
+    });
+
     it("returns 404 when the affiliate flag is off", async () => {
       process.env.AFFILIATES_ENABLED = "false";
       const response = await apply(applicationPayload());

@@ -9,9 +9,14 @@ import { hasAffiliateAdminAccess, isAffiliateAdminDenied } from "./affiliate-adm
 
 describe("hasAffiliateAdminAccess", () => {
   const prev = process.env.NEXT_PUBLIC_AFFILIATES_ENABLED;
-  beforeEach(() => fetchMock.mockReset());
+  const prevPublic = process.env.NEXT_PUBLIC_AFFILIATE_PROGRAM_PUBLIC;
+  beforeEach(() => {
+    fetchMock.mockReset();
+    process.env.NEXT_PUBLIC_AFFILIATE_PROGRAM_PUBLIC = "true";
+  });
   afterEach(() => {
     process.env.NEXT_PUBLIC_AFFILIATES_ENABLED = prev;
+    process.env.NEXT_PUBLIC_AFFILIATE_PROGRAM_PUBLIC = prevPublic;
   });
 
   it("does not call the API when the program flag is off", async () => {
