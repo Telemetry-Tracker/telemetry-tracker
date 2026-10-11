@@ -1,9 +1,10 @@
 "use server";
 
+import { sanitizeSignupAttribution, type SignupAttribution } from "@/lib/signup-attribution";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { API_BASE_URL } from "@/lib/api-url";
-import { applyCookieConsentFromForm } from "@/lib/cookie-consent-server";
+import { getCookieConsentChoiceFromCookies, applyCookieConsentFromForm } from "@/lib/cookie-consent-server";
 import { TELEMETRY_ORG_COOKIE } from "@/lib/dashboard-org";
 import {
   TELEMETRY_PROJECT_COOKIE,
@@ -161,6 +162,16 @@ export async function register(
     return { ok: false, error: "Email and password are required" };
   }
   await applyCookieConsentFromForm(formData);
+  let signupAttribution: SignupAttribution | undefined;
+  if ((await getCookieConsentChoiceFromCookies()) === "accepted") {
+    try {
+      signupAttribution = sanitizeSignupAttribution(
+        JSON.parse(String(formData.get("signupAttribution") ?? "null"))
+      );
+    } catch {
+      // Malformed optional attribution must never block registration.
+    }
+  }
   const res = await fetch(`${API_BASE_URL}/api/auth/register`, {
     method: "POST",
     headers: {
@@ -172,6 +183,7 @@ export async function register(
       password,
       displayName,
       marketingOptIn,
+      signupAttribution,
       ...(inviteToken ? { inviteToken } : {}),
       ...(process.env.NEXT_PUBLIC_AFFILIATES_ENABLED === "true" && referralCode
         ? {

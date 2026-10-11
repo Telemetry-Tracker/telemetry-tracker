@@ -19,6 +19,39 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ---
 
+## [1.19.0] - 2026-10-11
+
+### Added
+
+- **Public affiliate program page** — `/affiliates` ("Earn 30% recurring commission with Telemetry Tracker") with audiences, earning examples computed from the pricing source of truth (Pro €15/mo, Business €99/mo), how it works, rules, FAQ and an application form; `/affiliates/terms` with every number rendered from the program constants. Indexable (canonical, Open Graph, sitemap). Footer link "Affiliate Program — Earn 30%" plus one mention on pricing and docs. All of it follows `NEXT_PUBLIC_AFFILIATES_ENABLED`; off = 404 and no links.
+- **Affiliate applications** — No-account application form stored in Postgres (pending / approved / rejected) with validation, length limits, honeypot, per-IP rate limit, a global hourly cap and dedupe of pending applications by normalized email. Applicants are never emailed; optional founder notification via `AFFILIATE_APPLICATION_NOTIFY_EMAILS`.
+- **Founder affiliate admin** — Settings → Founder → Affiliates (only for `AFFILIATE_ADMIN_EMAILS`, server-side gate): review / approve (editable suggested code) / reject applications, copy referral URL and deep links, create an affiliate directly, disable / re-enable, reporting (referred orgs, paying orgs, pending, payable, paid), record payouts and resolve needs-attention holds.
+- **Privacy policy** — Short "Affiliate program applications" paragraph (shown when the program is enabled).
+- **Launch flags (default off)** — The public program, application form and founder admin additionally require `NEXT_PUBLIC_AFFILIATE_PROGRAM_PUBLIC=true` (dashboard, build-time, new Dockerfile `ARG`) and `AFFILIATE_APPLICATIONS_ENABLED=true` (API), so existing `?ref=` capture can stay on while the program stays dark.
+- **Signup acquisition attribution:** consent-gated first-touch UTM tags and external referrer hostname are preserved at email/password and invite registration. Existing accounts retain null attribution; affiliate referral behavior is unchanged.
+
+### Fixed
+
+- **Referral links through legacy auth URLs** — `/?signUp=1&ref=CODE` and `?signIn=1` redirects dropped the whole query string, losing `?ref=` / `?via=`; they now keep the referral parameters.
+
+### Changed
+
+- **Docs: French README** (`README.fr.md`, community contribution, #642).
+
+### Database
+
+- Additive migration `20261006120000_add_affiliate_applications` (new `AffiliateApplication` table; no existing tables changed). New optional API env: `AFFILIATE_APPLICATIONS_ENABLED`, `RATE_LIMIT_AFFILIATE_APPLICATION_MAX`, `AFFILIATE_APPLICATIONS_MAX_PER_HOUR`, `AFFILIATE_APPLICATION_NOTIFY_EMAILS`.
+
+### SDK
+
+- **`@telemetry-tracker/react-native` 1.3.1** — Hermes frame symbolication and preserved fatal handlers from #756 (npm publish follows the SDK release process).
+
+### Security
+
+- **Dependency patches (lockfile overrides, no major upgrades):** shell-quote 1.11.0, tinypool 2.1.2 (test runner), brace-expansion 1.1.21 / 2.1.7 / 5.0.12, browserslist 4.28.7, js-yaml 3.15.2 / 4.3.2, nanoid 3.3.18, source-map-js 1.2.2, postcss 8.5.23, postcss-selector-parser 6.1.3, baseline-browser-mapping 2.11.0, @humanfs/node 0.16.8. No migrations. No env var changes.
+
+---
+
 ## [1.18.7] - 2026-10-11
 
 ### Fixed

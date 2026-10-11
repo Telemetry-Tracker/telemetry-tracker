@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { SectionHeading } from "./features";
 import { formatPlanPriceEur, PLAN_LIST_PRICES_EUR } from "@/lib/plan-pricing";
+import { AFFILIATE_COMMISSION_PERCENT, isAffiliateProgramEnabled } from "@/lib/affiliate-program";
 
 const tiers = [
   {
@@ -160,6 +161,16 @@ export function Pricing({
             );
           })}
         </div>
+
+        {isAffiliateProgramEnabled() ? (
+          <p className="mt-10 text-center text-sm text-muted-foreground">
+            Recommend Telemetry Tracker to other developers?{" "}
+            <Link href="/affiliates" className="text-foreground underline-offset-4 hover:underline">
+              Earn {AFFILIATE_COMMISSION_PERCENT}% recurring with the affiliate program
+            </Link>
+            .
+          </p>
+        ) : null}
       </div>
     </section>
   );

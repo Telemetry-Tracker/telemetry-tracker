@@ -20,6 +20,7 @@ import { marketingRoutes } from "./routes/marketing.js";
 import { projectDashboardRoutes } from "./routes/project-dashboard.js";
 import { billingRoutes } from "./routes/billing.js";
 import { affiliatesAdminRoutes } from "./routes/affiliates-admin.js";
+import { affiliateApplicationRoutes } from "./routes/affiliate-applications.js";
 import { briefRoutes } from "./routes/brief.js";
 import { registerStripeWebhookIfConfigured } from "./routes/stripe-webhook.js";
 
@@ -95,6 +96,7 @@ export async function createApp(): Promise<FastifyInstance> {
       });
       await f.register(contactRoutes);
       await f.register(marketingRoutes);
+      await f.register(affiliateApplicationRoutes);
     },
     { prefix: "/api" }
   );

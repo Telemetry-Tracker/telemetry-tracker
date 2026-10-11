@@ -3,9 +3,10 @@ import type { ReactNode } from "react";
 import { ContactEmailLink } from "@/app/components/legal/ContactEmailLink";
 import { Footer } from "@/app/components/marketing/footer";
 import { Nav } from "@/app/components/marketing/nav";
+import { isAffiliateProgramEnabled } from "@/lib/affiliate-program";
 import { HOSTED_DASHBOARD_URL, HOSTED_OPERATOR } from "@/lib/hosted-cloud";
 
-const EFFECTIVE = "October 9, 2026";
+const EFFECTIVE = "October 11, 2026";
 const VERSION = "2026.10";
 
 const principles = [
@@ -57,6 +58,13 @@ const dataTable = [
     examples: "Email address, consent timestamp, subscribe source (footer or registration).",
     purpose: "Send optional release notes and feature announcements on the Hosted Cloud.",
     retention: "Until you unsubscribe via the link in our emails.",
+  },
+  {
+    kind: "Signup attribution",
+    examples:
+      "UTM campaign tags (source, medium, campaign, content, term) from the page you first landed on, and the hostname of the referring website (no full URL, path or query). Collected only if you accepted cookies; stored with your account when you sign up.",
+    purpose: "Understand which channels and campaigns bring new users (aggregate marketing analysis).",
+    retention: "Remembered in a cookie for up to 60 days before signup; then kept with your account and deleted when the account is deleted.",
   },
 ];
 
@@ -246,6 +254,23 @@ export function PrivacyPageContent() {
                     Sentry processing stays in the EU, and it does not mean an error event never
                     contains personal data.
                   </p>
+                  {isAffiliateProgramEnabled() ? (
+                    // Founder review: added with the public affiliate application form.
+                    <p id="affiliate-applications" className="scroll-mt-28">
+                      <span className="text-foreground/85">Affiliate program applications.</span> If
+                      you apply at{" "}
+                      <Link href="/affiliates" className="text-foreground/85 hover:text-foreground">
+                        /affiliates
+                      </Link>
+                      , {HOSTED_OPERATOR} stores the name, email, website or profile URL and
+                      promotion description you submit, plus when you accepted the affiliate terms,
+                      to review the application and, if approved, to run your affiliate account
+                      (attribution, commission and payout records). No account is required. Your IP
+                      address is used only transiently for rate limiting and is not stored with the
+                      application. We do not email applicants automatically. You can ask us to delete
+                      your application at any time via the contact address below.
+                    </p>
+                  ) : null}
                   <p>
                     Privacy requests for Hosted Cloud accounts:{" "}
                     <ContactEmailLink className="text-foreground/85 hover:text-foreground" />.
