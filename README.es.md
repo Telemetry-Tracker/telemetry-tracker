@@ -1,5 +1,6 @@
-🇩🇪 Deutsch: [README.de.md](README.de.md)
 🇬🇧 English: [README.md](README.md)
+🇩🇪 Deutsch: [README.de.md](README.de.md)
+🇫🇷 Français: [README.fr.md](README.fr.md)
 # Telemetry Tracker
 
 ![License](https://img.shields.io/github/license/Telemetry-Tracker/telemetry-tracker)

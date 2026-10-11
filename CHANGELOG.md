@@ -19,6 +19,10 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ### Changed
 
+### Security
+
+- **Dependency patches (lockfile overrides, no major upgrades):** shell-quote 1.11.0, tinypool 2.1.2 (test runner), brace-expansion 1.1.21 / 2.1.7 / 5.0.12, browserslist 4.28.7, js-yaml 3.15.2 / 4.3.2, nanoid 3.3.18, source-map-js 1.2.2, postcss 8.5.23, postcss-selector-parser 6.1.3, baseline-browser-mapping 2.11.0, @humanfs/node 0.16.8. No migrations. No env var changes.
+
 ---
 
 ## [1.18.7] - 2026-10-11
