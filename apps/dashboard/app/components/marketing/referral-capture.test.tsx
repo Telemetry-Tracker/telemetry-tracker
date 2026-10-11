@@ -1,7 +1,10 @@
 import { cleanup, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ReferralCapture } from "./referral-capture";
-import { AFFILIATE_REFERRAL_STORAGE_KEY } from "@/lib/affiliate-referral";
+import {
+  AFFILIATE_REFERRAL_STORAGE_KEY,
+  readRememberedAffiliateReferral,
+} from "@/lib/affiliate-referral";
 import {
   COOKIE_CONSENT_CHANGED_EVENT,
   COOKIE_CONSENT_STORAGE_KEY,
@@ -51,6 +54,49 @@ describe("ReferralCapture", () => {
     const { unmount } = render(<ReferralCapture />);
     const stored = window.sessionStorage.getItem(AFFILIATE_REFERRAL_STORAGE_KEY);
     expect(stored).toContain("alice");
+    unmount();
+  });
+
+  it("a second ?ref= visit replaces the earlier stored referral (last touch, session only)", () => {
+    process.env.NEXT_PUBLIC_AFFILIATES_ENABLED = "true";
+    searchParamsMock.mockReturnValue(new URLSearchParams("ref=alice"));
+    const { rerender, unmount } = render(<ReferralCapture />);
+    const first = JSON.parse(window.sessionStorage.getItem(AFFILIATE_REFERRAL_STORAGE_KEY)!);
+    expect(first.code).toBe("alice");
+
+    // Client-side navigation to another landing path with a different affiliate's link.
+    searchParamsMock.mockReturnValue(new URLSearchParams("ref=Bob"));
+    rerender(<ReferralCapture />);
+    const second = JSON.parse(window.sessionStorage.getItem(AFFILIATE_REFERRAL_STORAGE_KEY)!);
+    expect(second.code).toBe("bob");
+    expect(new Date(second.capturedAt).getTime()).toBeGreaterThanOrEqual(
+      new Date(first.capturedAt).getTime()
+    );
+    expect(readRememberedAffiliateReferral()?.code).toBe("bob");
+    // No consent → still no cookie.
+    expect(document.cookie).not.toContain(AFFILIATE_REFERRAL_STORAGE_KEY);
+
+    // Navigating on without ?ref= keeps the last touch.
+    searchParamsMock.mockReturnValue(new URLSearchParams("utm_source=newsletter"));
+    rerender(<ReferralCapture />);
+    expect(readRememberedAffiliateReferral()?.code).toBe("bob");
+    unmount();
+  });
+
+  it("a second ?ref= visit also replaces the 60-day cookie after consent (last touch)", () => {
+    process.env.NEXT_PUBLIC_AFFILIATES_ENABLED = "true";
+    window.localStorage.setItem(COOKIE_CONSENT_STORAGE_KEY, "accepted");
+    searchParamsMock.mockReturnValue(new URLSearchParams("ref=alice"));
+    const { rerender, unmount } = render(<ReferralCapture />);
+    expect(decodeURIComponent(document.cookie)).toContain('"code":"alice"');
+
+    searchParamsMock.mockReturnValue(new URLSearchParams("via=carol"));
+    rerender(<ReferralCapture />);
+    expect(decodeURIComponent(document.cookie)).toContain('"code":"carol"');
+    expect(decodeURIComponent(document.cookie)).not.toContain('"code":"alice"');
+    // A fresh session (sessionStorage cleared) still resolves the latest touch from the cookie.
+    window.sessionStorage.clear();
+    expect(readRememberedAffiliateReferral()?.code).toBe("carol");
     unmount();
   });
 

@@ -8,9 +8,11 @@ import {
   readStoredCookieConsentChoice,
   type CookieConsentChoice,
 } from "@/lib/cookie-consent";
+import { AFFILIATE_REFERRAL_WINDOW_DAYS } from "@/lib/affiliate-program";
 
 export const AFFILIATE_REFERRAL_STORAGE_KEY = "tt_affiliate_ref";
-export const AFFILIATE_REFERRAL_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 60;
+/** Referral window (60 days) — mirrors the API attribution window via affiliate-program.ts. */
+export const AFFILIATE_REFERRAL_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * AFFILIATE_REFERRAL_WINDOW_DAYS;
 
 export type StoredAffiliateReferral = {
   code: string;
