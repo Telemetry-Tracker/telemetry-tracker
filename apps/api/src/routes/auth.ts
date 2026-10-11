@@ -79,8 +79,9 @@ export async function authRoutes(
       displayName?: string;
       inviteToken?: string;
       marketingOptIn?: boolean;
-      rewardfulReferralId?: string;
+      referralCode?: string;
       viaToken?: string;
+      referralCapturedAt?: string;
     };
     const email = typeof body.email === "string" ? normalizeEmail(body.email) : "";
     const password = typeof body.password === "string" ? body.password : "";
@@ -91,10 +92,14 @@ export async function authRoutes(
     const inviteToken =
       typeof body.inviteToken === "string" ? body.inviteToken.trim() : "";
     const marketingOptIn = body.marketingOptIn !== false;
-    const rewardfulReferralId =
-      typeof body.rewardfulReferralId === "string" ? body.rewardfulReferralId.trim() : "";
-    const viaToken =
-      typeof body.viaToken === "string" ? body.viaToken.trim() : "";
+    const referralCode =
+      typeof body.referralCode === "string"
+        ? body.referralCode.trim()
+        : typeof body.viaToken === "string"
+          ? body.viaToken.trim()
+          : "";
+    const referralCapturedAt =
+      typeof body.referralCapturedAt === "string" ? body.referralCapturedAt.trim() : "";
 
     if (!email.includes("@")) {
       return reply.status(400).send({ error: "Invalid email" });
@@ -246,15 +251,15 @@ export async function authRoutes(
     });
 
     // Capture affiliate referral at registration (if applicable)
-    if (rewardfulReferralId || viaToken) {
+    if (referralCode) {
       const { captureUserReferral } = await import("../lib/user-referral-capture.js");
       const captureResult = await captureUserReferral(
         prisma,
         {
           userId: user.id,
           userEmail: user.email,
-          rewardfulReferralId: rewardfulReferralId || undefined,
-          viaToken: viaToken || undefined,
+          referralCode,
+          capturedAt: referralCapturedAt || undefined,
         },
         request.log
       );

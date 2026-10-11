@@ -20,6 +20,7 @@ let mockCustomersCreate: ReturnType<typeof vi.fn>;
 let mockCustomersRetrieve: ReturnType<typeof vi.fn>;
 let mockCustomersUpdate: ReturnType<typeof vi.fn>;
 let mockSubscriptionsRetrieve: ReturnType<typeof vi.fn>;
+let subscriptionPeriodEndUnix: number;
 
 vi.mock("stripe", () => {
   const mockStripe = vi.fn().mockImplementation(() => ({
@@ -91,10 +92,17 @@ testSuite("Billing Checkout Integration", () => {
       ...params,
     }));
     
+    // stripe@22 SDK default API (2026-03-25.dahlia): period end lives only on
+    // subscription items, not on the Subscription itself.
+    subscriptionPeriodEndUnix = Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60;
     mockSubscriptionsRetrieve = vi.fn().mockResolvedValue({
       id: "sub_test",
+      object: "subscription",
       status: "active",
-      current_period_end: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
+      items: {
+        object: "list",
+        data: [{ id: "si_test", current_period_end: subscriptionPeriodEndUnix }],
+      },
     });
 
     // Create app for each test to pick up env changes
@@ -112,7 +120,21 @@ testSuite("Billing Checkout Integration", () => {
         where: { id: { in: testWebhookEventIds } },
       }).catch(() => undefined);
     }
+    if (testAffiliateIds.length > 0) {
+      await prisma.affiliateAdjustment.deleteMany({
+        where: { affiliate_id: { in: testAffiliateIds } },
+      });
+      await prisma.affiliateCommission.deleteMany({
+        where: { affiliate_id: { in: testAffiliateIds } },
+      });
+      await prisma.affiliatePayout.deleteMany({
+        where: { affiliate_id: { in: testAffiliateIds } },
+      });
+    }
     if (testOrgIds.length > 0) {
+      await prisma.affiliateCommission.deleteMany({
+        where: { organization_id: { in: testOrgIds } },
+      });
       await prisma.organizationReferral.deleteMany({
         where: { organization_id: { in: testOrgIds } },
       });
@@ -233,6 +255,12 @@ testSuite("Billing Checkout Integration", () => {
       expect(upgraded?.plan_tier).toBe("PRO");
       expect(upgraded?.stripe_customer_id).toBeTruthy();
       expect(upgraded?.stripe_subscription_id).toBeTruthy();
+      // Status + period end come from subscriptions.retrieve (dahlia shape: items only)
+      expect(mockSubscriptionsRetrieve).toHaveBeenCalledWith(session.subscription);
+      expect(upgraded?.stripe_subscription_status).toBe("active");
+      expect(upgraded?.stripe_current_period_end?.getTime()).toBe(
+        subscriptionPeriodEndUnix * 1000
+      );
     });
   });
 
@@ -249,8 +277,9 @@ testSuite("Billing Checkout Integration", () => {
       // Create affiliate
       const affiliate = await prisma.affiliate.create({
         data: {
-          rewardful_affiliate_id: `aff_checkout_on_${Date.now()}`,
-          link_token: `token_on_${Date.now()}`,
+          code: `token-on-${Date.now()}`,
+          name: "Checkout Affiliate",
+          email: "aff@example.com",
           email_normalized: "aff@example.com",
           state: "active",
         },
@@ -264,7 +293,7 @@ testSuite("Billing Checkout Integration", () => {
         payload: {
           email: `referred${Date.now()}@example.com`,
           password: "Password123!",
-          viaToken: affiliate.link_token,
+          referralCode: affiliate.code,
         },
       });
       expect(regResponse.statusCode).toBe(201);

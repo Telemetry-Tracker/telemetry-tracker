@@ -1,19 +1,18 @@
 /**
- * B3: Test that RegisterPageForm forwards rewardfulReferralId and viaToken
+ * RegisterPageForm forwards native referralCode + capturedAt from URL / storage.
  */
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi, beforeEach, type Mock } from "vitest";
+import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
+import { describe, expect, it, vi, beforeEach, afterEach, type Mock } from "vitest";
 import { RegisterPageForm } from "@/app/components/auth/RegisterPageForm";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as authActions from "@/app/auth/actions";
+import { AFFILIATE_REFERRAL_STORAGE_KEY } from "@/lib/affiliate-referral";
 
-// Mock next/navigation
 vi.mock("next/navigation", () => ({
   useRouter: vi.fn(),
   useSearchParams: vi.fn(),
 }));
 
-// Mock next/image
 vi.mock("next/image", () => ({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   default: ({ src, alt, ...props }: any) => {
@@ -22,7 +21,6 @@ vi.mock("next/image", () => ({
   },
 }));
 
-// Mock auth actions
 vi.mock("@/app/auth/actions", () => ({
   register: vi.fn(),
 }));
@@ -33,6 +31,7 @@ describe("RegisterPageForm - Referral Forwarding", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    window.sessionStorage.clear();
     mockRouter = {
       push: vi.fn(),
       refresh: vi.fn(),
@@ -41,12 +40,10 @@ describe("RegisterPageForm - Referral Forwarding", () => {
     (useRouter as Mock).mockReturnValue(mockRouter);
     (useSearchParams as Mock).mockReturnValue(mockSearchParams);
     (authActions.register as Mock).mockResolvedValue({ ok: true });
-    
-    // Ensure window is defined
-    if (typeof window === "undefined") {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (global as any).window = {};
-    }
+  });
+
+  afterEach(() => {
+    cleanup();
   });
 
   function fillForm() {
@@ -54,7 +51,7 @@ describe("RegisterPageForm - Referral Forwarding", () => {
     const emailInput = document.getElementById("register-email") as HTMLInputElement;
     const passwordInput = document.getElementById("register-password") as HTMLInputElement;
     const confirmInput = document.getElementById("register-confirm") as HTMLInputElement;
-    
+
     fireEvent.change(nameInput, { target: { value: "Test User" } });
     fireEvent.change(emailInput, { target: { value: "test@example.com" } });
     fireEvent.change(passwordInput, { target: { value: "Password123!" } });
@@ -62,18 +59,12 @@ describe("RegisterPageForm - Referral Forwarding", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: /terms of service/i }));
   }
 
-  it("forwards rewardfulReferralId when window.Rewardful.referral is present", async () => {
-    // Set up global Rewardful object
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (global as any).window.Rewardful = {
-      referral: "00000000-0000-4000-8000-000000000001",
-    };
+  it("forwards referralCode from ?ref=", async () => {
+    mockSearchParams = new URLSearchParams("ref=alice");
+    (useSearchParams as Mock).mockReturnValue(mockSearchParams);
 
     const { unmount } = render(<RegisterPageForm serverChoice={null} />);
-
     fillForm();
-
-    // Submit
     fireEvent.click(screen.getByRole("button", { name: /create account/i }));
 
     await waitFor(() => {
@@ -81,20 +72,17 @@ describe("RegisterPageForm - Referral Forwarding", () => {
     });
 
     const formData = (authActions.register as Mock).mock.calls[0][0] as FormData;
-    expect(formData.get("rewardfulReferralId")).toBe("00000000-0000-4000-8000-000000000001");
-    
+    expect(formData.get("referralCode")).toBe("alice");
+    expect(formData.get("referralCapturedAt")).toBeTruthy();
     unmount();
   });
 
-  it("forwards viaToken from query string", async () => {
+  it("forwards referralCode from ?via= alias", async () => {
     mockSearchParams = new URLSearchParams("via=affiliate123");
     (useSearchParams as Mock).mockReturnValue(mockSearchParams);
 
     const { unmount } = render(<RegisterPageForm serverChoice={null} />);
-
     fillForm();
-
-    // Submit
     fireEvent.click(screen.getByRole("button", { name: /create account/i }));
 
     await waitFor(() => {
@@ -102,24 +90,18 @@ describe("RegisterPageForm - Referral Forwarding", () => {
     });
 
     const formData = (authActions.register as Mock).mock.calls[0][0] as FormData;
-    expect(formData.get("viaToken")).toBe("affiliate123");
-    
+    expect(formData.get("referralCode")).toBe("affiliate123");
     unmount();
   });
 
-  it("forwards both fields when both are present", async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (global as any).window.Rewardful = {
-      referral: "00000000-0000-4000-8000-000000000002",
-    };
-    mockSearchParams = new URLSearchParams("via=affiliate456");
-    (useSearchParams as Mock).mockReturnValue(mockSearchParams);
+  it("uses last-touch session storage when the URL has no code", async () => {
+    window.sessionStorage.setItem(
+      AFFILIATE_REFERRAL_STORAGE_KEY,
+      JSON.stringify({ code: "stored", capturedAt: "2026-09-01T00:00:00.000Z" })
+    );
 
     const { unmount } = render(<RegisterPageForm serverChoice={null} />);
-
     fillForm();
-
-    // Submit
     fireEvent.click(screen.getByRole("button", { name: /create account/i }));
 
     await waitFor(() => {
@@ -127,9 +109,8 @@ describe("RegisterPageForm - Referral Forwarding", () => {
     });
 
     const formData = (authActions.register as Mock).mock.calls[0][0] as FormData;
-    expect(formData.get("rewardfulReferralId")).toBe("00000000-0000-4000-8000-000000000002");
-    expect(formData.get("viaToken")).toBe("affiliate456");
-    
+    expect(formData.get("referralCode")).toBe("stored");
+    expect(formData.get("referralCapturedAt")).toBe("2026-09-01T00:00:00.000Z");
     unmount();
   });
 });

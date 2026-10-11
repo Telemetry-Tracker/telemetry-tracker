@@ -103,8 +103,6 @@ export async function resolveNeedsAttentionAsValid(
       status: true,
       needs_attention: true,
       attention_reason: true,
-      rewardful_referral_id: true,
-      via_token: true,
     },
   });
   if (!referral) return { kind: "not_found" };
@@ -113,7 +111,7 @@ export async function resolveNeedsAttentionAsValid(
     return {
       kind: "refused",
       code: "rejected",
-      message: "Rejected referrals never receive Rewardful metadata",
+      message: "Rejected referrals cannot be resolved as valid",
     };
   }
   if (referral.status === "EXPIRED") {
@@ -142,8 +140,6 @@ export async function resolveNeedsAttentionAsValid(
     affiliate_id: referral.affiliate_id,
     needs_attention: false,
     attention_reason: null,
-    rewardful_referral_id: referral.rewardful_referral_id,
-    via_token: referral.via_token,
   };
 
   let stripeResult: "updated" | "unchanged" | "deferred" | "skipped_deleted";

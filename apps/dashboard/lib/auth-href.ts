@@ -100,6 +100,10 @@ export function crossAuthHref(
   const params = new URLSearchParams();
   const invite = searchParams.get("invite")?.trim();
   if (invite) params.set("invite", invite);
+  const ref = searchParams.get("ref")?.trim();
+  if (ref) params.set("ref", ref);
+  const via = searchParams.get("via")?.trim();
+  if (via) params.set("via", via);
   if (target === "/login") {
     const safeNext = normalizePostLoginRedirectPath(searchParams.get("next"));
     if (safeNext) params.set("next", safeNext);

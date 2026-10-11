@@ -21,24 +21,20 @@ import {
   type RegisterPageValues,
 } from "@/lib/auth-schemas";
 import type { CookieConsentChoice } from "@/lib/cookie-consent";
+import {
+  readRememberedAffiliateReferral,
+  rememberAffiliateReferral,
+  resolveReferralFromParams,
+} from "@/lib/affiliate-referral";
 
 type RegisterPageFormProps = {
   serverChoice: CookieConsentChoice | null;
 };
 
-declare global {
-  interface Window {
-    Rewardful?: {
-      referral?: string;
-    };
-  }
-}
-
 export function RegisterPageForm({ serverChoice }: RegisterPageFormProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const inviteToken = searchParams.get("invite")?.trim() ?? "";
-  const viaToken = searchParams.get("via")?.trim() ?? "";
 
   const [values, setValues] = useState<RegisterPageValues>({
     name: "",
@@ -69,11 +65,10 @@ export function RegisterPageForm({ serverChoice }: RegisterPageFormProps) {
     setErrors({});
     setFormError(null);
 
-    // Read Rewardful referral at submit time
-    const rewardfulReferralId =
-      typeof window !== "undefined" && window.Rewardful?.referral
-        ? window.Rewardful.referral
-        : null;
+    const urlCode = resolveReferralFromParams(searchParams);
+    const urlReferral = urlCode ? rememberAffiliateReferral(urlCode) : null;
+    const stored = readRememberedAffiliateReferral();
+    const referral = urlReferral ?? stored;
 
     const formData = new FormData();
     formData.set("email", parsed.data.email);
@@ -82,8 +77,10 @@ export function RegisterPageForm({ serverChoice }: RegisterPageFormProps) {
     formData.set("termsAccepted", "yes");
     if (parsed.data.marketingOptIn) formData.set("marketingOptIn", "yes");
     if (inviteToken) formData.set("inviteToken", inviteToken);
-    if (rewardfulReferralId) formData.set("rewardfulReferralId", rewardfulReferralId);
-    if (viaToken) formData.set("viaToken", viaToken);
+    if (referral) {
+      formData.set("referralCode", referral.code);
+      formData.set("referralCapturedAt", referral.capturedAt);
+    }
     appendCookieConsentToFormData(formData, serverChoice);
 
     startTransition(async () => {

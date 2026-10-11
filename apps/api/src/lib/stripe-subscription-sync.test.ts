@@ -72,6 +72,26 @@ describe("subscriptionToOrgSyncPatch", () => {
     });
   });
 
+  it("reads period end from items when top-level is absent (basil / dahlia shape)", () => {
+    const sub = {
+      metadata: {},
+      items: {
+        data: [
+          {
+            current_period_end: 1_760_000_000,
+            price: { metadata: { plan_tier: "BUSINESS" } },
+          },
+        ],
+      },
+      status: "active",
+    } as unknown as Stripe.Subscription;
+    expect(subscriptionToOrgSyncPatch(sub)).toEqual({
+      stripe_subscription_status: "active",
+      stripe_current_period_end: new Date(1_760_000_000 * 1000),
+      plan_tier: PlanTier.BUSINESS,
+    });
+  });
+
   it("omits plan_tier when not derivable", () => {
     const sub = {
       metadata: {},

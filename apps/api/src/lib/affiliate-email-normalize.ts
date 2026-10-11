@@ -29,6 +29,7 @@ export function normalizeEmailForSelfReferralCheck(email: string): string {
   // Remove dots from Gmail addresses (gmail.com and googlemail.com)
   if (domain === "gmail.com" || domain === "googlemail.com") {
     localPart = localPart.replace(/\./g, "");
+    return `${localPart}@gmail.com`;
   }
 
   return `${localPart}@${domain}`;

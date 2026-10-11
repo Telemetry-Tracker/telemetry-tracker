@@ -25,7 +25,7 @@ describe("normalizeEmailForSelfReferralCheck", () => {
       "alice@gmail.com"
     );
     expect(normalizeEmailForSelfReferralCheck("test.user@googlemail.com")).toBe(
-      "testuser@googlemail.com"
+      "testuser@gmail.com"
     );
   });
 
@@ -62,6 +62,7 @@ describe("normalizeEmailForSelfReferralCheck", () => {
       "al.ice@gmail.com",
       "alice+tag@gmail.com",
       "Al.Ice+test@Gmail.COM",
+      "al.ice+tag@googlemail.com",
     ];
 
     const normalized = variations.map(normalizeEmailForSelfReferralCheck);

@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { FastifyInstance } from "fastify";
+import { safeSanitizeSentryEvent, sanitizeSentryBreadcrumb } from "./sentry-privacy.js";
+import { sentryPrivacyOptions } from "./sentry-policy.js";
 
 let sentryInitialized = false;
 
@@ -16,7 +18,18 @@ export async function initSentryIfConfigured(): Promise<void> {
   Sentry.init({
     dsn,
     environment: process.env.NODE_ENV ?? "development",
-    tracesSampleRate: 0,
+    ...sentryPrivacyOptions,
+    beforeBreadcrumb: sanitizeSentryBreadcrumb,
+    beforeSend(event) {
+      return safeSanitizeSentryEvent(event);
+    },
+    integrations(integrations) {
+      return integrations.filter((integration) => !integration.name.startsWith("Replay")).map((integration) =>
+        integration.name === "Http"
+          ? Sentry.httpIntegration({ maxIncomingRequestBodySize: "none" })
+          : integration
+      );
+    },
   });
   sentryInitialized = true;
 }

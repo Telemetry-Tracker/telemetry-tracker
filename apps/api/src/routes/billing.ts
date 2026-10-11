@@ -132,9 +132,7 @@ export async function billingRoutes(
           const referral = await prisma.organizationReferral.findUnique({
             where: { organization_id: orgId },
             select: {
-              rewardful_referral_id: true,
               affiliate_id: true,
-              via_token: true,
               status: true,
               needs_attention: true,
               attention_reason: true,

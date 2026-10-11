@@ -71,6 +71,20 @@ export default function DocsNextJsPage() {
       <CodeBlock code={nextProviderSetup} lang="tsx" caption="app/layout.tsx" />
       <CodeBlock code={nextTrackPageView} lang="tsx" caption="app/track-page-view.tsx" />
 
+      <h2>Next.js Web Vitals monitoring</h2>
+      <p>
+        <code>TelemetryProvider</code> enables browser LCP, INP, CLS and TTFB capture by default,
+        where supported, with no extra package. Open <strong>Performance</strong> for p75 values,
+        ratings, trends and slow pages; <strong>Overview</strong> shows a snapshot. To opt out,
+        add <code>webVitals: false</code> to the provider’s existing <code>config</code> object
+        before initialization. Server instrumentation does not collect browser Web Vitals.
+        Each reported metric event counts as one ingest unit. See the{" "}
+        <Link href="/docs/sdk#sdk-web-vitals-heading" className="text-brand hover:underline">
+          SDK reference
+        </Link>{" "}
+        for metric availability, page-lifecycle limits and privacy considerations.
+      </p>
+
       <h2>Verify ingest (optional)</h2>
       <p>
         Not part of production setup. Temporarily add a client button that calls{" "}

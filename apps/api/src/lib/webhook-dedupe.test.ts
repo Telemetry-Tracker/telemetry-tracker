@@ -118,15 +118,15 @@ describe("webhook-dedupe", () => {
       const result = await dedupeWebhookEvent(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         mockPrisma as any,
-        "rewardful",
-        "rwf_evt_no_type"
+        "stripe",
+        "evt_no_type"
       );
 
       expect(result.kind).toBe("first_delivery");
       expect(mockPrisma.webhookEvent.create).toHaveBeenCalledWith({
         data: {
-          provider: "rewardful",
-          event_id: "rwf_evt_no_type",
+          provider: "stripe",
+          event_id: "evt_no_type",
           event_type: null,
           status: "processing",
           locked_at: expect.any(Date),
@@ -145,8 +145,8 @@ describe("webhook-dedupe", () => {
         dedupeWebhookEvent(
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           mockPrisma as any,
-          "rewardful",
-          "rwf_evt_123"
+          "stripe",
+          "evt_123"
         )
       ).rejects.toThrow("DB connection failed");
     });

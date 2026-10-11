@@ -46,8 +46,6 @@ export async function createApp(): Promise<FastifyInstance> {
   await app.register(cors, { delegator: corsDelegator });
 
   await registerStripeWebhookIfConfigured(app);
-  const { registerRewardfulWebhookIfConfigured } = await import("./routes/rewardful-webhook.js");
-  await registerRewardfulWebhookIfConfigured(app);
 
   await app.register(
     async function publicSurface(f) {

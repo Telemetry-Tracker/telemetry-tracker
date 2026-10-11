@@ -107,8 +107,6 @@ export async function projectDashboardRoutes(
     }
     const body = (request.body ?? {}) as {
       name?: string;
-      rewardfulReferralId?: string;
-      viaToken?: string;
     };
     const name =
       typeof body.name === "string" && body.name.trim() !== ""

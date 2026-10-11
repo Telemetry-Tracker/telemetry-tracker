@@ -17,7 +17,120 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ### Changed
 
+---
+
+## [1.18.7] - 2026-10-11
+
+### Fixed
+
+- **API: Hermes symbolication.** React Native/Hermes stacks (including composed Hermes + packager source maps) now resolve to original source lines (#756).
+- **Monitoring: Sentry privacy guard.** Our own operator Sentry setup (API and dashboard) pins privacy-preserving data collection so a future Sentry SDK v11 default change cannot broaden what is sent (#752).
+- **Docs: Railway self-hosters upgrading to v1.18.5+.** `apps/api/Dockerfile` is auto-detected when a service's Root Directory is `apps/api`, which makes builds fail. Switch API/cron/worker services to Root Directory empty + Dockerfile `apps/api/Dockerfile` ([docs/RAILWAY.md](docs/RAILWAY.md#api--cron--worker-build-fails-with-appsapi-not-found-upgrading-to-v1185)).
+
+### Changed
+
+- **Docs: Expo/EAS source maps guide** for Hermes builds, and React Native SDK docs updates (#756).
+- **Docs and site: Web Vitals.** LCP/INP/CLS/TTFB capture, `webVitals: false`, p75 and slow pages are now documented across SDK, Next.js and error-tracking pages (#757).
+- **Site: privacy copy.** Privacy-by-default section on the Sentry alternative and migration pages (#753); privacy page lists the verified hosting region and processors (#755).
+- No migrations. No env var changes.
+
+---
+
+## [1.18.6] - 2026-10-11
+
+### Fixed
+
+- **Website: factual corrections.** Vue/Nuxt (via `@telemetry-tracker/core`) and NestJS (via `@telemetry-tracker/node`) are described as supported integrations, not dedicated SDKs; Microsoft Teams listed among alert channels; marketing footer version is read from CHANGELOG at build time instead of a hardcoded `v1.2.0`; `/llms.txt` now reflects verified capabilities and limitations; dashboard-vs-API alert rule authoring and request error-rate prerequisites clarified ([#766](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/766)).
+
+---
+
+## [1.18.5] - 2026-10-09
+
+### Changed
+
+- **API: reproducible builds from `pnpm-lock.yaml`.** New `apps/api/Dockerfile` (Node 22, pnpm 9.15.9 via corepack, `pnpm install --frozen-lockfile`, `pnpm deploy --prod`). Railway API/cron/worker services previously ran `npm install` without a lockfile. Takes effect once each Railway service is switched to the Dockerfile builder (see [docs/RAILWAY.md](docs/RAILWAY.md)) ([#759](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/759)).
+
+### Security
+
+- **API: fastify 5.8.5 → 5.12.5, find-my-way → 9.9.0, fast-uri → 3.1.8 / 4.2.1, Prisma → 6.19.3** in the lockfile, so self-hosters and the locked build are at least as patched as the hosted API ([#759](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/759)).
+- No migrations. No env var changes.
+
+---
+
+## [1.18.4] - 2026-10-09
+
+### Security
+
+- **Dashboard: Next.js 15.5.18 → 15.5.27, sharp 0.34.5 → 0.35.5** — fixes the App Router Server Actions denial of service ([GHSA-m99w-x7hq-7vfj](https://github.com/advisories/GHSA-m99w-x7hq-7vfj)), Image Optimization AVIF RCE ([GHSA-2xp9-vwfh-vxw4](https://github.com/advisories/GHSA-2xp9-vwfh-vxw4)), SSRF, cache-confusion and image DoS advisories, and sharp libvips/libheif advisories ([#754](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/754)).
+- **Windows self-hosters must upgrade** — Next.js < 15.5.24 allows unauthenticated remote code execution on Windows-hosted servers (CVE-2026-75604 / [GHSA-p293-qw3h-jr36](https://github.com/advisories/GHSA-p293-qw3h-jr36)). Linux/Docker deployments (including hosted) are not affected by this one, but should still upgrade for the other fixes.
+- No migrations. No env var changes.
+
+---
+
+## [1.18.3] - 2026-10-06
+
+### Added
+
+- **Dashboard Sentry release** — Browser, server, and edge Sentry now report `release` = `telemetry-tracker-dashboard@<version>` (derived at build time from `CHANGELOG.md`, no env var needed), so errors are tagged by version and release-health sessions are sent. Unresolvable version → release stays unset as before.
+
+---
+
+## [1.18.2] - 2026-10-06
+
+### Fixed
+
+- **Billing period end (Stripe dahlia)** — `checkout.session.completed` stored a null `stripe_current_period_end` because the stripe@22 SDK default API (`2026-03-25.dahlia`) only returns the period end on subscription items. The period end now uses the top-level `current_period_end` when present (older webhook payloads) and otherwise the latest `items.data[].current_period_end`; this also covers `customer.subscription.updated` / `.deleted` payloads on basil+ endpoint versions.
+- **Dashboard `NEXT_PUBLIC_*` at build** — The dashboard Docker build now declares every `NEXT_PUBLIC_*` the dashboard reads as a build `ARG`, so Railway passes them into `next build`. Browser Sentry (`NEXT_PUBLIC_SENTRY_DSN`) and dashboard product telemetry (`NEXT_PUBLIC_TELEMETRY_*`), which were configured but never reached the browser bundle, start working on the next dashboard rebuild. Unset variables behave as before.
+
+---
+
+## [1.18.1] - 2026-10-06
+
+### Fixed
+
+- **Dashboard build: affiliates flag** — The dashboard Docker build now declares `NEXT_PUBLIC_AFFILIATES_ENABLED` as a build `ARG`, so Railway passes it into `next build` and the client-side `?ref=` capture can see it. Unset keeps the flag off (unchanged). Changing the flag requires a dashboard rebuild.
+
+---
+
+## [1.18.0] - 2026-10-05
+
+### Fixed
+
+- **Affiliates ledger** — Pre-payout refunds and lost disputes now only mutate the commission row. `AffiliateAdjustment` is reserved for post-payout clawbacks so payable balance is not double-counted. Mark as paid auto-includes unsettled clawbacks, refuses `amount_mismatch` / `overpay`, and serializes concurrent submits (`already_paid`, no phantom payout). After marketing consent, a remembered sessionStorage referral is promoted into the 60-day cookie even without `?ref=` in the URL.
+- **Affiliates first-invoice race** — `invoice.paid` can arrive while `org.plan_tier` is still FREE (`checkout.session.completed` has not written it yet). Commission eligibility also reads hosted Pro/Business from invoice/subscription metadata (`parent.subscription_details.metadata` / `subscription_details.metadata`). If the invoice is a paid hosted subscription but the org is still FREE and that metadata is missing or ambiguous, the webhook fails so Stripe retries instead of marking processed and skipping forever. Self-hosted, explicit FREE, and zero-eligible invoices are never commissioned.
+- **Affiliates Stripe basil linking** — `invoice.paid` stores `stripe_payment_intent_id` from InvoicePayment (`invoice.payments` / `invoicePayments.list`) so refunds and disputes still match after API `2025-03-31.basil` removed `Invoice.charge` / `Charge.invoice`. If `invoicePayments.list` fails, the webhook errors for retry instead of saving a commission with no payment ids. Unmatched refunds/disputes on referred orgs set `needs_attention` instead of failing silent.
+- **Affiliates post-payout clawbacks** — Claw back only what was actually paid (`remaining_cents` at payout), minus every prior clawback (settled or open). Partial pre-payout refunds are respected; a second refund after a settled clawback does not re-claw the original amount.
+- **Affiliates refund vs mark-as-paid** — Refund and dispute handlers take the same affiliate `FOR UPDATE` lock as payout, re-read the commission, and apply state-aware updates (no stale `pending` overwrite, no payout of a just-reduced remaining without the clawback path).
+
+### Changed
+
+- **Affiliates (native)** — Telemetry Tracker now owns referral attribution and 30% recurring commissions. Rewardful is fully removed (no account, JS, API, webhooks, or secrets). Visitor links use `?ref=<code>` with last-touch, a 60-day window, signup lock, and first-party sessionStorage plus an optional consent cookie. Stripe `invoice.paid` writes an idempotent commission; refunds/disputes adjust the ledger; founder admin marks payouts paid at ≥ €50 after a 30-day hold. Feature flags stay **OFF** by default. Historical Rewardful notes in 1.17.26 described the previous integration that this replaces.
+
 ### Database
+
+- `20261004180000_add_affiliate_tables` — restored to the **Rewardful-shaped** SQL already applied in production on **1.17.27** (`migrateDeployBeforeListen`). Do not edit this file in place.
+- `20261005180000_affiliate_rewardful_to_native` — forward migration from those Rewardful-shaped tables to native `Affiliate.code`, `AffiliatePayout`, `AffiliateAdjustment`, `stripe_payment_intent_id`, and related constraints. Production tables are expected empty (flags never enabled). Local/CI databases that already applied an earlier *edited* checksum of `20261004180000` need `prisma migrate reset` (or `prisma migrate resolve`); fresh databases apply the original then this forward migration.
+
+---
+
+## [1.17.27] - 2026-10-05
+
+### Added
+
+- **Affiliates (disabled by default)** — Rewardful affiliate integration behind `AFFILIATES_ENABLED` / `NEXT_PUBLIC_AFFILIATES_ENABLED` (requires Stripe). When flags are unset, webhook routes stay unregistered, admin APIs return 404, and the dashboard does not load Rewardful ([#732](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/732)).
+
+### Fixed
+
+- **Sentry operational privacy** — API and dashboard `beforeSend` sanitizers strip auth/API-key/session/cookie headers, request bodies, cookies, query strings, Sentry `user`, and `tt_live_*` keys; fail-closed try/catch so pathological events cannot drop reporting. `sendDefaultPii: false`, `includeLocalVariables: false`, `tracesSampleRate: 0`, and incoming request-body buffering disabled (`maxIncomingRequestBodySize: "none"`) ([#736](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/736)).
+
+### Changed
+
+- **/privacy** — describes Sentry as Hosted Cloud operational monitoring with EU ingest host `ingest.de.sentry.io`, without zero-PII or full EU residency claims ([#736](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/736)).
+- **Affiliates attribution** — Stripe `metadata.referral` withheld only for payout holds (`affiliate_email_unknown*`); plain UUID-only `UNRESOLVED` referrals write the Rewardful UUID; founder `resolve-needs-attention` path for `AFFILIATE_ADMIN_EMAILS` ([#732](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/732)).
+
+### Database
+
+- **`20261004180000_add_affiliate_tables`** — additive tables `WebhookEvent`, `UserReferral`, `Affiliate`, `OrganizationReferral`, `AffiliateCommission` (applied on production API boot via `migrateDeployBeforeListen`) ([#732](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/732)).
 
 ---
 
@@ -39,7 +152,6 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ### Changed
 
-- **Affiliates** — Stripe `metadata.referral` is withheld only for a **payout hold** (self-referral-risk: `affiliate_email_unknown*`). Plain UUID-only `UNRESOLVED` referrals write the Rewardful UUID so conversion can happen. `customer_creation_failed` does not block checkout backfill. Founders on `AFFILIATE_ADMIN_EMAILS` can `POST .../resolve-needs-attention` to clear a hold, attach metadata to the existing Customer, and write an audit row. Registration no longer drops a valid UUID when the via-token affiliate has no email.
 
 ### Database
 
