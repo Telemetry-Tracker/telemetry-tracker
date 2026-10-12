@@ -19,6 +19,8 @@ export type NotificationEmailKind =
   | "new_error"
   | "quota_near"
   | "quota_exceeded"
+  | "checkin_down"
+  | "checkin_recovered"
   | "custom_alert"
   | "billing"
   | "team"
@@ -35,6 +37,8 @@ export function inferNotificationEmailKind(
   item: DashboardNotificationItem,
   rule?: AlertRuleType | null
 ): NotificationEmailKind {
+  if (rule === "CHECKIN_DOWN") return "checkin_down";
+  if (rule === "CHECKIN_RECOVERED") return "checkin_recovered";
   if (rule === "ERROR_SPIKE") return "error_spike";
   if (rule === "QUOTA_NEAR") return "quota_near";
   if (rule === "QUOTA_EXCEEDED") return "quota_exceeded";
@@ -69,6 +73,9 @@ type KindMeta = {
 
 function kindMeta(kind: NotificationEmailKind): KindMeta {
   switch (kind) {
+    case "checkin_down":
+    case "checkin_recovered":
+      return { badge: kind === "checkin_down" ? "Check-in down" : "Check-in recovered", badgeBg: COLORS.dangerSoft, badgeFg: COLORS.danger, cta: "View check-ins", footer: "You received this because check-in alerts are enabled for a project you can access." };
     case "error_spike":
       return {
         badge: "Error spike",

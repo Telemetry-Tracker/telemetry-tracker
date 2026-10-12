@@ -21,7 +21,7 @@ export type ProjectAlertSettings = {
 
 export type AlertEventRow = {
   id: string;
-  rule: "ERROR_SPIKE" | "QUOTA_NEAR" | "QUOTA_EXCEEDED" | "ALERT_RULE";
+  rule: "CHECKIN_DOWN" | "CHECKIN_RECOVERED" | "ERROR_SPIKE" | "QUOTA_NEAR" | "QUOTA_EXCEEDED" | "ALERT_RULE";
   title: string;
   body: string;
   href: string | null;
@@ -131,6 +131,10 @@ export function parseAdditionalEmailsInput(text: string): string[] {
 
 export function ruleLabel(rule: AlertEventRow["rule"]): string {
   switch (rule) {
+    case "CHECKIN_DOWN":
+      return "Check-in down";
+    case "CHECKIN_RECOVERED":
+      return "Check-in recovered";
     case "ERROR_SPIKE":
       return "Error spike";
     case "QUOTA_NEAR":

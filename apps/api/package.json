@@ -25,6 +25,7 @@
     "@jridgewell/trace-mapping": "^0.3.31",
     "@prisma/client": "^6.19.3",
     "@sentry/node": "^10.66.0",
+    "cron-parser": "^5.4.0",
     "fastify": "^5.12.5",
     "prisma": "^6.19.3",
     "stripe": "^22.0.2",

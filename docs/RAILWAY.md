@@ -14,7 +14,7 @@ Deploy **Postgres + API + dashboard** as separate Railway services. Core env var
 | **API** | **empty** (repo root) | **Dockerfile**, path `apps/api/Dockerfile` (pnpm, frozen lockfile) |
 | **Dashboard** | **empty** (repo root) | **Dockerfile** (repo root) — **only on this service** |
 | **Retention cron** (optional) | **empty** (repo root) | Cron job — Dockerfile `apps/api/Dockerfile` |
-| **Alert rules evaluator cron** (optional) | **empty** (repo root) | Cron job (scheduled AlertRule conditions) — Dockerfile `apps/api/Dockerfile` |
+| **Alert rules evaluator cron** (required for check-ins) | **empty** (repo root) | Cron job (scheduled AlertRule conditions) — Dockerfile `apps/api/Dockerfile` |
 | **Alert webhook worker** (optional) | **empty** (repo root) | Continuous poll loop (not cron) — Dockerfile `apps/api/Dockerfile` |
 
 ---
@@ -327,3 +327,8 @@ Deploy logs show `Listening on 0.0.0.0:8080` but the domain still 502s.
 Same three pieces: managed Postgres, API from `apps/api`, dashboard from repo root Dockerfile or a monorepo-aware build. Set the same env vars as above. If the platform cannot build pnpm workspaces, build in CI and deploy artifacts.
 
 See also [RELEASE.md](./RELEASE.md) for the maintainer deploy runbook and post-deploy verification.
+
+
+## Check-in monitoring requirement
+
+Cron/background-job check-ins require the existing alert-rules evaluator every five minutes. Run `node dist/jobs/run-alert-rules-evaluator.js` on `*/5 * * * *` or use `--loop`. Set API `CHECKIN_ENCRYPTION_KEY` to 32 random bytes as hex and retain it with DB backups; set dashboard `CHECKIN_PUBLIC_BASE_URL` if `API_URL` is internal. Monitor `/health` → `alert_rules_evaluator`; the Check-ins dashboard warns when stale/never. See [check-in setup and recipes](./CHECK-INS.md).

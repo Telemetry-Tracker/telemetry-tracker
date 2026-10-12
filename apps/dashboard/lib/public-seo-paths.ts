@@ -17,6 +17,7 @@ export const PUBLIC_SEO_PATHS = [
   "/docs/releases",
   "/docs/source-maps",
   "/docs/self-hosting",
+  "/docs/checkins",
   "/docs/alerts",
   "/docs/migrate-from-sentry",
   "/contact",

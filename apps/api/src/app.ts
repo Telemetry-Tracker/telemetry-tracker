@@ -1,3 +1,5 @@
+import { checkInManagementRoutes, checkInPingRoutes } from "./routes/checkins.js";
+import { redactCheckInSecrets } from "./lib/checkin-secrets.js";
 import cors, { type FastifyCorsOptionsDelegateCallback } from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
 import Fastify, { type FastifyInstance } from "fastify";
@@ -33,7 +35,14 @@ export async function createApp(): Promise<FastifyInstance> {
   const isTest = process.env.NODE_ENV === "test";
 
   const app = Fastify({
-    logger: !isTest,
+    logger: isTest ? false : {
+      serializers: {
+        req(request) { return { method: request.method, url: redactCheckInSecrets(request.url ?? ""), id: request.id }; },
+        err(error) { return { type: error.name, message: redactCheckInSecrets(error.message ?? ""), stack: redactCheckInSecrets(error.stack ?? "") }; },
+      },
+      // Filter the serialized line too, including arbitrary log fields/messages.
+      stream: { write(line) { process.stdout.write(redactCheckInSecrets(line)); } },
+    },
     bodyLimit: PAYLOAD_LIMIT,
     genReqId,
   });
@@ -77,6 +86,11 @@ export async function createApp(): Promise<FastifyInstance> {
     { prefix: "/ingest" }
   );
 
+  await app.register(async function checkInScope(f) {
+    await f.register(rateLimit, { max: 600, timeWindow: RATE_LIMIT_WINDOW_MS });
+    await f.register(checkInPingRoutes);
+  }, { prefix: "/checkin" });
+
   await app.register(
     async function authScope(f) {
       await f.register(rateLimit, {
@@ -109,6 +123,7 @@ export async function createApp(): Promise<FastifyInstance> {
       });
       await f.register(apiRoutes);
       await f.register(projectDashboardRoutes);
+      await f.register(checkInManagementRoutes);
       await f.register(briefRoutes);
       await f.register(billingRoutes);
       await f.register(affiliatesAdminRoutes);
