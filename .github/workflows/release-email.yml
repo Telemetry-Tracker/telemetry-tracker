@@ -22,14 +22,20 @@ on:
         description: "Preview only — print subject/recipients; do not send"
         type: boolean
         default: false
+      test_to:
+        description: "Send ONE [TEST] email to this address only (no ledger, no subscribers). Live unsubscribe link when the address is an active subscriber."
+        required: false
+        default: ""
 
 concurrency:
   # Serialize live/preview broadcasts so milestone close and workflow_dispatch cannot
   # race the same minor line and double-send before the ledger row is written.
   # Tag pushes never send; they keep a per-ref group so they do not block broadcasts.
+  # Tag pushes that open a new line (vX.Y.0) auto-send the previous line, so they join the
+  # broadcast group; patch tag pushes never send and keep a per-ref group.
   group: >-
     release-email-${{
-      github.event_name == 'push' && github.ref || 'broadcast'
+      (github.event_name == 'push' && !endsWith(github.ref, '.0')) && github.ref || 'broadcast'
     }}
   cancel-in-progress: false
 
@@ -113,13 +119,28 @@ jobs:
               echo "Invalid release tag: ${GITHUB_REF_NAME}" >&2
               exit 1
             fi
-            PREVIOUS=$(git tag -l "v*.*.*" --merged HEAD --sort=-version:refname \
+            # Opening a new line (vX.Y.0 / vX.0.0) completes the previous minor line:
+            # auto-send the line-close email for it. Patch tags never send.
+            TAGS=$(git tag -l "v*.*.*" --merged HEAD --sort=version:refname \
               | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
-              | grep -v "^${GITHUB_REF_NAME}$" \
-              | head -1 \
-              | sed 's/^v//')
-            # Tag push never auto-sends; line-close sends on product milestone close (or manual dispatch)
-            LINE_CLOSE=false
+              | tr '\n' ',' \
+              | sed 's/,$//')
+            RESOLVED=$(
+              OPENING_TAG="$GITHUB_REF_NAME" RELEASE_TAGS="$TAGS" \
+                pnpm exec tsx scripts/resolve-opening-tag-line-close.ts
+            )
+            echo "Tag-push line-close resolve: $RESOLVED"
+            if [ "$(node -e "console.log(JSON.parse(process.argv[1]).skip === true)" "$RESOLVED")" = "true" ]; then
+              SKIP=true
+              SKIP_REASON=$(node -e "console.log(JSON.parse(process.argv[1]).reason || 'skipped')" "$RESOLVED")
+              CURRENT=
+              PREVIOUS=
+              LINE_CLOSE=false
+            else
+              CURRENT=$(node -e "console.log(JSON.parse(process.argv[1]).version)" "$RESOLVED")
+              PREVIOUS=$(node -e "const v=JSON.parse(process.argv[1]).previous_version; console.log(v == null ? '' : v)" "$RESOLVED")
+              LINE_CLOSE=true
+            fi
           fi
 
           if [ "$SKIP" != "true" ]; then
@@ -202,6 +223,7 @@ jobs:
           RELEASE_PREVIOUS: ${{ steps.tags.outputs.previous }}
           RELEASE_LINE_CLOSE: ${{ steps.tags.outputs.line_close }}
           RELEASE_DRY_RUN: ${{ steps.tags.outputs.dry_run }}
+          RELEASE_TEST_TO: ${{ github.event_name == 'workflow_dispatch' && inputs.test_to || '' }}
         run: |
           ARGS=(--version="$RELEASE_CURRENT")
           if [ -n "$RELEASE_PREVIOUS" ]; then
@@ -212,6 +234,9 @@ jobs:
           fi
           if [ "$RELEASE_DRY_RUN" = "true" ]; then
             ARGS+=(--dry-run)
+          fi
+          if [ -n "$RELEASE_TEST_TO" ]; then
+            ARGS+=(--test-to="$RELEASE_TEST_TO")
           fi
           pnpm exec tsx scripts/send-release-email.ts "${ARGS[@]}"
 

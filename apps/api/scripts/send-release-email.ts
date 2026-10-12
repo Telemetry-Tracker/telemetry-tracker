@@ -8,6 +8,7 @@ import {
   generateMarketingUnsubscribeToken,
   hashMarketingUnsubscribeToken,
   isValidMarketingEmail,
+  normalizeMarketingEmail,
 } from "../src/lib/marketing-subscriber.js";
 import { sendTransactionalEmail, isTransactionalEmailConfigured } from "../src/lib/email.js";
 import { shouldSendProductUpdateEmail } from "../src/lib/release-email-semver.js";
@@ -164,7 +165,24 @@ async function main() {
 
   if (TEST_TO_ARG) {
     const testSubject = `[TEST] ${subject}`;
-    const testUnsubscribeUrl = `${dashboardOrigin}/unsubscribe`;
+    // When the test address is an active subscriber, stage a real one-click token so the
+    // unsubscribe link can be verified end to end. Otherwise link to the generic page.
+    let testUnsubscribeUrl = `${dashboardOrigin}/unsubscribe`;
+    const testSubscriber = DRY_RUN
+      ? null
+      : await prisma.marketingSubscriber.findFirst({
+          where: { email: normalizeMarketingEmail(TEST_TO_ARG), unsubscribed_at: null },
+          select: { id: true },
+        });
+    if (testSubscriber) {
+      const rawToken = generateMarketingUnsubscribeToken();
+      await stageReleaseEmailUnsubscribeToken(prisma, {
+        subscriberId: testSubscriber.id,
+        unsubscribeTokenHash: hashMarketingUnsubscribeToken(rawToken),
+      });
+      testUnsubscribeUrl = buildMarketingUnsubscribeUrl(dashboardOrigin, rawToken);
+      console.log("Test recipient is an active subscriber; email carries a live unsubscribe link.");
+    }
     const html = appendReleaseEmailFooter(bodyHtml, testUnsubscribeUrl);
 
     console.log(`Test recipient: ${TEST_TO_ARG}`);
