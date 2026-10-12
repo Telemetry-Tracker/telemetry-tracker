@@ -13,6 +13,8 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ### Added
 
+- **Read-only MCP agent access** — opt-in `/mcp` endpoint with five privacy-minimized tools, scoped expiring read tokens, settings management, agent setup documentation and a Copy for agent issue action.
+
 ### Fixed
 
 ### Changed

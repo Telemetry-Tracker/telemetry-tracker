@@ -2,6 +2,9 @@ import type { PrismaClient } from "@prisma/client";
 
 /** Stable action identifiers for the settings / security MVP audit log. */
 export const AUDIT_ACTIONS = {
+  MCP_TOKEN_CREATE: "mcp.token.create",
+  MCP_TOKEN_REVOKE: "mcp.token.revoke",
+  MCP_TOKEN_EXPIRE: "mcp.token.expire",
   AUTH_LOGIN: "auth.login",
   AUTH_PASSWORD_CHANGE: "auth.password_change",
   AUTH_SESSION_REVOKE: "auth.session.revoke",
