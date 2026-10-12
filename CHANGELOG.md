@@ -11,9 +11,13 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ## [Unreleased]
 
+---
+
+## [1.22.1] - 2026-10-12
+
 ### Fixed
 
-- **Check-in management** — Rotate URL, Pause, Resume, and Delete no longer send a JSON content-type header with an empty body, avoiding API rejection.
+- **Check-in management** — Rotate URL, Pause, Resume, and Delete no longer send a JSON content-type header with an empty body, avoiding API rejection ([#797](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/797)).
 
 ---
 
