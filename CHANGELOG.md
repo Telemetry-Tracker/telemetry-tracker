@@ -13,6 +13,18 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ---
 
+## [1.21.0] - 2026-10-12
+
+### Added
+
+- **Privacy-conscious signup funnel measurement** — consent-gated first-touch attribution now also records a coarse acquisition channel (`signup_channel`) and a sanitized first landing path (pathname plus only `utm_source`/`utm_medium`/`utm_campaign`); registrations without forwarded attribution record a `no_consent` marker only. Projects store a set-once `first_event_at` server receipt timestamp on first accepted telemetry, which raw retention never clears. Successful registrations emit a GA4 `sign_up` event only under accepted cookie consent. No IP, user agent, full referrer or fingerprint is stored. Privacy and cookie pages updated ([#791](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/791)).
+
+### Migrations
+
+- `20261012120000_signup_funnel` — additive nullable `User.signup_channel`, `User.first_landing_path` and `Project.first_event_at`; backfills `first_event_at` from the earliest surviving telemetry (API key `last_used_at` as approximate fallback); grants `analytics_ro` column-level SELECT on the new columns when that role exists.
+
+---
+
 ## [1.20.2] - 2026-10-12
 
 ### Fixed
