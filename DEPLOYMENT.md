@@ -48,6 +48,8 @@ For affiliate applications, set **`AFFILIATE_CLIENT_IP_FORWARD_SECRET`** to the 
 | `INGEST_ALLOW_UNAUTHENTICATED` | Ingest must use API keys |
 | `TELEMETRY_ALLOW_UNAUTHENTICATED_READS` | Dashboard reads require login |
 
+`RATE_LIMIT_MAX_MCP` defaults to 300 requests per minute for the pre-auth `/mcp` scope. With `trustProxy` unset, it keys on the connecting proxy address in production, so it is a coarse abuse guard shared by clients behind that proxy. Existing per-token and per-organization MCP limits remain unchanged and are the primary customer limits. Per-client IP limiting is a separate follow-up pending verification of the proxy chain; do not widen proxy trust for this guard.
+
 Rate limits (`RATE_LIMIT_*`), legacy org fallback (`TELEMETRY_ORGANIZATION_ID`), and ingest dev flags are documented in [docs/ENTITLEMENTS.md](docs/ENTITLEMENTS.md).
 
 **Email (Resend) and Stripe billing** — optional; see [docs/BILLING.md](docs/BILLING.md).
