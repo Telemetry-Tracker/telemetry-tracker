@@ -156,17 +156,22 @@ Always document **migrations**, **new env vars**, and **breaking changes** in CH
    git tag -a v1.1.0 -m "Telemetry Tracker v1.1.0"
    git push origin v1.1.0
    ```
-6. **GitHub Release** — publish notes from [RELEASE_NOTES_TEMPLATE.md](./RELEASE_NOTES_TEMPLATE.md) (highlights + upgrade steps; link to CHANGELOG for detail):
+6. **GitHub Release** — tag push automatically runs [GitHub Release](../.github/workflows/github-release.yml), publishing the matching version section from `CHANGELOG.md` with title `Telemetry Tracker vX.Y.Z`. Verify the **GitHub Release** workflow run succeeded and the release exists with author `github-actions[bot]`:
    ```bash
    VERSION=1.2.0
-   PREVIOUS=1.1.0
-   cp docs/RELEASE_NOTES_TEMPLATE.md /tmp/release-notes-v${VERSION}.md
-   # Edit: Highlights from CHANGELOG [X.Y.Z]; migrations since tag v${PREVIOUS}; env/SDK sections if needed
-   gh release create "v${VERSION}" \
-     --title "Telemetry Tracker v${VERSION}" \
-     --notes-file "/tmp/release-notes-v${VERSION}.md"
+   gh run list --workflow github-release.yml
+   gh release view "v${VERSION}"
+   gh api "repos/Telemetry-Tracker/telemetry-tracker/releases/tags/v${VERSION}" --jq '.author.login'
    ```
-   See the template for section guidance and a filled v1.1.0 example. Do not duplicate the entire CHANGELOG — keep the release body scannable for deployers.
+   The workflow checks out the tag, fails for a missing tag or missing/empty changelog section, and leaves existing releases untouched. Only the highest stable semver tag is marked latest; older backfills use `--latest=false`. It never creates drafts or prereleases.
+
+   **Fallback:** after fixing a failed run, retry it or dispatch against a branch containing the workflow:
+   ```bash
+   gh workflow run github-release.yml --ref main -f tag="v${VERSION}"
+   # Optional preview (creates nothing):
+   gh workflow run github-release.yml --ref main -f tag="v${VERSION}" -f dry_run=true
+   ```
+   If automation is unavailable, use the manual fallback in [RELEASE_NOTES_TEMPLATE.md](./RELEASE_NOTES_TEMPLATE.md). Verify no release already exists first; manual creation uses your own account rather than the bot.
 7. **SDK** — if ingest/SDK contract changed, bump `packages/*/package.json` and `pnpm publish:packages`.
 8. **Product update email** — when this tag is the **last intended release** of a minor line, **close the `vX.Y.x — …` GitHub milestone** after the tag exists. That triggers [Release product email](../.github/workflows/release-email.yml) with derived `version` / `previous_version` and **`line_close=true`** (whole **`vX.Y.*`** line; ledger key **`X.Y`**). Opening a new `vX.Y.0` and mid-line patches do **not** send. If the line was already emailed, the ledger skips duplicates. Manual dispatch (`dry_run` / retry) remains available ([MARKETING-EMAIL.md](./MARKETING-EMAIL.md#line-close-send-preferred)). After the send completes, note date and recipient count in the GitHub Release. For exceptional single-version PATCH backfill, use `--force` — see [MARKETING-EMAIL.md](./MARKETING-EMAIL.md#manual-send-cli--backfill).
 9. **Sync `develop`** — merge **`main` into `develop`** and push after every release (milestone promotion or hotfix). Required whenever `main` has commits not on `develop` — including squash merges, merge commits from the release PR, and any post-promotion edits on `main`:
