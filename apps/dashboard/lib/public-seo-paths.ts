@@ -16,6 +16,7 @@ export const PUBLIC_SEO_PATHS = [
   "/docs/react-native",
   "/docs/releases",
   "/docs/source-maps",
+  "/docs/mcp",
   "/docs/self-hosting",
   "/docs/alerts",
   "/docs/migrate-from-sentry",

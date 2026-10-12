@@ -6,7 +6,7 @@
  * The walk is in-place and cycle-safe. It does not use structuredClone.
  */
 
-const TT_LIVE_API_KEY = /tt_live_[A-Za-z0-9_]+/g;
+const TT_API_KEY = /tt_(?:live|read)_[A-Za-z0-9_]+/g;
 
 /**
  * Normal Sentry events are shallow (exception, request, breadcrumbs, a few
@@ -65,7 +65,7 @@ function isSensitiveHeaderName(name: string): boolean {
 }
 
 function redactTelemetryTrackerApiKeys(value: string): string {
-  return value.replace(TT_LIVE_API_KEY, "[redacted]");
+  return value.replace(TT_API_KEY, "[redacted]");
 }
 
 /** Drop the query string. The path, host, and scheme stay. */
