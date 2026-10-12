@@ -36,7 +36,7 @@ Product update emails celebrate a **finished** minor line — not the first tag 
 | Event | Send? | About |
 |-------|-------|--------|
 | **Line close** — last intended release of `vX.Y.*` before opening the next milestone | **Yes** | Whole **`vX.Y.*`** CHANGELOG (since last emailed / previous minor final) |
-| Opening a new line (`vX.Y.0` / major bump) | **No** | Do not announce “what’s new in X.Y” when the line just began |
+| Opening a new line (`vX.Y.0` / major bump) | **Yes — previous line** | Tag push auto-sends the line-close email for the **previous** `vX.Y-1.*` line (the new line is not announced yet) |
 | Mid-line **PATCH** / hotfix (Z only) | **No** | Dependabot, hotfixes, docs patches stay quiet |
 | Exceptional single-version PATCH | **Override** | `--force` (single section only; not full line) |
 | Pre-release / draft | **No** | Use `--dry-run` and `--version=Unreleased` to preview copy only |
@@ -53,7 +53,15 @@ Delivery is recorded in `MarketingReleaseEmailSend` (one row per subscriber per 
 
 Reserved / documentation domains (`example.com`, `example.org`, `example.net`, and similar RFC special-use hosts) are rejected on subscribe and skipped at send time — Resend returns 422 for those addresses and would otherwise leave the broadcast incomplete.
 
-### Line-close send (preferred)
+### Automatic send on tag push (default)
+
+Pushing a tag that **opens** a new line (`vX.Y.0` or `vX.0.0`) automatically sends the line-close email for the **previous** minor line (latest tag on that line, `previous_version` = last tag before it). No milestone close is needed. Patch tags never send. The ledger (`X.Y`) prevents duplicates if the milestone is closed later or the workflow is re-run.
+
+Closing an old milestone whose line has **two or more newer tagged lines** is skipped (historical line) so stale releases are never emailed in bulk.
+
+Controlled test: **Run workflow** with `test_to=<address>` sends one `[TEST]` email to that address only (no subscribers, no ledger). If the address is an active subscriber the email carries a live one-click unsubscribe link.
+
+### Line-close send (milestone close / manual)
 
 **Auto-send:** when you **close** a product GitHub milestone titled `vX.Y.x — …` (after the final tag of that line is on `main`), [Release product email](../.github/workflows/release-email.yml) runs automatically with:
 

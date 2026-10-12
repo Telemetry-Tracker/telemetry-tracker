@@ -1,4 +1,5 @@
 import {
+  isStaleProductLine,
   parseProductMilestoneTitle,
   resolveLineCloseVersions,
 } from "../src/lib/release-email-semver.js";
@@ -57,6 +58,16 @@ const tags = (TAGS_ARG ?? "")
   .split(/[\s,]+/)
   .map((t) => t.trim())
   .filter(Boolean);
+
+if (MILESTONE_TITLE !== undefined && isStaleProductLine(tags, line.major, line.minor)) {
+  console.log(
+    JSON.stringify({
+      skip: true,
+      reason: `${line.lineLabel} is a historical line (two or more newer minor lines are tagged) — not emailing subscribers about stale releases`,
+    })
+  );
+  process.exit(0);
+}
 
 const resolved = resolveLineCloseVersions(tags, line.major, line.minor);
 if (!resolved.ok) {
