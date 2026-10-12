@@ -183,3 +183,11 @@ if necessary; do not remove active buckets during the current minute.
 
 TODO(legal): review the neutral customer-selected AI export wording in `/docs/mcp`.
 No claim is made that existing privacy policy or DPA terms cover this processing.
+
+### Client IP resolution and rate limits
+
+On Railway, set `TRUST_RAILWAY_EDGE=true` (also the production default). Railway must overwrite `X-Real-IP` at its edge, and the API must only be reachable through that edge. For other hosting, set it to `false`: the socket peer is the base hop. Fastify global `trustProxy` stays unset. Invalid or multi-value `X-Real-IP` falls back to the socket IP. Only when the base hop belongs to Cloudflare's published IPv4/IPv6 networks do we accept a single valid `CF-Connecting-IP`; direct-to-Railway callers cannot spoof that identity. `X-Forwarded-For` and `X-Envoy-*` never determine identity. Embedded Cloudflare ranges were verified on 2026-10-12; review them against https://www.cloudflare.com/ips-v4 and https://www.cloudflare.com/ips-v6 when Cloudflare updates its networks.
+
+All API rate-limit scopes share this resolver. Existing limits stay unchanged (auth 30/min, API/public/MCP pre-auth 300/min, ingest 3000/min, affiliate applications 5/10min). Ingest keys combine the resolved IP with the API key public ID parsed from `Authorization: Bearer` or `X-API-Key`, so distinct keys/projects behind one NAT have separate buckets without a database lookup. Missing/malformed keys share the IP-only bucket. This pre-auth partition is not authentication; existing key validation and project plan limits still apply. Affiliate applications still prefer visitor IP forwarding authenticated with `AFFILIATE_CLIENT_IP_FORWARD_SECRET`, falling back to the shared resolver.
+
+For temporary diagnosis, set `IP_DIAGNOSTIC_LOG=true`. Each request emits one info record containing only socket IP, `X-Real-IP`, `X-Forwarded-For`, `CF-Connecting-IP`, `X-Envoy-External-Address`, resolved IP, and source (`cf`, `railway`, or `socket`). It is off by default; disable after diagnosis to avoid retaining unnecessary IP data. Authorization, API keys and forwarding secrets are excluded.

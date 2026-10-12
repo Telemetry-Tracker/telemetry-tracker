@@ -6,6 +6,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { isIP } from "node:net";
 import { Prisma, type PrismaClient } from "@prisma/client";
+import { resolveClientIp } from "./client-ip.js";
 import { normalizeEmailForSelfReferralCheck } from "./affiliate-email-normalize.js";
 import { createAffiliate, suggestUniqueAffiliateCode } from "./affiliate-management.js";
 import { dashboardOriginOrNull } from "./dashboard-origin.js";
@@ -56,7 +57,7 @@ export function applicationsMaxPerHour(env: NodeJS.ProcessEnv = process.env): nu
 
 /**
  * Trust the dashboard's forwarded visitor IP only with the shared server-side secret.
- * Unauthenticated or invalid forwarding falls back to the request IP.
+ * Unauthenticated or invalid forwarding falls back to the shared client-IP resolver.
  */
 export function applicationRateLimitKey(request: {
   ip: string;
@@ -75,7 +76,7 @@ export function applicationRateLimitKey(request: {
       }
     }
   }
-  return `affiliate-application:${request.ip}`;
+  return `affiliate-application:${resolveClientIp(request, env)}`;
 }
 
 export type AffiliateApplicationInput = {
