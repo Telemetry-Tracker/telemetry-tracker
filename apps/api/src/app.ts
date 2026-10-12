@@ -1,6 +1,7 @@
 import cors, { type FastifyCorsOptionsDelegateCallback } from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
 import Fastify, { type FastifyInstance } from "fastify";
+import { clientIpKeyGenerator, ingestKeyGenerator, registerIpDiagnostics } from "./lib/client-ip.js";
 import { prisma } from "./lib/db.js";
 import { buildHealthResponse } from "./lib/health.js";
 import { resolveCorsOptionsForRequest } from "./lib/cors-config.js";
@@ -43,6 +44,7 @@ export async function createApp(): Promise<FastifyInstance> {
   });
 
   registerObservabilityHooks(app);
+  registerIpDiagnostics(app);
   // Dedicated read credentials never fall through to legacy unauthenticated reads.
   app.addHook("onRequest", async (request, reply) => {
     if (/^Bearer\s+tt_read_/i.test(request.headers.authorization ?? "") && request.url.split("?")[0] !== "/mcp") {
@@ -58,11 +60,10 @@ export async function createApp(): Promise<FastifyInstance> {
 
   await registerStripeWebhookIfConfigured(app);
   await app.register(async function mcpScope(f) {
-    // With trustProxy unset, this keys on the connecting proxy address in production.
-    // This is a coarse pre-auth abuse guard; per-client IP limiting is a separate follow-up.
     await f.register(rateLimit, {
       max: rateLimitMaxMcp(isTest),
       timeWindow: RATE_LIMIT_WINDOW_MS,
+      keyGenerator: clientIpKeyGenerator,
     });
     await f.register(mcpRoutes);
   });
@@ -72,6 +73,7 @@ export async function createApp(): Promise<FastifyInstance> {
       await f.register(rateLimit, {
         max: rateLimitMaxPublic(isTest),
         timeWindow: RATE_LIMIT_WINDOW_MS,
+        keyGenerator: clientIpKeyGenerator,
       });
       // Set HEALTH_CHECK_DATABASE=true in production (or staging) to verify DB connectivity; omit in dev if you prefer a dependency-free /health.
       // Optional HEALTH_DETAILED=true adds uptime and Node version (no secrets). See DEPLOYMENT.md.
@@ -90,6 +92,7 @@ export async function createApp(): Promise<FastifyInstance> {
       await f.register(rateLimit, {
         max: rateLimitMaxIngest(isTest),
         timeWindow: RATE_LIMIT_WINDOW_MS,
+        keyGenerator: ingestKeyGenerator,
       });
       await f.register(ingestRoutes);
     },
@@ -101,6 +104,7 @@ export async function createApp(): Promise<FastifyInstance> {
       await f.register(rateLimit, {
         max: rateLimitMaxAuth(isTest),
         timeWindow: RATE_LIMIT_WINDOW_MS,
+        keyGenerator: clientIpKeyGenerator,
       });
       await f.register(authRoutes);
     },
@@ -112,6 +116,7 @@ export async function createApp(): Promise<FastifyInstance> {
       await f.register(rateLimit, {
         max: rateLimitMaxPublic(isTest),
         timeWindow: RATE_LIMIT_WINDOW_MS,
+        keyGenerator: clientIpKeyGenerator,
       });
       await f.register(contactRoutes);
       await f.register(marketingRoutes);
@@ -125,6 +130,7 @@ export async function createApp(): Promise<FastifyInstance> {
       await f.register(rateLimit, {
         max: rateLimitMaxApi(isTest),
         timeWindow: RATE_LIMIT_WINDOW_MS,
+        keyGenerator: clientIpKeyGenerator,
       });
       await f.register(apiRoutes);
       await f.register(projectDashboardRoutes);

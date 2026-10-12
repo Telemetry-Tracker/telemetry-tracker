@@ -1,8 +1,7 @@
 "use server";
 
-import { headers } from "next/headers";
+import { apiFetch } from "@/lib/api-fetch";
 import { API_BASE_URL } from "@/lib/api-url";
-import { clientIpFromHeaders } from "@/lib/request-client-ip";
 import { AFFILIATE_TERMS_VERSION } from "@/lib/affiliate-program";
 
 export type AffiliateApplicationFormInput = {
@@ -26,20 +25,12 @@ const FALLBACK_ERROR = "Something went wrong. Try again in a moment or use the c
 export async function submitAffiliateApplication(
   input: AffiliateApplicationFormInput
 ): Promise<AffiliateApplicationSubmitResult> {
-  const requestHeaders = await headers();
-  const clientIp = clientIpFromHeaders(requestHeaders);
-
-  const forwardSecret = process.env.AFFILIATE_CLIENT_IP_FORWARD_SECRET;
-
   let res: Response;
   try {
-    res = await fetch(`${API_BASE_URL}/api/affiliate-applications`, {
+    res = await apiFetch(`${API_BASE_URL}/api/affiliate-applications`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...(clientIp && forwardSecret
-          ? { "x-tt-client-ip": clientIp, "x-tt-client-ip-secret": forwardSecret }
-          : {}),
       },
       body: JSON.stringify({
         name: String(input.name ?? ""),
