@@ -11,13 +11,13 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ## [Unreleased]
 
+---
+
+## [1.20.0] - 2026-10-12
+
 ### Added
 
-- **Read-only MCP agent access** — opt-in `/mcp` endpoint with five privacy-minimized tools, scoped expiring read tokens, settings management, agent setup documentation and a Copy for agent issue action.
-
-### Fixed
-
-### Changed
+- **Read-only MCP agent access** — opt-in `/mcp` endpoint with five privacy-minimized tools, scoped expiring read tokens, settings management, agent setup documentation and a Copy for agent issue action. Off by default; operators enable it with `TELEMETRY_MCP_ENABLED=true` ([#779](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/779)).
 
 ---
 
