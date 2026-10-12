@@ -25,3 +25,8 @@ export function rateLimitMaxApi(isTest: boolean): number {
 export function rateLimitMaxPublic(isTest: boolean): number {
   return isTest ? 100_000 : parsePositiveInt("RATE_LIMIT_PUBLIC_MAX", 300);
 }
+
+/** Coarse pre-auth `/mcp` guard; tests may explicitly override the generous default. */
+export function rateLimitMaxMcp(isTest: boolean): number {
+  return parsePositiveInt("RATE_LIMIT_MAX_MCP", isTest ? 100_000 : 300);
+}

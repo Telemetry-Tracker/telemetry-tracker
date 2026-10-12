@@ -9,6 +9,7 @@ import {
   rateLimitMaxApi,
   rateLimitMaxAuth,
   rateLimitMaxIngest,
+  rateLimitMaxMcp,
   rateLimitMaxPublic,
   RATE_LIMIT_WINDOW_MS,
 } from "./lib/rate-limit-env.js";
@@ -56,7 +57,15 @@ export async function createApp(): Promise<FastifyInstance> {
   await app.register(cors, { delegator: corsDelegator });
 
   await registerStripeWebhookIfConfigured(app);
-  await app.register(mcpRoutes);
+  await app.register(async function mcpScope(f) {
+    // With trustProxy unset, this keys on the connecting proxy address in production.
+    // This is a coarse pre-auth abuse guard; per-client IP limiting is a separate follow-up.
+    await f.register(rateLimit, {
+      max: rateLimitMaxMcp(isTest),
+      timeWindow: RATE_LIMIT_WINDOW_MS,
+    });
+    await f.register(mcpRoutes);
+  });
 
   await app.register(
     async function publicSurface(f) {
