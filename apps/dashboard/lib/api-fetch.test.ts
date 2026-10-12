@@ -26,3 +26,13 @@ it.each([false, true])("does not send forwarding credentials without a secret or
   expect(headers.has("x-tt-client-ip-secret")).toBe(false);
   expect(headers.has("x-tt-client-ip")).toBe(false);
 });
+it("sends the request without forwarding when called outside a request scope", async () => {
+  vi.stubEnv("AFFILIATE_CLIENT_IP_FORWARD_SECRET", "test-secret");
+  const nextHeaders = await import("next/headers");
+  vi.mocked(nextHeaders.headers).mockRejectedValueOnce(new Error("outside request scope"));
+  const fetch = vi.fn<typeof globalThis.fetch>(async () => new Response());
+  vi.stubGlobal("fetch", fetch);
+  await apiFetch("http://api/api/meta/projects");
+  const headers = new Headers((fetch.mock.calls[0]?.[1] as RequestInit).headers);
+  expect(headers.has("x-tt-client-ip-secret")).toBe(false);
+});

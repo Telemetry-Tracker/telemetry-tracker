@@ -10,7 +10,13 @@ export async function apiFetch(input: string | URL, init?: RequestInit): Promise
         import("next/headers"),
         import("./request-client-ip"),
       ]);
-      const ip = clientIpFromHeaders(await headers());
+      let ip: string | null | undefined;
+      try {
+        ip = clientIpFromHeaders(await headers());
+      } catch {
+        // Outside a request scope (build, static render, background work): send without forwarding.
+        ip = undefined;
+      }
       if (ip) {
         outgoing.set("x-tt-client-ip", ip);
         outgoing.set("x-tt-client-ip-secret", secret);
