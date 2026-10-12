@@ -61,6 +61,28 @@ describe.skipIf(process.env.RUN_DB_INTEGRATION_TESTS !== "true")("check-ins data
     expect(list.json().monitors[0].checkin_path).toBe(rotated.json().checkin_path);
     expect(JSON.stringify(list.json())).not.toContain("token_encrypted");
   });
+  it.each(["rotate-token", "pause", "resume", "delete"] as const)("requires no JSON header for body-less %s requests", async action => {
+    const m = await create();
+    const method = action === "delete" ? "DELETE" : "POST";
+    const url = `/api/project/checkin-monitors/${m.id}${action === "delete" ? "" : `/${action}`}`;
+    // The old dashboard request is rejected by Fastify before reaching the handler.
+    const rejected = await app.inject({ method, url, headers: { ...headers(ownerSession), "content-type": "application/json" } });
+    expect(rejected.statusCode).toBe(400);
+    expect(rejected.json().code).toBe("FST_ERR_CTP_EMPTY_JSON_BODY");
+    expect(await prisma.checkInMonitor.findUnique({ where: { id: m.id } })).toMatchObject({
+      status: "NEW", deleted_at: null, token_hash: m.token_hash,
+    });
+    const response = await app.inject({ method, url, headers: headers(ownerSession) });
+    expect(response.statusCode).toBe(200);
+    if (action === "delete") {
+      expect(response.json()).toEqual({ ok: true });
+      expect((await prisma.checkInMonitor.findUniqueOrThrow({ where: { id: m.id } })).deleted_at).not.toBeNull();
+    } else if (action === "rotate-token") {
+      expect(response.json().checkin_path).not.toBe(path(m.token_encrypted));
+    } else {
+      expect(response.json().status).toBe(action === "pause" ? "PAUSED" : "NEW");
+    }
+  });
   it("viewers see history/status but cannot view URLs or mutate monitors", async () => {
     const m = await create(); const read = await app.inject({ url: "/api/project/checkin-monitors", headers: headers(viewerSession) });
     expect(read.statusCode).toBe(200); expect(read.json().monitors[0].status).toBe("NEW"); expect(read.json().monitors[0].checkin_path).toBeUndefined();
