@@ -10,6 +10,7 @@ export function SignupAttributionCapture() {
     const landing = sanitizeSignupAttribution({
       ...Object.fromEntries(ATTRIBUTION_FIELDS.map(key => [key, params.get(key)])),
       referrer_host: document.referrer,
+      first_landing_path: window.location.pathname + window.location.search,
     });
     const sync = (choice: CookieConsentChoice | null) => {
       try {

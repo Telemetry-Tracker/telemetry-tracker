@@ -21,7 +21,7 @@ describe("first-touch signup capture", () => {
     expect(document.cookie).not.toContain(SIGNUP_ATTRIBUTION_COOKIE);
     window.history.replaceState({}, "", "/register?utm_source=later");
     consent("accepted");
-    expect(readSignupAttribution()?.utm_source).toBe("first");
+    expect(readSignupAttribution()).toMatchObject({ utm_source: "first", first_landing_path: "/?utm_source=first&utm_campaign=launch", signup_channel: "unknown" });
     cleanup();
     render(<SignupAttributionCapture />);
     expect(readSignupAttribution()?.utm_campaign).toBe("launch");

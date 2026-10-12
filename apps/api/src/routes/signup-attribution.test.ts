@@ -27,13 +27,26 @@ describe("registration attribution persistence", () => {
       try {
         const response = await app.inject({ method: "POST", url: "/auth/register", payload: {
           email: "new@example.org", password: "long-password", marketingOptIn: false, inviteToken,
-          signupAttribution: { utm_source: " newsletter ", referrer_host: "https://search.example/path?private=secret" },
+          signupAttribution: { first_landing_path: "/docs?email=secret&utm_campaign=launch", utm_source: " newsletter ", referrer_host: "https://search.example/path?private=secret" },
         } });
         expect(response.statusCode, response.body).toBe(201);
-        expect(prisma.user.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ utm_source: "newsletter", referrer_host: "search.example", utm_campaign: null }) }));
+        expect(prisma.user.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ utm_source: "newsletter", referrer_host: "search.example", utm_campaign: null, signup_channel: "referral", first_landing_path: "/docs?utm_campaign=launch" }) }));
       } finally { await app.close(); }
     });
   }
+  it("records only a no-consent marker when attribution is absent", async () => {
+    const app = Fastify();
+    await app.register(authRoutes);
+    try {
+      const response = await app.inject({ method: "POST", url: "/auth/register", payload: {
+        email: "new@example.org", password: "long-password", marketingOptIn: false,
+      } });
+      expect(response.statusCode).toBe(201);
+      expect(prisma.user.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({
+        signup_channel: "no_consent", first_landing_path: null, referrer_host: null, utm_source: null,
+      }) }));
+    } finally { await app.close(); }
+  });
   it("allows malformed attribution without blocking signup", async () => {
     const app = Fastify();
     await app.register(authRoutes);

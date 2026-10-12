@@ -86,6 +86,7 @@ export async function authRoutes(
       referralCapturedAt?: string;
     };
     const attribution = sanitizeSignupAttribution(body.signupAttribution);
+    if (!body.signupAttribution) attribution.signup_channel = "no_consent";
     const email = typeof body.email === "string" ? normalizeEmail(body.email) : "";
     const password = typeof body.password === "string" ? body.password : "";
     const displayName =
