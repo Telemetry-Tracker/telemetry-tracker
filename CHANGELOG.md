@@ -11,9 +11,13 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ## [Unreleased]
 
+---
+
+## [1.20.2] - 2026-10-12
+
 ### Fixed
 
-- **API rate limits** — resolve visitor IPs through the trusted Railway and Cloudflare chain instead of rotating internal proxy addresses, reject spoofed forwarding headers, isolate ingest API keys behind shared networks, and authenticate dashboard visitor forwarding so server-side auth and API requests have per-visitor buckets.
+- **API rate limits** — resolve visitor IPs through the trusted Railway and Cloudflare chain instead of rotating internal proxy addresses, reject spoofed forwarding headers, isolate ingest API keys behind shared networks, and authenticate dashboard visitor forwarding so server-side auth and API requests have per-visitor buckets ([#788](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/788)).
 
 ---
 
