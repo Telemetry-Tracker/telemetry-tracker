@@ -16,7 +16,9 @@ export async function checkInAction(method: "GET" | "POST" | "PATCH" | "DELETE",
   }
   if (suffix && !monitorId) throw new Error("Invalid monitor");
   const response = await dashboardApiFetch(`/api/project/checkin-monitors${monitorId ? `/${encodeURIComponent(monitorId)}` : ""}${suffix}`, {
-    method, headers: { "Content-Type": "application/json" }, ...(body ? { body: JSON.stringify(body) } : {}), cache: "no-store",
+    method,
+    ...(body !== undefined ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {}),
+    cache: "no-store",
   });
   const data = await response.json();
   if (!response.ok) throw new Error(data.error ?? "Check-in request failed");

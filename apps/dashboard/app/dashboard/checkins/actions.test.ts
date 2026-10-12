@@ -7,7 +7,7 @@ const id = "12345678-1234-1234-1234-123456789abc";
 
 beforeEach(() => {
   vi.mocked(dashboardApiFetch).mockReset();
-  vi.mocked(dashboardApiFetch).mockResolvedValue(new Response("{}"));
+  vi.mocked(dashboardApiFetch).mockImplementation(async () => new Response("{}"));
 });
 
 describe("check-in action API paths", () => {
@@ -37,5 +37,25 @@ describe("check-in action API paths", () => {
   it("requires a monitor for resource actions", async () => {
     await expect(checkInAction("POST", "", "pause")).rejects.toThrow("Invalid monitor");
     expect(dashboardApiFetch).not.toHaveBeenCalled();
+  });
+});
+
+describe("check-in action request bodies", () => {
+  it.each(["POST", "DELETE"] as const)("omits content-type and body for body-less %s actions", async (method) => {
+    for (const action of ["", "pause", "resume", "rotate-token"]) {
+      await checkInAction(method, id, action);
+      const init = vi.mocked(dashboardApiFetch).mock.calls.at(-1)![1]!;
+      expect(new Headers(init.headers).has("content-type")).toBe(false);
+      expect(init).not.toHaveProperty("body");
+      expect(init.method).toBe(method);
+      expect(init.cache).toBe("no-store");
+    }
+  });
+
+  it.each([{ name: "Backup" }, {}, null, false, 0, ""])("sends JSON for a provided body %j", async (body) => {
+    await checkInAction("POST", "", "", body);
+    expect(dashboardApiFetch).toHaveBeenCalledWith("/api/project/checkin-monitors", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), cache: "no-store",
+    });
   });
 });

@@ -11,6 +11,10 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ## [Unreleased]
 
+### Fixed
+
+- **Check-in management** — Rotate URL, Pause, Resume, and Delete no longer send a JSON content-type header with an empty body, avoiding API rejection.
+
 ---
 
 ## [1.22.0] - 2026-10-12
