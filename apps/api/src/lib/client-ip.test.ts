@@ -88,10 +88,41 @@ it("logs only the diagnostic allowlist when explicitly enabled", async () => {
     await app.inject({ url: "/" });
     expect(info.mock.calls.filter((call) => call[1] === "Client IP diagnostic")).toHaveLength(0);
     vi.stubEnv("IP_DIAGNOSTIC_LOG", "true");
-    await app.inject({ url: "/", headers: { authorization: "secret", "x-tt-client-ip-secret": "secret", "x-real-ip": "203.0.113.1" } });
+    vi.stubEnv("AFFILIATE_CLIENT_IP_FORWARD_SECRET", "secret");
+    await app.inject({ url: "/", headers: { authorization: "secret", "x-tt-client-ip-secret": "secret", "x-tt-client-ip": "203.0.113.2", "x-real-ip": "203.0.113.1" } });
     const diagnostics = info.mock.calls.filter((call) => call[1] === "Client IP diagnostic");
     expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0][0]).toMatchObject({ source: "dashboard", resolvedIp: "203.0.113.2" });
     expect(Object.keys(diagnostics[0][0] as object).sort()).toEqual(["socketIp", "xRealIp", "xForwardedFor", "cfConnectingIp", "xEnvoyExternalAddress", "resolvedIp", "source"].sort());
     expect(JSON.stringify(diagnostics)).not.toContain("secret");
+  } finally { await app.close(); }
+});
+
+it("authenticates dashboard forwarding before proxy resolution and rejects invalid headers", () => {
+  const trusted = { ...env, AFFILIATE_CLIENT_IP_FORWARD_SECRET: "test-secret" };
+  const headers = { "x-real-ip": "203.0.113.3", "x-tt-client-ip": "203.0.113.4", "x-tt-client-ip-secret": "test-secret" };
+  expect(resolveClientIpDetails(request(headers), trusted)).toEqual({ ip: "203.0.113.4", source: "dashboard" });
+  for (const secret of [undefined, "wrong", ["test-secret"]]) {
+    expect(resolveClientIp(request({ ...headers, "x-tt-client-ip-secret": secret }), trusted)).toBe("203.0.113.3");
+  }
+  for (const ip of ["invalid", "1.1.1.1, 2.2.2.2", ["1.1.1.1"]]) {
+    expect(resolveClientIp(request({ ...headers, "x-tt-client-ip": ip }), trusted)).toBe("203.0.113.3");
+  }
+});
+
+it("gives authenticated dashboard visitors separate buckets through the same socket", async () => {
+  vi.stubEnv("AFFILIATE_CLIENT_IP_FORWARD_SECRET", "test-secret");
+  const app = Fastify();
+  try {
+    await app.register(rateLimit, { max: 2, keyGenerator: clientIpKeyGenerator });
+    app.get("/api/test", async () => ({}));
+    const inject = (visitor: string, secret = "test-secret") => app.inject({ url: "/api/test", remoteAddress: "10.0.0.1", headers: { "x-tt-client-ip": visitor, "x-tt-client-ip-secret": secret } });
+    expect((await inject("203.0.113.1")).statusCode).toBe(200);
+    expect((await inject("203.0.113.1")).statusCode).toBe(200);
+    expect((await inject("203.0.113.1")).statusCode).toBe(429);
+    expect((await inject("203.0.113.2")).statusCode).toBe(200);
+    expect((await inject("203.0.113.3", "wrong")).statusCode).toBe(200);
+    expect((await inject("203.0.113.4", "")).statusCode).toBe(200);
+    expect((await inject("203.0.113.5", "wrong")).statusCode).toBe(429);
   } finally { await app.close(); }
 });

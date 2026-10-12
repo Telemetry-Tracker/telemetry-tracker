@@ -1,5 +1,6 @@
 "use server";
 
+import { apiFetch } from "@/lib/api-fetch";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { API_BASE_URL } from "@/lib/api-url";
@@ -209,7 +210,7 @@ async function resolveProjectCookieForOrganization(
   if (orgScopedProjectsPayload !== undefined) {
     data = orgScopedProjectsPayload;
   } else {
-    const res = await fetch(`${API_BASE_URL}/api/meta/projects`, {
+    const res = await apiFetch(`${API_BASE_URL}/api/meta/projects`, {
       cache: "no-store",
       headers: sessionScopedMetaHeaders(sessionId, {
         projectId: currentProjectId,
@@ -244,7 +245,7 @@ export async function setDashboardOrganizationId(
     return { ok: false, error: "Not signed in" };
   }
   const projectId = await getDashboardProjectId();
-  const verify = await fetch(`${API_BASE_URL}/api/meta/projects`, {
+  const verify = await apiFetch(`${API_BASE_URL}/api/meta/projects`, {
     cache: "no-store",
     headers: sessionScopedMetaHeaders(sessionId, {
       projectId,

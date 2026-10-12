@@ -13,7 +13,7 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ### Fixed
 
-- **API rate limits** — resolve visitor IPs through the trusted Railway and Cloudflare chain instead of rotating internal proxy addresses, reject spoofed forwarding headers, and isolate ingest API keys behind shared networks.
+- **API rate limits** — resolve visitor IPs through the trusted Railway and Cloudflare chain instead of rotating internal proxy addresses, reject spoofed forwarding headers, isolate ingest API keys behind shared networks, and authenticate dashboard visitor forwarding so server-side auth and API requests have per-visitor buckets.
 
 ---
 

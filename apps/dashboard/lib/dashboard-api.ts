@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/api-fetch";
 import { API_BASE_URL } from "@/lib/api-url";
 import { resolveDashboardApiUrl } from "@/lib/dashboard-api-url";
 import { getDashboardOrganizationId } from "@/lib/dashboard-org";
@@ -51,7 +52,7 @@ export async function dashboardApiFetchFromCookies(
     orgCookie: orgCookie ?? null,
   });
 
-  return fetch(url, {
+  return apiFetch(url, {
     cache: "no-store",
     ...init,
     headers: {
@@ -102,7 +103,7 @@ export async function dashboardApiFetch(
     ...(sessionId ? { Authorization: `Bearer ${sessionId}` } : {}),
     ...(orgId ? { "X-Organization-Id": orgId.toLowerCase() } : {}),
   };
-  return fetch(url, {
+  return apiFetch(url, {
     cache: "no-store",
     ...init,
     headers: {

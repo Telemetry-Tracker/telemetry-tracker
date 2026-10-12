@@ -3,8 +3,6 @@
  * No account needed. Applicants are never emailed; an optional founder notification is
  * sent only when AFFILIATE_APPLICATION_NOTIFY_EMAILS and transactional email are configured.
  */
-import { timingSafeEqual } from "node:crypto";
-import { isIP } from "node:net";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { resolveClientIp } from "./client-ip.js";
 import { normalizeEmailForSelfReferralCheck } from "./affiliate-email-normalize.js";
@@ -63,19 +61,6 @@ export function applicationRateLimitKey(request: {
   ip: string;
   headers: Record<string, string | string[] | undefined>;
 }, env: NodeJS.ProcessEnv = process.env): string {
-  const secret = env.AFFILIATE_CLIENT_IP_FORWARD_SECRET;
-  const supplied = request.headers[CLIENT_IP_FORWARD_SECRET_HEADER];
-  if (secret && typeof supplied === "string") {
-    const expected = Buffer.from(secret);
-    const received = Buffer.from(supplied);
-    if (expected.length === received.length && timingSafeEqual(expected, received)) {
-      const raw = request.headers[CLIENT_IP_FORWARD_HEADER];
-      const forwarded = (Array.isArray(raw) ? raw[0] : raw)?.trim() ?? "";
-      if (forwarded && forwarded.length <= 45 && isIP(forwarded) !== 0) {
-        return `affiliate-application:${forwarded}`;
-      }
-    }
-  }
   return `affiliate-application:${resolveClientIp(request, env)}`;
 }
 

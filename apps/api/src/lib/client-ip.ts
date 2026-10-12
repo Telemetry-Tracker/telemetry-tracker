@@ -1,8 +1,9 @@
+import { timingSafeEqual } from "node:crypto";
 import { isIP } from "node:net";
 import type { FastifyInstance } from "fastify";
 
 type IpRequest = { ip: string; headers: Record<string, string | string[] | undefined> };
-type IpSource = "cf" | "railway" | "socket";
+type IpSource = "cf" | "railway" | "socket" | "dashboard";
 
 // Cloudflare published ranges, verified 2026-10-12:
 // https://www.cloudflare.com/ips-v4 and https://www.cloudflare.com/ips-v6
@@ -61,6 +62,16 @@ export function isCloudflareIp(ip: string): boolean {
 }
 
 export function resolveClientIpDetails(request: IpRequest, env: NodeJS.ProcessEnv = process.env): { ip: string; source: IpSource } {
+  const secret = env.AFFILIATE_CLIENT_IP_FORWARD_SECRET;
+  const supplied = request.headers["x-tt-client-ip-secret"];
+  if (secret && typeof supplied === "string") {
+    const expected = Buffer.from(secret);
+    const received = Buffer.from(supplied);
+    if (expected.length === received.length && timingSafeEqual(expected, received)) {
+      const forwarded = singleIp(request.headers["x-tt-client-ip"]);
+      if (forwarded) return { ip: (request.headers["x-tt-client-ip"] as string).trim(), source: "dashboard" };
+    }
+  }
   const trustRailway = env.TRUST_RAILWAY_EDGE === "true" ||
     (env.TRUST_RAILWAY_EDGE === undefined && env.NODE_ENV === "production");
   const railwayIp = trustRailway ? singleIp(request.headers["x-real-ip"]) : undefined;
