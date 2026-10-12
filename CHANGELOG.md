@@ -11,6 +11,14 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ## [Unreleased]
 
+---
+
+## [1.22.0] - 2026-10-12
+
+### Added
+
+- **Cron and background-job check-ins** — monitors with interval or cron schedules (timezone, grace period, optional max runtime), ping URLs for success/start/fail with run IDs and exit codes, history, missed/timeout/fail alerts to existing destinations with recovery notices, rotate/pause/delete, a Node helper, and dashboard + docs at /docs/checkins. Per-project monitor caps: Free 5, Pro 50, Business 500. Requires `CHECKIN_ENCRYPTION_KEY` on the API; missed-run detection runs in the alert-rules evaluator cron ([#783](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/783)).
+
 ### Fixed
 
 - **Cron check-ins** — support secret headers to avoid token exposure in proxy/CDN URLs, use header authentication by default in the Node helper, scrub authentication headers, and rate-limit pings by trusted client IP.
