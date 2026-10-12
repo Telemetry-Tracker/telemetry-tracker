@@ -169,3 +169,41 @@ export function middleware(opts?: { trackRequestBody?: boolean }) {
     }
   };
 }
+
+/** Run a job with start/ok/fail signals (header authentication by default). Check-in network errors
+ * never replace the job result. Store the URL as a secret, not in source code. */
+export async function withCheckIn<T>(url: string, fn: () => T | Promise<T>, options: { monitorName?: string; tokenTransport?: "header" | "url" } = {}): Promise<T> {
+  const { randomUUID } = await import("node:crypto");
+  const rid = randomUUID();
+  async function ping(suffix: string) {
+    try {
+      const target = new URL(url);
+      if (!["http:", "https:"].includes(target.protocol)) return;
+      const headers: Record<string, string> = {};
+      const match = target.pathname.match(/^(.*\/checkin)\/(ttc_[a-f0-9]{64})\/?$/);
+      if (match && options.tokenTransport !== "url") {
+        headers["X-TT-Checkin-Token"] = match[2];
+        target.pathname = match[1];
+      }
+      target.pathname = `${target.pathname.replace(/\/$/, "")}${suffix}`;
+      target.searchParams.set("rid", rid);
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const response = await fetch(target, { method: "POST", headers, signal: AbortSignal.timeout(5000), redirect: "error" });
+          await response.body?.cancel();
+          if (response.ok || (response.status < 500 && response.status !== 429)) return;
+        } catch { /* Best effort; retries use the same run ID. */ }
+      }
+    } catch { /* Invalid URL must not prevent the user's job running. */ }
+  }
+  await ping("/start");
+  try {
+    const result = await fn();
+    await ping("");
+    return result;
+  } catch (error) {
+    await ping("/fail");
+    try { coreTrackError(error, { checkin: options.monitorName ?? "background-job", checkin_run_id: rid }); } catch { /* Preserve original error. */ }
+    throw error;
+  }
+}

@@ -273,6 +273,7 @@ model Project {
   pii_scrub_settings Json?       @map("pii_scrub_settings")
   alert_events    AlertEvent[]
   alert_rules     AlertRule[]
+  checkin_monitors CheckInMonitor[]
   webhooks        ProjectWebhook[]
   webhook_deliveries AlertWebhookDelivery[]
   source_map_artifacts SourceMapArtifact[]
@@ -282,6 +283,98 @@ model Project {
   @@index([organization_id])
   @@index([deleted_at])
 }
+
+
+enum CheckInScheduleType {
+  INTERVAL
+  CRON
+}
+enum CheckInMonitorStatus {
+  NEW
+  UP
+  DOWN
+  PAUSED
+}
+enum CheckInKind {
+  START
+  OK
+  FAIL
+  MISSED
+  TIMEOUT
+}
+
+model CheckInMonitor {
+  id String @id @default(uuid())
+  project_id String
+  project Project @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  name String
+  token_hash String @unique
+  token_encrypted String
+  schedule_type CheckInScheduleType
+  interval_seconds Int?
+  cron_expr String?
+  timezone String @default("UTC")
+  grace_seconds Int @default(300)
+  max_runtime_seconds Int?
+  destination_ids Json
+  status CheckInMonitorStatus @default(NEW)
+  last_ping_at DateTime?
+  next_due_at DateTime?
+  deadline_at DateTime?
+  down_since DateTime?
+  incident_id String?
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  deleted_at DateTime?
+  checkins CheckIn[]
+  runs CheckInRun[]
+  notices CheckInNotice[]
+  @@index([project_id, deleted_at])
+  @@index([status, deadline_at])
+}
+
+model CheckIn {
+  id String @id @default(uuid())
+  monitor_id String
+  monitor CheckInMonitor @relation(fields: [monitor_id], references: [id], onDelete: Cascade)
+  kind CheckInKind
+  run_id String?
+  exit_code Int?
+  duration_ms Int?
+  received_at DateTime @default(now())
+  @@unique([monitor_id, run_id, kind])
+  @@index([monitor_id, received_at(sort: Desc)])
+  @@index([received_at])
+}
+
+model CheckInRun {
+  id String @id @default(uuid())
+  monitor_id String
+  monitor CheckInMonitor @relation(fields: [monitor_id], references: [id], onDelete: Cascade)
+  run_id String
+  started_at DateTime
+  timeout_at DateTime?
+  finished_at DateTime?
+  @@unique([monitor_id, run_id])
+  @@index([timeout_at, finished_at])
+}
+
+// Durable outbox: state transition and notification intent commit together.
+model CheckInNotice {
+  id String @id @default(uuid())
+  monitor_id String
+  monitor CheckInMonitor @relation(fields: [monitor_id], references: [id], onDelete: Cascade)
+  project_id String
+  rule AlertRuleType
+  dedupe_key String @unique
+  title String
+  body String
+  destination_ids Json
+  delivered_at DateTime?
+  created_at DateTime @default(now())
+  @@index([delivered_at, id])
+}
+
 
 /// Ingest credential (manageable object, not only a secret).
 /// Key format: `tt_live_<publicId>_<secret>` (see docs/ENTITLEMENTS.md).
@@ -334,6 +427,8 @@ enum PlanTier {
 }
 
 enum AlertRuleType {
+  CHECKIN_DOWN
+  CHECKIN_RECOVERED
   ERROR_SPIKE
   QUOTA_NEAR
   QUOTA_EXCEEDED

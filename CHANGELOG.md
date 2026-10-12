@@ -11,6 +11,10 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ## [Unreleased]
 
+### Fixed
+
+- **Cron check-ins** — support secret headers to avoid token exposure in proxy/CDN URLs, use header authentication by default in the Node helper, scrub authentication headers, and rate-limit pings by trusted client IP.
+
 ---
 
 ## [1.21.0] - 2026-10-12

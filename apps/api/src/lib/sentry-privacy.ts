@@ -19,6 +19,7 @@ export const SENTRY_EVENT_SANITIZE_MAX_NODES = 4000;
 /** Header names removed entirely, compared case-insensitively. */
 const SENSITIVE_HEADER_NAMES = new Set([
   "authorization",
+  "x-tt-checkin-token",
   "proxy-authorization",
   "www-authenticate",
   "authentication",
@@ -130,6 +131,11 @@ function dropUnscannedEntries(record: JsonObject, keys: string[], from: number):
   }
 }
 
+function redactCheckInSecrets(value: string): string {
+  return value.replace(/ttc_[a-zA-Z0-9_%.-]+/g, "[redacted]")
+    .replace(/(\/checkin\/)[^\s/?#"<>]+/gi, "$1[redacted]");
+}
+
 function sanitizeHeaders(headers: JsonObject, depth: number, budget: Budget): void {
   if (budget.seen.has(headers)) return;
   budget.seen.add(headers);
@@ -146,7 +152,7 @@ function sanitizeHeaders(headers: JsonObject, depth: number, budget: Budget): vo
     }
     const value = headers[name];
     if (typeof value === "string") {
-      headers[name] = redactTelemetryTrackerApiKeys(value);
+      headers[name] = redactCheckInSecrets(redactTelemetryTrackerApiKeys(value));
       continue;
     }
     if (value !== null && typeof value === "object") {
@@ -217,7 +223,7 @@ function sanitizeObject(record: JsonObject, depth: number, budget: Budget): void
         dropUnscannedEntries(record, keys, index + 1);
         return;
       }
-      record[key] = redactTelemetryTrackerApiKeys(stripUrlQuery(child));
+      record[key] = redactCheckInSecrets(redactTelemetryTrackerApiKeys(stripUrlQuery(child)));
       continue;
     }
     if (typeof child === "string") {
@@ -226,7 +232,7 @@ function sanitizeObject(record: JsonObject, depth: number, budget: Budget): void
         dropUnscannedEntries(record, keys, index + 1);
         return;
       }
-      record[key] = redactTelemetryTrackerApiKeys(child);
+      record[key] = redactCheckInSecrets(redactTelemetryTrackerApiKeys(child));
       continue;
     }
     if (child !== null && typeof child === "object") {
@@ -259,7 +265,7 @@ function sanitizeArray(values: unknown[], depth: number, budget: Budget): void {
         values.length = index;
         return;
       }
-      values[index] = redactTelemetryTrackerApiKeys(child);
+      values[index] = redactCheckInSecrets(redactTelemetryTrackerApiKeys(child));
       continue;
     }
     if (child !== null && typeof child === "object") {
@@ -328,6 +334,15 @@ function failClosedSentryEvent(event: unknown): void {
   for (const key of ["headers", "contexts", "extra", "breadcrumbs", "response"] as const) {
     try { delete record[key]; } catch { /* ignore */ }
   }
+  // A hostile root getter/Proxy can stop the regular walk before exception
+  // text is visited. Sanitize these reporting fields independently.
+  for (const key of ["message", "exception", "logentry", "transaction", "tags"] as const) {
+    try {
+      const value = record[key];
+      if (typeof value === "string") record[key] = redactCheckInSecrets(redactTelemetryTrackerApiKeys(value));
+      else if (value && typeof value === "object") sanitizeSentryEvent(value);
+    } catch { try { delete record[key]; } catch { /* ignore */ } }
+  }
   try {
     delete record.user;
   } catch {
@@ -346,9 +361,11 @@ function failClosedSentryEvent(event: unknown): void {
     }
     try {
       if (typeof req.url === "string") {
-        const queryIndex = req.url.indexOf("?");
+        const sanitizedUrl = redactCheckInSecrets(redactTelemetryTrackerApiKeys(req.url));
+        req.url = sanitizedUrl;
+        const queryIndex = sanitizedUrl.indexOf("?");
         if (queryIndex !== -1) {
-          req.url = req.url.slice(0, queryIndex);
+          req.url = sanitizedUrl.slice(0, queryIndex);
         }
       }
     } catch {
