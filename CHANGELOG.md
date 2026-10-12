@@ -17,6 +17,8 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ### Fixed
 
+- Rate-limit unauthenticated MCP requests before token lookup with a configurable coarse pre-auth abuse guard.
+
 ### Changed
 
 ---
