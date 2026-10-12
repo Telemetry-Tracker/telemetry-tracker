@@ -29,3 +29,14 @@ it.each([
     expect((await inject("10.0.0.3", "203.0.113.2")).statusCode).not.toBe(429);
   } finally { await app.close(); }
 });
+
+it("uses trusted visitor identity for the check-in scope", async () => {
+  vi.stubEnv("TRUST_RAILWAY_EDGE", "true");
+  const app = await createApp();
+  const inject = (socket: string, visitor: string) => app.inject({ url: "/checkin", remoteAddress: socket, headers: { "x-real-ip": "104.16.0.1", "cf-connecting-ip": visitor } });
+  try {
+    for (let i = 0; i < 600; i++) expect((await inject(i % 2 ? "10.0.0.1" : "10.0.0.2", "203.0.113.1")).statusCode).toBe(404);
+    expect((await inject("10.0.0.3", "203.0.113.1")).statusCode).toBe(429);
+    expect((await inject("10.0.0.3", "203.0.113.2")).statusCode).toBe(404);
+  } finally { await app.close(); }
+});

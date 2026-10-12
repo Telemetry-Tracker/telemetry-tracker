@@ -53,6 +53,7 @@ export const DASHBOARD_NAV: SidebarNavItem[] = [
   { href: "/dashboard/visits", label: "Visits", enabled: true, icon: "visits" },
   { href: "/dashboard/performance", label: "Performance", enabled: true, icon: "performance" },
   { href: "/dashboard/releases", label: "Releases", enabled: true, icon: "releases" },
+  { href: "/dashboard/checkins", label: "Check-ins", enabled: true, icon: "alerts" },
   { href: "/dashboard/alerts", label: "Alerts", enabled: true, icon: "alerts" },
   { href: "/dashboard/notifications", label: "Notifications", enabled: true, icon: "notifications" },
   { href: "/dashboard/search", label: "Search", enabled: true, icon: "search" },

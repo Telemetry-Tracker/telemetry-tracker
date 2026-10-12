@@ -12,6 +12,12 @@ The dashboard calls the API via **`API_URL`** (server-side only). The API uses *
 
 ---
 
+
+## Check-in monitoring requirement
+
+Cron/background-job check-ins require the existing alert-rules evaluator every five minutes. Run `node dist/jobs/run-alert-rules-evaluator.js` on `*/5 * * * *` or use `--loop`. Set API `CHECKIN_ENCRYPTION_KEY` to 32 random bytes as hex and retain it with DB backups; set dashboard `CHECKIN_PUBLIC_BASE_URL` if `API_URL` is internal. Monitor `/health` → `alert_rules_evaluator`; the Check-ins dashboard warns when stale/never. See [check-in setup and recipes](./docs/CHECK-INS.md).
+
+
 ## Environment variables (core)
 
 Copy `apps/api/.env.example` and `apps/dashboard/.env.example` for local dev.
