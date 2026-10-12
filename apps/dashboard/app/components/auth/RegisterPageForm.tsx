@@ -1,5 +1,6 @@
 "use client";
 
+import { trackSignup } from "@/lib/signup-analytics";
 import { readSignupAttribution } from "@/lib/signup-attribution";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -92,6 +93,7 @@ export function RegisterPageForm({ serverChoice }: RegisterPageFormProps) {
         setFormError(result.error);
         return;
       }
+      trackSignup();
       router.push(
         inviteToken ? "/dashboard/overview" : "/dashboard/settings/organization",
       );
