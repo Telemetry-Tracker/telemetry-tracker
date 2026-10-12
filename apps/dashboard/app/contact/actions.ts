@@ -1,5 +1,6 @@
 "use server";
 
+import { apiFetch } from "@/lib/api-fetch";
 import { API_BASE_URL } from "@/lib/api-url";
 
 export type ContactTopic = "general" | "support" | "security" | "business" | "other";
@@ -29,7 +30,7 @@ export async function submitContactForm(
 ): Promise<ContactSubmitResult> {
   let res: Response;
   try {
-    res = await fetch(`${API_BASE_URL}/api/contact`, {
+    res = await apiFetch(`${API_BASE_URL}/api/contact`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(input),
