@@ -58,6 +58,8 @@ model OrganizationAuditEvent {
 
 /// Dashboard user (email + password). Ingest remains API-key only.
 model User {
+  signup_channel String? @db.VarChar(32)
+  first_landing_path String? @db.VarChar(2048)
   utm_source String? @db.VarChar(100)
   utm_medium String? @db.VarChar(100)
   utm_campaign String? @db.VarChar(100)
@@ -257,6 +259,7 @@ model Project {
   organization    Organization   @relation(fields: [organization_id], references: [id], onDelete: Cascade)
   name            String
   slug            String
+  first_event_at  DateTime?
   created_at      DateTime       @default(now()) @map("created_at")
   updated_at      DateTime       @updatedAt @map("updated_at")
   deleted_at      DateTime?      @map("deleted_at")

@@ -67,6 +67,20 @@ describe.skipIf(!runDbIntegration)("POST /ingest/event with API key (integration
       where: { organization_id: organizationId! },
     });
     expect(project).not.toBeNull();
+    expect(project!.first_event_at).toBeInstanceOf(Date);
+    const firstReceipt = project!.first_event_at;
+    const retry = await app!.inject({
+      method: "POST", url: "/ingest/event",
+      headers: { authorization: `Bearer ${fullKey}` },
+      payload: { app: "integration-app", name: "second-event" },
+    });
+    expect(retry.statusCode).toBe(204);
+    const afterRetry = await prisma.project.findUnique({ where: { id: project!.id } });
+    expect(afterRetry!.first_event_at).toEqual(firstReceipt);
+    // Raw retention removes events, never the durable funnel fact.
+    await prisma.event.deleteMany({ where: { project_id: project!.id, name: "second-event" } });
+    const afterRetention = await prisma.project.findUnique({ where: { id: project!.id } });
+    expect(afterRetention!.first_event_at).toEqual(firstReceipt);
     const count = await prisma.event.count({
       where: {
         project_id: project!.id,

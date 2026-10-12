@@ -47,7 +47,7 @@ const rows: Row[] = [
   },
   {
     name: "tt_signup_attribution",
-    purpose: "Remembers how you first arrived (UTM campaign tags and the referring website's hostname) so it can be saved with your account if you sign up. Set only after you accept cookies; deleted if you reject.",
+    purpose: "Remembers how you first arrived (UTM campaign tags, coarse acquisition channel, first landing path with only source/medium/campaign query tags, and the referring website's hostname) so it can be saved with your account if you sign up. Set only after you accept cookies; deleted if you reject.",
     type: "Analytics",
     retention: "60 days",
   },
