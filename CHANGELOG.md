@@ -17,6 +17,8 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ### Fixed
 
+- **Affiliate application rate limits** — forwarded visitor IPs now require the shared server-side `AFFILIATE_CLIENT_IP_FORWARD_SECRET`, preventing direct callers from spoofing per-IP rate-limit keys.
+
 ### Changed
 
 ---
