@@ -14,6 +14,16 @@ environment variable. Never commit it, echo it, or paste it into public chat.
 Rotation invalidates the old URL immediately; update every caller afterwards.
 The secret grants ping access only, not access to project data.
 
+Recommended: keep the token out of proxy/CDN request URLs by sending
+`X-TT-Checkin-Token: ttc_...` (or `Authorization: Bearer ttc_...`) with
+`GET`, `POST`, or `HEAD /checkin` or `/checkin/<action>`:
+
+```sh
+curl -fsS -X POST -H "X-TT-Checkin-Token: $TT_CHECKIN_TOKEN" "$TT_API_URL/checkin"
+```
+
+Path-token URLs remain supported, but appear verbatim in proxy/CDN logs;
+application redaction cannot remove them from infrastructure logs.
 `GET` or `POST /checkin/<secret>` reports success. Append `/start`, `/fail`, or
 `/<exit code>` (0–255; 0 is success). Optional `?rid=<UUID>` pairs overlapping
 runs and makes retries idempotent. Send the same UUID for start and finish.
@@ -125,7 +135,8 @@ await withCheckIn(process.env.TT_CHECKIN_URL!, () => backup(), {
 The helper sends start/ok/fail with a shared UUID, retries twice with a five-second
 request timeout, preserves return values and rethrows job errors. Network failures
 do not fail the job. If the SDK is initialized, thrown errors are reported with
-`checkin` (monitor name) and `checkin_run_id` context. URL-only; no slug auth.
+`checkin` (monitor name) and `checkin_run_id` context. The helper uses header authentication by default for valid token URLs; pass
+`tokenTransport: "url"` to retain path authentication. No slug auth.
 
 For Vercel, put `TT_CHECKIN_URL` and `CRON_SECRET` in project environment secrets.
 Configure `vercel.json` with `{"crons":[{"path":"/api/backup","schedule":"0 3 * * *"}]}`

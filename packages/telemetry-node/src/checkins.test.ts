@@ -12,6 +12,14 @@ describe("withCheckIn", () => {
     expect(new URL(urls[1]).pathname).toBe("/checkin/secret");
     expect(new URL(urls[0]).searchParams.get("rid")).toBe(new URL(urls[1]).searchParams.get("rid"));
   });
+  it.each(["header", "url"] as const)("supports %s token transport", async tokenTransport => {
+    const fetch = vi.fn().mockResolvedValue(new Response("OK")); vi.stubGlobal("fetch", fetch);
+    const token = `ttc_${"a".repeat(64)}`;
+    await withCheckIn(`https://api.test/checkin/${token}`, () => 42, tokenTransport === "url" ? { tokenTransport } : {});
+    const [target, options] = fetch.mock.calls[0];
+    expect(new URL(String(target)).pathname).toBe(tokenTransport === "header" ? "/checkin/start" : `/checkin/${token}/start`);
+    expect(options.headers).toEqual(tokenTransport === "header" ? { "X-TT-Checkin-Token": token } : {});
+  });
   it("reports failure and preserves the thrown error", async () => {
     const fetch = vi.fn(async () => new Response("OK")); vi.stubGlobal("fetch", fetch);
     const error = new Error("backup failed");

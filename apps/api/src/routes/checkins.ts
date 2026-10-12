@@ -21,10 +21,16 @@ export async function checkInPingRoutes(app: FastifyInstance) {
   // Ignore bodies regardless of content type; never parse/store customer output.
   app.removeAllContentTypeParsers();
   app.addContentTypeParser("*", (_request, payload, done) => { payload.resume(); payload.on("end", () => done(null, undefined)); payload.on("error", done); });
-  const handler = async (request: FastifyRequest<{ Params: { token: string; action?: string }; Querystring: { rid?: string } }>, reply: FastifyReply) => {
+  const handler = async (request: FastifyRequest<{ Params: { token?: string; action?: string }; Querystring: { rid?: string } }>, reply: FastifyReply) => {
     reply.header("Cache-Control", "no-store").type("text/plain");
-    const { token, action } = request.params;
-    if (!/^ttc_[a-f0-9]{64}$/.test(token)) return reply.code(404).send("Not found");
+    const segment = request.params.token;
+    const pathToken = segment !== undefined && /^ttc_[a-f0-9]{64}$/.test(segment);
+    const header = request.headers["x-tt-checkin-token"];
+    const bearer = request.headers.authorization?.match(/^Bearer (ttc_[a-f0-9]{64})$/i)?.[1];
+    const token = pathToken ? segment : typeof header === "string" ? header : bearer;
+    const action = pathToken ? request.params.action : segment;
+    if (!pathToken && request.params.action !== undefined) return reply.code(404).send("Not found");
+    if (!token || !/^ttc_[a-f0-9]{64}$/.test(token)) return reply.code(404).send("Not found");
     let kind: "START" | "OK" | "FAIL" = "OK";
     let exitCode: number | null = null;
     if (action === "start") kind = "START";
@@ -48,6 +54,7 @@ export async function checkInPingRoutes(app: FastifyInstance) {
     void drainCheckInNotices(prisma, id).catch(() => request.log.error("Check-in notification dispatch failed; evaluator will retry"));
     return reply.send("OK");
   };
+  app.route({ method: ["GET", "POST", "HEAD"], url: "/", handler });
   app.route({ method: ["GET", "POST", "HEAD"], url: "/:token", handler });
   app.route({ method: ["GET", "POST", "HEAD"], url: "/:token/:action", handler });
 }

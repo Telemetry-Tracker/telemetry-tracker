@@ -19,6 +19,7 @@ export const SENTRY_EVENT_SANITIZE_MAX_NODES = 4000;
 /** Header names removed entirely, compared case-insensitively. */
 const SENSITIVE_HEADER_NAMES = new Set([
   "authorization",
+  "x-tt-checkin-token",
   "proxy-authorization",
   "www-authenticate",
   "authentication",

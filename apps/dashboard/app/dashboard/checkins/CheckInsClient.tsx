@@ -50,6 +50,9 @@ export function CheckInsClient({ initial }: { initial: Data }) {
     {data.evaluator !== "ok" && <p role="alert" className="rounded border border-amber-500 p-4">The evaluator is unavailable or stale. Missed runs and runtime timeouts cannot be detected reliably. Run the evaluator every five minutes.</p>}
     {error && <p role="alert" className="text-red-600">{error}</p>}
     {url && <div className="space-y-2 rounded border border-border p-4"><p>Store this URL as a CI secret or environment variable. Anyone with it can send check-ins.</p>
+      <p>Recommended: send the token in a header. Path URLs appear in proxy/CDN logs.</p>
+      <pre className="overflow-x-auto"><code>{`curl -fsS -X POST -H "X-TT-Checkin-Token: $TT_CHECKIN_TOKEN" "${data.apiBaseUrl.replace(/\/$/, "")}/checkin"`}</code></pre>
+      <input className={`${inputClass} w-full`} aria-label="Secret check-in token" readOnly value={url.split("/").pop() ?? ""} />
       <input className={`${inputClass} w-full`} aria-label="Secret check-in URL" readOnly value={url} />
       <button className={buttonClass} onClick={() => run(async () => { await navigator.clipboard.writeText(url); })}>Copy URL</button>{" "}
       <button className={buttonClass} onClick={() => setUrl("")}>Hide</button></div>}

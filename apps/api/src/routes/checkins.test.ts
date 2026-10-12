@@ -34,6 +34,29 @@ describe("check-in HTTP surface without ingest auth/quota", () => {
     }
     await app.close();
   });
+  it.each([["", "OK", null], ["/start", "START", null], ["/fail", "FAIL", null], ["/0", "OK", 0], ["/255", "FAIL", 255]])("accepts header action %s", async (suffix, kind, exitCode) => {
+    const app = await pingApp();
+    for (const headers of [{ "x-tt-checkin-token": token }, { authorization: `Bearer ${token}` }]) {
+      for (const method of ["GET", "POST"] as const) {
+        expect((await app.inject({ method, url: `/checkin${suffix}?rid=${rid}`, headers })).statusCode).toBe(200);
+        expect(mocks.receive).toHaveBeenLastCalledWith(expect.anything(), token, kind, rid, exitCode);
+      }
+    }
+    await app.close();
+  });
+  it("rejects invalid headers and ambiguous paths and ignores header previews", async () => {
+    const app = await pingApp();
+    for (const url of ["/checkin", "/checkin/start", "/checkin/wrong", "/checkin/start/fail", "/checkin/256"]) {
+      expect((await app.inject({ url, headers: { "x-tt-checkin-token": "wrong" } })).statusCode).toBe(404);
+    }
+    const headers = { "x-tt-checkin-token": token };
+    expect((await app.inject({ url: "/checkin/start/fail", headers })).statusCode).toBe(404);
+    expect((await app.inject({ url: "/checkin?rid=bad", headers })).statusCode).toBe(400);
+    expect((await app.inject({ method: "HEAD", url: "/checkin/start", headers })).statusCode).toBe(200);
+    expect((await app.inject({ url: "/checkin", headers: { ...headers, "user-agent": "Slackbot-LinkExpanding" } })).statusCode).toBe(200);
+    expect(mocks.findFirst).not.toHaveBeenCalled(); expect(mocks.receive).not.toHaveBeenCalled();
+    await app.close();
+  });
   it("rejects malformed tokens, suffixes and run IDs", async () => {
     const app = await pingApp();
     for (const url of ["/checkin/wrong", `/checkin/${token}/256`, `/checkin/${token}/wat`]) expect((await app.inject(url)).statusCode).toBe(404);

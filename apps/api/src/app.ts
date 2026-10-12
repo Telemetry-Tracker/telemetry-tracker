@@ -109,7 +109,7 @@ export async function createApp(): Promise<FastifyInstance> {
   );
 
   await app.register(async function checkInScope(f) {
-    await f.register(rateLimit, { max: 600, timeWindow: RATE_LIMIT_WINDOW_MS });
+    await f.register(rateLimit, { max: 600, timeWindow: RATE_LIMIT_WINDOW_MS, keyGenerator: clientIpKeyGenerator });
     await f.register(checkInPingRoutes);
   }, { prefix: "/checkin" });
 
