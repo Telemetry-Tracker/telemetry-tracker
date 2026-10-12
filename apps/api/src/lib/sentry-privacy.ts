@@ -52,7 +52,7 @@ type Budget = {
 
 function isSensitiveHeaderName(name: string): boolean {
   const normalized = name.toLowerCase();
-  if (SENSITIVE_HEADER_NAMES.has(normalized)) return true;
+  if (normalized === "x-tt-client-ip-secret" || SENSITIVE_HEADER_NAMES.has(normalized)) return true;
   return (
     normalized.includes("authorization") ||
     normalized.includes("cookie") ||

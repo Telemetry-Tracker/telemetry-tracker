@@ -39,6 +39,8 @@ Copy `apps/api/.env.example` and `apps/dashboard/.env.example` for local dev.
 | `TELEMETRY_INGEST_PII_SCRUB_MAX_DEPTH` | Max JSON nesting depth for property/context scrubbing (default `8`) |
 | `TELEMETRY_INGEST_PII_SCRUB_MAX_NODES` | Max JSON nodes visited per payload (default `500`) |
 
+For affiliate applications, set **`AFFILIATE_CLIENT_IP_FORWARD_SECRET`** to the same non-empty random secret in the API and dashboard runtime environments. The dashboard sends it server-side to authenticate visitor-IP forwarding. Never use a `NEXT_PUBLIC_*` name, expose it to browsers, or log it. If it is unset or mismatched, the API ignores the forwarded IP and rate-limits by `request.ip`; dashboard submissions then share the dashboard connection IP limit.
+
 ### API — never in production
 
 | Variable | Why |
