@@ -15,6 +15,8 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ## [1.22.2] - 2026-10-12
 
+- **Private signup analytics** — Dedicated bearer-token authenticated, rate-limited read-only endpoint with UTC daily/ISO weekly counts, approved first-touch acquisition labels and affiliate signup counts. Unreliable conversion metrics explicitly return null. See `docs/SIGNUP-STATS.md`.
+
 ### Fixed
 
 - **Product update emails** — tagging a new minor line (`vX.Y.0`) now automatically sends the release email for the previous line, so subscribers are no longer missed when no milestone is closed; closing a historical milestone never emails stale releases, and the workflow gains a `test_to` input for one controlled test email ([#801](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/801)).
