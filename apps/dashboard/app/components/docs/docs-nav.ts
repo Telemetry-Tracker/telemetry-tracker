@@ -46,6 +46,7 @@ export const docsNavSections: DocsNavSection[] = [
       { id: "dashboard", label: "Using the dashboard", href: "/docs/dashboard" },
       { id: "checkins", label: "Check-ins", href: "/docs/checkins" },
       { id: "alerts", label: "Alerts", href: "/docs/alerts" },
+      { id: "mcp", label: "Agent access (MCP)", href: "/docs/mcp" },
       { id: "source-maps", label: "Source maps", href: "/docs/source-maps" },
     ],
   },

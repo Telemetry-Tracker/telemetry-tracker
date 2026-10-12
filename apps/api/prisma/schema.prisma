@@ -25,6 +25,7 @@ model Organization {
   created_at           DateTime    @default(now()) @map("created_at")
   updated_at           DateTime    @updatedAt @map("updated_at")
   deleted_at           DateTime?   @map("deleted_at")
+  read_tokens          McpReadToken[]
   projects             Project[]
   memberships          OrganizationMembership[]
   invites              OrganizationInvite[]
@@ -76,6 +77,7 @@ model User {
   labs_preferences         Json?            @map("labs_preferences")
   created_at     DateTime                   @default(now()) @map("created_at")
   updated_at     DateTime                   @updatedAt @map("updated_at")
+  read_tokens    McpReadToken[]
   sessions       UserSession[]
   memberships    OrganizationMembership[]
   invites_sent   OrganizationInvite[] @relation("InviteCreatedBy")
@@ -974,4 +976,32 @@ model AffiliateApplication {
   @@index([status, created_at])
   @@index([email_normalized])
   @@index([affiliate_id])
+}
+
+/// Dedicated read-only credentials; explicit project IDs are revalidated on every request.
+model McpReadToken {
+  id String @id @default(uuid())
+  public_id String @unique
+  secret_hash String
+  name String
+  organization_id String
+  organization Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  created_by_user_id String
+  creator User @relation(fields: [created_by_user_id], references: [id], onDelete: Cascade)
+  project_ids String[]
+  created_at DateTime @default(now())
+  expires_at DateTime
+  revoked_at DateTime?
+  expiry_logged_at DateTime?
+  last_used_at DateTime?
+  usage_count Int @default(0)
+  last_tool String?
+  @@index([organization_id])
+}
+
+/// Fixed rows per token/org, shared across API replicas; no IP/proxy dependency.
+model McpRateBucket {
+  key String @id
+  window_start DateTime
+  count Int
 }

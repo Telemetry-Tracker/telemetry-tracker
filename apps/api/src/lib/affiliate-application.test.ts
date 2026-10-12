@@ -3,6 +3,7 @@ import {
   APPLICATION_PROMOTION_MAX,
   APPLICATION_PROMOTION_MIN,
   CLIENT_IP_FORWARD_HEADER,
+  CLIENT_IP_FORWARD_SECRET_HEADER,
   DEFAULT_APPLICATION_RATE_LIMIT_MAX,
   DEFAULT_APPLICATIONS_MAX_PER_HOUR,
   applicationRateLimitKey,
@@ -118,19 +119,37 @@ describe("abuse helpers", () => {
     expect(isHoneypotTripped({ company_website: true })).toBe(true);
   });
 
-  it("keys the rate limit by the forwarded visitor IP only when it is a valid IP", () => {
-    expect(
-      applicationRateLimitKey({ ip: "10.0.0.1", headers: { [CLIENT_IP_FORWARD_HEADER]: "203.0.113.7" } })
-    ).toBe("affiliate-application:203.0.113.7");
-    expect(
-      applicationRateLimitKey({ ip: "10.0.0.1", headers: { [CLIENT_IP_FORWARD_HEADER]: "2001:db8::1" } })
-    ).toBe("affiliate-application:2001:db8::1");
-    expect(
-      applicationRateLimitKey({ ip: "10.0.0.1", headers: { [CLIENT_IP_FORWARD_HEADER]: "evil, 1.1.1.1" } })
-    ).toBe("affiliate-application:10.0.0.1");
-    expect(applicationRateLimitKey({ ip: "10.0.0.1", headers: {} })).toBe(
-      "affiliate-application:10.0.0.1"
-    );
+  const env = { AFFILIATE_CLIENT_IP_FORWARD_SECRET: "test-forward-secret" };
+  const request = (ip: string) => ({
+    ip: "10.0.0.1",
+    headers: { [CLIENT_IP_FORWARD_HEADER]: ip, [CLIENT_IP_FORWARD_SECRET_HEADER]: env.AFFILIATE_CLIENT_IP_FORWARD_SECRET },
+  });
+
+  it.each([undefined, ""])("ignores forwarding when no secret is configured (%s)", (secret) => {
+    expect(applicationRateLimitKey(request("203.0.113.7"), {
+      AFFILIATE_CLIENT_IP_FORWARD_SECRET: secret,
+    })).toBe("affiliate-application:10.0.0.1");
+  });
+
+  it.each(["wrong", "test-forward-secreX", "", undefined, ["test-forward-secret"]])(
+    "ignores a missing, incorrect or ambiguous secret (%s)", (secret) => {
+      expect(applicationRateLimitKey({
+        ip: "10.0.0.1",
+        headers: {
+          [CLIENT_IP_FORWARD_HEADER]: "203.0.113.7",
+          [CLIENT_IP_FORWARD_SECRET_HEADER]: secret,
+        },
+      }, env))
+        .toBe("affiliate-application:10.0.0.1");
+    }
+  );
+
+  it.each(["203.0.113.7", "2001:db8::1"])("accepts authenticated valid IP %s", (ip) => {
+    expect(applicationRateLimitKey(request(ip), env)).toBe(`affiliate-application:${ip}`);
+  });
+
+  it.each(["evil, 1.1.1.1", "", "not-an-ip"])("rejects authenticated invalid IP %s", (ip) => {
+    expect(applicationRateLimitKey(request(ip), env)).toBe("affiliate-application:10.0.0.1");
   });
 
   it("reads rate-limit and hourly-cap env with safe fallbacks", () => {

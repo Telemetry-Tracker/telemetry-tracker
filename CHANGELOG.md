@@ -11,11 +11,25 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ## [Unreleased]
 
-### Added
+---
+
+## [1.20.1] - 2026-10-12
 
 ### Fixed
 
-### Changed
+- **Affiliate application rate limits** — forwarded visitor IPs now require the shared server-side `AFFILIATE_CLIENT_IP_FORWARD_SECRET`, preventing direct callers from spoofing per-IP rate-limit keys ([#781](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/781)).
+
+---
+
+## [1.20.0] - 2026-10-12
+
+### Added
+
+- **Read-only MCP agent access** — opt-in `/mcp` endpoint with five privacy-minimized tools, scoped expiring read tokens, settings management, agent setup documentation and a Copy for agent issue action. Off by default; operators enable it with `TELEMETRY_MCP_ENABLED=true` ([#779](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/779)).
+
+### Fixed
+
+- **MCP pre-auth rate limit** — unauthenticated `/mcp` requests are rate-limited before token lookup (`RATE_LIMIT_MAX_MCP`, default 300/min); per-token and per-org limits are unchanged ([#782](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/782)).
 
 ---
 

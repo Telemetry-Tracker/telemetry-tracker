@@ -36,6 +36,7 @@ describe("sanitizeSentryEvent", () => {
         cookies: "sid=1",
         data: { key: SECRET },
         headers: {
+          "x-tt-client-ip-secret": "forwarding-secret",
           Authorization: `Bearer ${SECRET}`,
           authorization: "Bearer second",
           "X-Debug-Session": "sess-value",
@@ -62,6 +63,7 @@ describe("sanitizeSentryEvent", () => {
     });
     expect(sent.request.method).toBe("POST");
     expect(sent.request.url).toBe("https://telemetry-tracker.com/v1/events");
+    expect(sent.request.headers["x-tt-client-ip-secret"]).toBeUndefined();
     expect(sent.request.headers["USER-AGENT"]).toBe("Mozilla/5.0");
     expect(sent.request.headers["Content-Type"]).toBe("application/json");
     expect(sent.request.headers["X-Request-Id"]).toBe("req-1");
