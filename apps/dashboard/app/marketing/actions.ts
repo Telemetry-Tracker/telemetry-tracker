@@ -1,5 +1,6 @@
 "use server";
 
+import { apiFetch } from "@/lib/api-fetch";
 import { API_BASE_URL } from "@/lib/api-url";
 
 export type MarketingSubscribeResult =
@@ -11,7 +12,7 @@ export async function subscribeToProductUpdates(
 ): Promise<MarketingSubscribeResult> {
   let res: Response;
   try {
-    res = await fetch(`${API_BASE_URL}/api/marketing/subscribe`, {
+    res = await apiFetch(`${API_BASE_URL}/api/marketing/subscribe`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email }),
@@ -51,7 +52,7 @@ export async function unsubscribeFromProductUpdates(
 ): Promise<MarketingUnsubscribeResult> {
   let res: Response;
   try {
-    res = await fetch(`${API_BASE_URL}/api/marketing/unsubscribe`, {
+    res = await apiFetch(`${API_BASE_URL}/api/marketing/unsubscribe`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ token }),

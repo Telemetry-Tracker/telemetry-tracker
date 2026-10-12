@@ -1,5 +1,6 @@
 "use server";
 
+import { apiFetch } from "@/lib/api-fetch";
 import { sanitizeSignupAttribution, type SignupAttribution } from "@/lib/signup-attribution";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -19,7 +20,7 @@ async function fetchFirstProjectAndOrg(sessionId: string): Promise<{
   projectId?: string;
   organizationId?: string;
 }> {
-  const res = await fetch(`${API_BASE_URL}/api/meta/projects`, {
+  const res = await apiFetch(`${API_BASE_URL}/api/meta/projects`, {
     cache: "no-store",
     headers: { Authorization: `Bearer ${sessionId}` },
   });
@@ -37,7 +38,7 @@ async function fetchFirstProjectAndOrg(sessionId: string): Promise<{
 
 /** First org the user belongs to (matches `GET /api/meta/organizations` order) — use when there are no projects yet. */
 async function fetchFirstOrganizationId(sessionId: string): Promise<string | undefined> {
-  const res = await fetch(`${API_BASE_URL}/api/meta/organizations`, {
+  const res = await apiFetch(`${API_BASE_URL}/api/meta/organizations`, {
     cache: "no-store",
     headers: { Authorization: `Bearer ${sessionId}` },
   });
@@ -102,7 +103,7 @@ export async function login(
     return { ok: false, error: "Email and password are required" };
   }
   await applyCookieConsentFromForm(formData);
-  const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
+  const res = await apiFetch(`${API_BASE_URL}/api/auth/login`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -172,7 +173,7 @@ export async function register(
       // Malformed optional attribution must never block registration.
     }
   }
-  const res = await fetch(`${API_BASE_URL}/api/auth/register`, {
+  const res = await apiFetch(`${API_BASE_URL}/api/auth/register`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -235,7 +236,7 @@ export async function logout(): Promise<void> {
   const sid = await getDashboardSessionId();
   if (sid) {
     try {
-      await fetch(`${API_BASE_URL}/api/auth/logout`, {
+      await apiFetch(`${API_BASE_URL}/api/auth/logout`, {
         method: "POST",
         headers: { Authorization: `Bearer ${sid}` },
       });
@@ -264,7 +265,7 @@ export async function requestPasswordReset(
   if (!email.includes("@")) {
     return { ok: false, error: "Valid email is required" };
   }
-  const res = await fetch(`${API_BASE_URL}/api/auth/forgot-password`, {
+  const res = await apiFetch(`${API_BASE_URL}/api/auth/forgot-password`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email }),
@@ -295,7 +296,7 @@ export async function resetPassword(
   if (password.length < 8) {
     return { ok: false, error: "Password must be at least 8 characters" };
   }
-  const res = await fetch(`${API_BASE_URL}/api/auth/reset-password`, {
+  const res = await apiFetch(`${API_BASE_URL}/api/auth/reset-password`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ token, password }),

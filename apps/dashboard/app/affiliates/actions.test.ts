@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { submitAffiliateApplication } from "./actions";
 
@@ -22,7 +23,7 @@ describe("affiliate application IP forwarding", () => {
     vi.stubGlobal("fetch", fetch);
     expect((await submitAffiliateApplication(input)).ok).toBe(true);
     const options = fetch.mock.calls[0][1];
-    expect(options.headers).toMatchObject({
+    expect(Object.fromEntries(new Headers(options.headers))).toMatchObject({
       "x-tt-client-ip": "203.0.113.7", "x-tt-client-ip-secret": "test-forward-secret",
     });
     expect(options.body).not.toContain("test-forward-secret");
@@ -33,6 +34,6 @@ describe("affiliate application IP forwarding", () => {
     const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }));
     vi.stubGlobal("fetch", fetch);
     await submitAffiliateApplication(input);
-    expect(fetch.mock.calls[0][1].headers).toEqual({ "Content-Type": "application/json" });
+    expect(Object.fromEntries(new Headers(fetch.mock.calls[0][1].headers))).toEqual({ "content-type": "application/json" });
   });
 });
