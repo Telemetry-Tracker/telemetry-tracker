@@ -62,7 +62,7 @@ const dataTable = [
   {
     kind: "Signup attribution",
     examples:
-      "UTM campaign tags (source, medium, campaign, content, term) from the page you first landed on, and the hostname of the referring website (no full URL, path or query). Collected only if you accepted cookies; stored with your account when you sign up.",
+      "UTM campaign tags (source, medium, campaign, content, term) from the page you first landed on, coarse acquisition channel, first landing path (only source/medium/campaign query tags), and the hostname of the referring website (no full referrer URL, path or query). Attribution is collected only if you accepted cookies; stored with your account when you sign up. Without consent we store only a no-consent marker. Project first-telemetry timestamps survive raw telemetry retention to measure activation.",
     purpose: "Understand which channels and campaigns bring new users (aggregate marketing analysis).",
     retention: "Remembered in a cookie for up to 60 days before signup; then kept with your account and deleted when the account is deleted.",
   },
