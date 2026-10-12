@@ -9,6 +9,7 @@ import {
   rateLimitMaxApi,
   rateLimitMaxAuth,
   rateLimitMaxIngest,
+  rateLimitMaxMcp,
   rateLimitMaxPublic,
   RATE_LIMIT_WINDOW_MS,
 } from "./lib/rate-limit-env.js";
@@ -23,6 +24,9 @@ import { affiliatesAdminRoutes } from "./routes/affiliates-admin.js";
 import { affiliateApplicationRoutes } from "./routes/affiliate-applications.js";
 import { briefRoutes } from "./routes/brief.js";
 import { registerStripeWebhookIfConfigured } from "./routes/stripe-webhook.js";
+
+import { mcpRoutes } from "./routes/mcp.js";
+import { mcpTokenRoutes } from "./routes/mcp-tokens.js";
 
 const PAYLOAD_LIMIT = 200 * 1024; // 200 KB
 
@@ -39,6 +43,12 @@ export async function createApp(): Promise<FastifyInstance> {
   });
 
   registerObservabilityHooks(app);
+  // Dedicated read credentials never fall through to legacy unauthenticated reads.
+  app.addHook("onRequest", async (request, reply) => {
+    if (/^Bearer\s+tt_read_/i.test(request.headers.authorization ?? "") && request.url.split("?")[0] !== "/mcp") {
+      return reply.code(401).send({ error: "Read tokens are accepted only on /mcp" });
+    }
+  });
 
   const corsDelegator: FastifyCorsOptionsDelegateCallback = (req, callback) => {
     callback(null, resolveCorsOptionsForRequest(req));
@@ -47,6 +57,15 @@ export async function createApp(): Promise<FastifyInstance> {
   await app.register(cors, { delegator: corsDelegator });
 
   await registerStripeWebhookIfConfigured(app);
+  await app.register(async function mcpScope(f) {
+    // With trustProxy unset, this keys on the connecting proxy address in production.
+    // This is a coarse pre-auth abuse guard; per-client IP limiting is a separate follow-up.
+    await f.register(rateLimit, {
+      max: rateLimitMaxMcp(isTest),
+      timeWindow: RATE_LIMIT_WINDOW_MS,
+    });
+    await f.register(mcpRoutes);
+  });
 
   await app.register(
     async function publicSurface(f) {
@@ -110,6 +129,7 @@ export async function createApp(): Promise<FastifyInstance> {
       await f.register(apiRoutes);
       await f.register(projectDashboardRoutes);
       await f.register(briefRoutes);
+      await f.register(mcpTokenRoutes);
       await f.register(billingRoutes);
       await f.register(affiliatesAdminRoutes);
     },

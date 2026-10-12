@@ -46,6 +46,8 @@ Copy `apps/api/.env.example` and `apps/dashboard/.env.example` for local dev.
 | `INGEST_ALLOW_UNAUTHENTICATED` | Ingest must use API keys |
 | `TELEMETRY_ALLOW_UNAUTHENTICATED_READS` | Dashboard reads require login |
 
+`RATE_LIMIT_MAX_MCP` defaults to 300 requests per minute for the pre-auth `/mcp` scope. With `trustProxy` unset, it keys on the connecting proxy address in production, so it is a coarse abuse guard shared by clients behind that proxy. Existing per-token and per-organization MCP limits remain unchanged and are the primary customer limits. Per-client IP limiting is a separate follow-up pending verification of the proxy chain; do not widen proxy trust for this guard.
+
 Rate limits (`RATE_LIMIT_*`), legacy org fallback (`TELEMETRY_ORGANIZATION_ID`), and ingest dev flags are documented in [docs/ENTITLEMENTS.md](docs/ENTITLEMENTS.md).
 
 **Email (Resend) and Stripe billing** — optional; see [docs/BILLING.md](docs/BILLING.md).
@@ -153,3 +155,29 @@ For a full register → ingest → billing flow, use `scripts/smoke-production.s
 | [docs/ALERT-RULES.md](docs/ALERT-RULES.md) | Alert Rules conditions, SYSTEM built-ins, evaluator cron |
 | [docs/ENTITLEMENTS.md](docs/ENTITLEMENTS.md) | Plans, ingest auth, rate limits |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System overview for contributors |
+
+### Read-only MCP agent access
+
+MCP is off by default, including hosted deployments. Apply the additive
+`20261012000000_mcp_read_tokens` migration before opting in with
+`TELEMETRY_MCP_ENABLED=true` on the API. Keep `TELEMETRY_INGEST_PII_SCRUB` enabled;
+MCP refuses access when it is disabled. Set `DASHBOARD_URL` to the dashboard origin.
+Setup and security documentation: `/docs/mcp`.
+
+MCP uses PostgreSQL buckets per token and org (Free: 30/120 requests/minute;
+paid: 120/600), shared across replicas. It does not use forwarded IP headers.
+Fastify currently has no `trustProxy` setting and the existing Fastify rate limiter
+uses its default `request.ip` key. If Railway presents a proxy source address,
+clients may share the existing API/auth/ingest/public IP buckets. This is a
+code-supported deployment concern, not a confirmed observation of production.
+Do not enable unconditional proxy trust: verify Railway's forwarding and trusted
+hop boundary before changing the existing limiter. This requires operator follow-up
+and blocks a release decision until resolved. MCP's token/org quotas are independent.
+
+Token expiry is enforced on every request; its audit event is recorded once at
+first authenticated observation after expiry. Rate rows are fixed per org/token,
+not per request. Remove obsolete `McpRateBucket` rows when hard-deleting orgs/users
+if necessary; do not remove active buckets during the current minute.
+
+TODO(legal): review the neutral customer-selected AI export wording in `/docs/mcp`.
+No claim is made that existing privacy policy or DPA terms cover this processing.
