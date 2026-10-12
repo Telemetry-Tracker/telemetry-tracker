@@ -12,7 +12,7 @@ import {
   restoreEnv,
   snapshotEnv,
 } from "./affiliate-test-helpers.js";
-import { CLIENT_IP_FORWARD_HEADER } from "../lib/affiliate-application.js";
+import { CLIENT_IP_FORWARD_HEADER, CLIENT_IP_FORWARD_SECRET_HEADER } from "../lib/affiliate-application.js";
 
 const shouldRun = process.env.RUN_DB_INTEGRATION_TESTS === "true";
 const testSuite = shouldRun ? describe : describe.skip;
@@ -47,6 +47,7 @@ const ENV_KEYS = [
   "RATE_LIMIT_AFFILIATE_APPLICATION_MAX",
   "AFFILIATE_APPLICATIONS_MAX_PER_HOUR",
   "AFFILIATE_APPLICATION_NOTIFY_EMAILS",
+  "AFFILIATE_CLIENT_IP_FORWARD_SECRET",
 ] as const;
 
 const DOMAIN = "apply-it.example.com";
@@ -81,7 +82,10 @@ testSuite("Affiliate applications (public form + founder review)", () => {
     return target.inject({
       method: "POST",
       url: "/api/affiliate-applications",
-      headers: ip ? { [CLIENT_IP_FORWARD_HEADER]: ip } : {},
+      headers: ip ? {
+        [CLIENT_IP_FORWARD_HEADER]: ip,
+        [CLIENT_IP_FORWARD_SECRET_HEADER]: "integration-forward-secret",
+      } : {},
       payload,
     });
   }
@@ -117,6 +121,7 @@ testSuite("Affiliate applications (public form + founder review)", () => {
   beforeAll(async () => {
     originalEnv = snapshotEnv(ENV_KEYS);
     applyAffiliateTestEnv({
+      AFFILIATE_CLIENT_IP_FORWARD_SECRET: "integration-forward-secret",
       RATE_LIMIT_AFFILIATE_APPLICATION_MAX: "1000",
       AFFILIATE_APPLICATIONS_MAX_PER_HOUR: "1000",
     });

@@ -3,6 +3,7 @@
  * No account needed. Applicants are never emailed; an optional founder notification is
  * sent only when AFFILIATE_APPLICATION_NOTIFY_EMAILS and transactional email are configured.
  */
+import { timingSafeEqual } from "node:crypto";
 import { isIP } from "node:net";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { normalizeEmailForSelfReferralCheck } from "./affiliate-email-normalize.js";
@@ -26,6 +27,7 @@ export const APPLICATION_HONEYPOT_FIELD = "company_website";
 
 /** Header the dashboard server action uses to forward the visitor IP for per-IP rate limiting. */
 export const CLIENT_IP_FORWARD_HEADER = "x-tt-client-ip";
+export const CLIENT_IP_FORWARD_SECRET_HEADER = "x-tt-client-ip-secret";
 
 export const DEFAULT_APPLICATION_RATE_LIMIT_MAX = 5;
 export const APPLICATION_RATE_LIMIT_WINDOW_MS = 10 * 60_000;
@@ -53,17 +55,25 @@ export function applicationsMaxPerHour(env: NodeJS.ProcessEnv = process.env): nu
 }
 
 /**
- * Rate-limit key: the visitor IP forwarded by the dashboard server action when it is a
- * syntactically valid IP, else the socket IP. The global hourly cap backstops spoofed headers.
+ * Trust the dashboard's forwarded visitor IP only with the shared server-side secret.
+ * Unauthenticated or invalid forwarding falls back to the request IP.
  */
 export function applicationRateLimitKey(request: {
   ip: string;
   headers: Record<string, string | string[] | undefined>;
-}): string {
-  const raw = request.headers[CLIENT_IP_FORWARD_HEADER];
-  const forwarded = (Array.isArray(raw) ? raw[0] : raw)?.trim() ?? "";
-  if (forwarded && forwarded.length <= 45 && isIP(forwarded) !== 0) {
-    return `affiliate-application:${forwarded}`;
+}, env: NodeJS.ProcessEnv = process.env): string {
+  const secret = env.AFFILIATE_CLIENT_IP_FORWARD_SECRET;
+  const supplied = request.headers[CLIENT_IP_FORWARD_SECRET_HEADER];
+  if (secret && typeof supplied === "string") {
+    const expected = Buffer.from(secret);
+    const received = Buffer.from(supplied);
+    if (expected.length === received.length && timingSafeEqual(expected, received)) {
+      const raw = request.headers[CLIENT_IP_FORWARD_HEADER];
+      const forwarded = (Array.isArray(raw) ? raw[0] : raw)?.trim() ?? "";
+      if (forwarded && forwarded.length <= 45 && isIP(forwarded) !== 0) {
+        return `affiliate-application:${forwarded}`;
+      }
+    }
   }
   return `affiliate-application:${request.ip}`;
 }

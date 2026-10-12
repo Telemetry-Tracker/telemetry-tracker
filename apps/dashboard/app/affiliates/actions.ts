@@ -29,13 +29,17 @@ export async function submitAffiliateApplication(
   const requestHeaders = await headers();
   const clientIp = clientIpFromHeaders(requestHeaders);
 
+  const forwardSecret = process.env.AFFILIATE_CLIENT_IP_FORWARD_SECRET;
+
   let res: Response;
   try {
     res = await fetch(`${API_BASE_URL}/api/affiliate-applications`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...(clientIp ? { "x-tt-client-ip": clientIp } : {}),
+        ...(clientIp && forwardSecret
+          ? { "x-tt-client-ip": clientIp, "x-tt-client-ip-secret": forwardSecret }
+          : {}),
       },
       body: JSON.stringify({
         name: String(input.name ?? ""),
