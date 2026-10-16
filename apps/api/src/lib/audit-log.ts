@@ -18,6 +18,10 @@ export const AUDIT_ACTIONS = {
   PROJECT_UPDATE: "project.update",
   /** Organization (workspace) display name changed. */
   ORGANIZATION_UPDATE: "organization.update",
+  /** Owner removed a member from the organization (TT-015). */
+  ORGANIZATION_MEMBER_REMOVE: "organization.member.remove",
+  /** Owner revoked a pending invite (TT-015). */
+  ORGANIZATION_INVITE_REVOKE: "organization.invite.revoke",
   /** Founder/admin resolved OrganizationReferral.needs_attention as VALID. */
   AFFILIATE_NEEDS_ATTENTION_RESOLVE: "affiliate.needs_attention.resolve",
   AFFILIATE_CREATED: "affiliate.created",
