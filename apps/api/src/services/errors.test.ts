@@ -61,6 +61,25 @@ describe("findOrCreateErrorGroup", () => {
     );
   });
 
+  it("reopens a resolved group when it recurs (TT-014, #713)", async () => {
+    prisma.errorGroup.findUnique.mockResolvedValueOnce({ id: "eg-1", resolved_at: new Date() });
+    prisma.errorGroup.update.mockResolvedValueOnce({});
+
+    await findOrCreateErrorGroup(prisma as never, {
+      projectId: "p1",
+      fingerprint: "fp",
+      message: "boom",
+      top_stack: "at foo",
+      app: "web",
+    });
+
+    expect(prisma.errorGroup.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ resolved_at: null }),
+      })
+    );
+  });
+
   it("returns isNew only for the first fingerprint (NEW_ERROR_GROUP fires once per group)", async () => {
     prisma.errorGroup.findUnique.mockResolvedValueOnce(null);
     prisma.errorGroup.create.mockResolvedValueOnce({
