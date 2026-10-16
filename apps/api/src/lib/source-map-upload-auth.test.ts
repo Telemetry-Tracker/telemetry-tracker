@@ -119,7 +119,7 @@ describe("resolveSourceMapUploadAuth", () => {
     expect(reply.status).toHaveBeenCalledWith(403);
   });
 
-  it("rejects API key when X-Project-Id is missing", async () => {
+  it("uses the API key project when X-Project-Id is missing (TT-005)", async () => {
     vi.mocked(getSessionUser).mockResolvedValue(null);
     vi.mocked(verifyIngestApiKey).mockResolvedValue({
       id: "key-1",
@@ -136,8 +136,8 @@ describe("resolveSourceMapUploadAuth", () => {
       reply
     );
 
-    expect(result).toBeNull();
-    expect(reply.status).toHaveBeenCalledWith(400);
+    expect(result).toEqual(expect.objectContaining({ projectId: PROJECT_ID }));
+    expect(reply.status).not.toHaveBeenCalled();
   });
 
   it("rejects API key when X-Project-Id does not match", async () => {

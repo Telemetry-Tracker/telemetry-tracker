@@ -6,6 +6,7 @@ import {
   resolveActiveOrganizationId,
 } from "@/lib/dashboard-org";
 import { getDashboardUser } from "@/lib/dashboard-user";
+import type { PendingInviteRow } from "@/app/dashboard/actions";
 import { TeamMembersClient, type TeamMemberRow } from "./TeamMembersClient";
 
 export const dynamic = "force-dynamic";
@@ -40,6 +41,15 @@ async function loadMembers(
   };
 }
 
+async function loadInvites(organizationId: string): Promise<PendingInviteRow[]> {
+  const res = await dashboardApiFetch(
+    `/api/meta/organizations/${encodeURIComponent(organizationId)}/invites`
+  );
+  if (!res.ok) return [];
+  const data = (await res.json()) as { invites?: PendingInviteRow[] };
+  return Array.isArray(data.invites) ? data.invites : [];
+}
+
 export default async function TeamSettingsPage() {
   const [orgs, cookieOrg, user] = await Promise.all([
     loadOrganizations(),
@@ -70,6 +80,7 @@ export default async function TeamSettingsPage() {
     user && members.some((m) => m.userId === user.id && m.role === "OWNER")
   );
   const ownerCount = members.filter((m) => m.role === "OWNER").length;
+  const invites = canManageMembers && organizationId ? await loadInvites(organizationId) : [];
 
   return (
     <>
@@ -84,6 +95,7 @@ export default async function TeamSettingsPage() {
           currentUserId={user.id}
           canManageMembers={canManageMembers}
           ownerCount={ownerCount}
+          invites={invites}
         />
       ) : (
         <p className="text-muted-foreground">Join an organization to see members.</p>
