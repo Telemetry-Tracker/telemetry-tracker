@@ -1,6 +1,36 @@
 import { toReportableError } from "@telemetry-tracker/core";
 /** Bound how long a crashing process waits for the error ingest request. */
 export const FATAL_FLUSH_TIMEOUT_MS = 2000;
+const FALLBACK_MESSAGE = "Uncaught exception (the thrown value could not be inspected: its message/stack getter or Proxy trap threw)";
+/**
+ * TT-022 (#724): turn any thrown value into a plain Error whose message/stack are own string
+ * properties, so ingest never touches user-defined getters or Proxy traps. Falls back to a
+ * generic Error when inspecting the value throws.
+ */
+export function toSafeFatalError(thrown) {
+    try {
+        const err = toReportableError(thrown);
+        const message = String(err.message);
+        const stack = err.stack == null ? undefined : String(err.stack);
+        let name = "Error";
+        try {
+            name = String(err.name || "Error");
+        }
+        catch {
+            // keep default
+        }
+        const safe = new Error(message);
+        safe.name = name;
+        if (stack !== undefined)
+            safe.stack = stack;
+        return safe;
+    }
+    catch {
+        const fallback = new Error(FALLBACK_MESSAGE);
+        fallback.name = "UninspectableError";
+        return fallback;
+    }
+}
 /** Prevents double exit when strict mode raises rejection as uncaughtException too. */
 let fatalFlushInProgress = false;
 function safeExit(deps) {
@@ -27,13 +57,19 @@ export function flushFatalError(thrown, source, deps) {
         let timeoutId;
         let flush;
         try {
-            const err = toReportableError(thrown);
+            const err = toSafeFatalError(thrown);
             let pending;
             try {
                 pending = Promise.resolve(deps.ingest(err, { source }));
             }
             catch {
-                pending = Promise.resolve();
+                // Last resort: still send a fallback event instead of nothing.
+                try {
+                    pending = Promise.resolve(deps.ingest(toSafeFatalError(undefined), { source }));
+                }
+                catch {
+                    pending = Promise.resolve();
+                }
             }
             flush = pending.catch(() => undefined);
         }

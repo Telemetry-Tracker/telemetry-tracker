@@ -1,4 +1,6 @@
 import { identify, trackEvent, trackError as coreTrackError, screen as coreScreen, getSessionId, endSession, SDK_VERSION, type TelemetryConfig } from "@telemetry-tracker/core";
+/** Identity must change for every distinct JS bundle, including embedded builds. */
+export declare function buildBundleRelease(nativeVersion: string, bundleId: string): string;
 export type TelemetryReactNativeConfig = TelemetryConfig & {
     app: string;
     platform?: string;

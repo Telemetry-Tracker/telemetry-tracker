@@ -81,7 +81,7 @@ const { version, source } = resolveVersion();
 fs.mkdirSync(path.dirname(outPath), { recursive: true });
 fs.writeFileSync(
   outPath,
-  `/** Generated at build time from ${source}. Do not edit manually. */\nexport const API_VERSION = "${version}";\n`,
+  `/** Generated at build time from ${source.split(path.join(__dirname, "..", "..", "..") + path.sep).join("")}. Do not edit manually. */\nexport const API_VERSION = "${version}";\n`,
   "utf8"
 );
 
