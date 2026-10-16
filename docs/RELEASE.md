@@ -172,7 +172,12 @@ Always document **migrations**, **new env vars**, and **breaking changes** in CH
    gh workflow run github-release.yml --ref main -f tag="v${VERSION}" -f dry_run=true
    ```
    If automation is unavailable, use the manual fallback in [RELEASE_NOTES_TEMPLATE.md](./RELEASE_NOTES_TEMPLATE.md). Verify no release already exists first; manual creation uses your own account rather than the bot.
-7. **SDK** — if ingest/SDK contract changed, bump `packages/*/package.json` and `pnpm publish:packages`.
+7. **SDK** — if ingest/SDK contract changed, bump `packages/*/package.json` (and commit the rebuilt `packages/*/dist`; CI fails if it is stale). `pnpm publish:packages` refuses to run unless every package being published has a pushed `sdk-<alias>-v<version>` tag on the release commit, so after the `vX.Y.Z` tag, tag each bumped package on the **same** commit and push:
+   ```bash
+   git tag -a sdk-node-v1.4.1 -m "@telemetry-tracker/node 1.4.1" && git push origin sdk-node-v1.4.1
+   pnpm publish:packages -- --only=node --otp=<code>
+   ```
+   No workflow publishes to npm on these tags; publishing stays local.
 8. **Product update email** — when this tag is the **last intended release** of a minor line, **close the `vX.Y.x — …` GitHub milestone** after the tag exists. That triggers [Release product email](../.github/workflows/release-email.yml) with derived `version` / `previous_version` and **`line_close=true`** (whole **`vX.Y.*`** line; ledger key **`X.Y`**). Opening a new `vX.Y.0` and mid-line patches do **not** send. If the line was already emailed, the ledger skips duplicates. Manual dispatch (`dry_run` / retry) remains available ([MARKETING-EMAIL.md](./MARKETING-EMAIL.md#line-close-send-preferred)). After the send completes, note date and recipient count in the GitHub Release. For exceptional single-version PATCH backfill, use `--force` — see [MARKETING-EMAIL.md](./MARKETING-EMAIL.md#manual-send-cli--backfill).
 9. **Sync `develop`** — merge **`main` into `develop`** and push after every release (milestone promotion or hotfix). Required whenever `main` has commits not on `develop` — including squash merges, merge commits from the release PR, and any post-promotion edits on `main`:
    ```bash

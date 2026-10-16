@@ -1,2 +1,2 @@
-/** Generated at build time from CHANGELOG (/workspace/tt-repo/CHANGELOG.md). Do not edit manually. */
-export const API_VERSION = "1.22.4";
+/** Generated at build time from CHANGELOG (CHANGELOG.md). Do not edit manually. */
+export const API_VERSION = "1.22.5";

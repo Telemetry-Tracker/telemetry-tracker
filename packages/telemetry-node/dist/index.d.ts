@@ -49,3 +49,9 @@ export declare function middleware(opts?: {
     url?: string;
     body?: unknown;
 }, res: MaybeEmitter | unknown, next: () => void) => void;
+/** Run a job with start/ok/fail signals (header authentication by default). Check-in network errors
+ * never replace the job result. Store the URL as a secret, not in source code. */
+export declare function withCheckIn<T>(url: string, fn: () => T | Promise<T>, options?: {
+    monitorName?: string;
+    tokenTransport?: "header" | "url";
+}): Promise<T>;

@@ -40,6 +40,8 @@ export default function RootLayout({
               "${HOSTED_API_URL}",
             app: process.env.NEXT_PUBLIC_TELEMETRY_APP ?? "my-next-app",
             apiKey: process.env.NEXT_PUBLIC_TELEMETRY_API_KEY,
+            // Must match the release used for the source-map upload (e.g. the commit SHA).
+            release: process.env.NEXT_PUBLIC_TELEMETRY_RELEASE,
           }}
         >
           <TrackPageView />

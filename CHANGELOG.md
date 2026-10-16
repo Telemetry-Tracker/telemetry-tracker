@@ -13,6 +13,16 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ---
 
+## [1.22.5] - 2026-10-16
+
+### Fixed
+
+- **SDK release process** — committed `@telemetry-tracker/node` and React Native build output now matches source (includes the [#724](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/724) crash fix), CI checks all SDK build output, and the generated API version no longer embeds the local checkout path; the release guide documents the per-package `sdk-*` tag step ([#813](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/813)).
+
+### Changed
+
+- **Docs** — Next.js provider config includes `release`; the source-map Action example is pinned to v1.22.4 with `project_id` optional ([#812](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/812)).
+
 ## [1.22.4] - 2026-10-16
 
 ### Fixed
