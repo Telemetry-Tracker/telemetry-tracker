@@ -4,7 +4,10 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import {
   inviteOrganizationMemberAction,
+  removeOrganizationMemberAction,
+  revokeOrganizationInviteAction,
   updateOrganizationMemberRoleAction,
+  type PendingInviteRow,
 } from "@/app/dashboard/actions";
 import { Section, SettingsAvatar, SettingsBtn, SettingsInput } from "@/app/components/dashboard/settings/settings-ui";
 import { toDashboardAvatarUrl } from "@/lib/avatar-url";
@@ -29,12 +32,14 @@ export function TeamMembersClient({
   currentUserId,
   canManageMembers,
   ownerCount,
+  invites = [],
 }: {
   organizationId: string;
   members: TeamMemberRow[];
   currentUserId: string;
   canManageMembers: boolean;
   ownerCount: number;
+  invites?: PendingInviteRow[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -96,6 +101,34 @@ export function TeamMembersClient({
       } finally {
         setRoleChangePendingFor(null);
       }
+    });
+  }
+
+  function onRemoveMember(m: TeamMemberRow) {
+    if (!window.confirm(`Remove ${m.email} from this organization? They lose access to all its projects.`)) return;
+    setRoleError(null);
+    startTransition(async () => {
+      const r = await removeOrganizationMemberAction(organizationId, m.userId);
+      if (!r.ok) {
+        setRoleError(r.error);
+        return;
+      }
+      toast.success(`Removed ${m.email}`);
+      router.refresh();
+    });
+  }
+
+  function onRevokeInvite(inv: PendingInviteRow) {
+    if (!window.confirm(`Revoke the invite for ${inv.email}? The invite link stops working.`)) return;
+    setRoleError(null);
+    startTransition(async () => {
+      const r = await revokeOrganizationInviteAction(organizationId, inv.id);
+      if (!r.ok) {
+        setRoleError(r.error);
+        return;
+      }
+      toast.success(`Invite for ${inv.email} revoked`);
+      router.refresh();
     });
   }
 
@@ -187,6 +220,7 @@ export function TeamMembersClient({
                   <th className="hidden sm:table-cell">Name</th>
                   <th>Role</th>
                   <th className={tableDateColumnClass}>Joined</th>
+                  {canManageMembers ? <th className="w-24">Actions</th> : null}
                 </tr>
               </thead>
               <tbody>
@@ -227,6 +261,22 @@ export function TeamMembersClient({
                       <td className={tableDateColumnClass}>
                         <TimeAgo iso={m.joinedAt} />
                       </td>
+                      {canManageMembers ? (
+                        <td>
+                          {!isSelf && !isOnlyOwner ? (
+                            <SettingsBtn
+                              type="button"
+                              variant="default"
+                              size="sm"
+                              disabled={pending}
+                              onClick={() => onRemoveMember(m)}
+                              aria-label={`Remove ${m.email}`}
+                            >
+                              Remove
+                            </SettingsBtn>
+                          ) : null}
+                        </td>
+                      ) : null}
                     </tr>
                   );
                 })}
@@ -235,6 +285,50 @@ export function TeamMembersClient({
           </TableWrap>
         )}
       </Section>
+
+      {canManageMembers ? (
+        <Section title="Pending invites">
+          {invites.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No pending invites.</p>
+          ) : (
+            <TableWrap className="border-0 bg-transparent">
+              <Table>
+                <thead>
+                  <tr>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th className={tableDateColumnClass}>Expires</th>
+                    <th className="w-24">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {invites.map((inv) => (
+                    <tr key={inv.id}>
+                      <td>{inv.email}</td>
+                      <td>{inv.role}</td>
+                      <td className={tableDateColumnClass}>
+                        {new Date(inv.expiresAt).toLocaleDateString()}
+                      </td>
+                      <td>
+                        <SettingsBtn
+                          type="button"
+                          variant="default"
+                          size="sm"
+                          disabled={pending}
+                          onClick={() => onRevokeInvite(inv)}
+                          aria-label={`Revoke invite for ${inv.email}`}
+                        >
+                          Revoke
+                        </SettingsBtn>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            </TableWrap>
+          )}
+        </Section>
+      ) : null}
     </div>
   );
 }

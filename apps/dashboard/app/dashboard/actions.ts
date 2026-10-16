@@ -437,6 +437,54 @@ export async function updateOrganizationMemberRoleAction(
   return { ok: false, error: t.slice(0, 400) || res.statusText };
 }
 
+export type PendingInviteRow = {
+  id: string;
+  email: string;
+  role: string;
+  expiresAt: string;
+  createdAt: string;
+};
+
+export async function removeOrganizationMemberAction(
+  organizationId: string,
+  userId: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const oid = organizationId.trim();
+  const uid = userId.trim();
+  if (!/^[0-9a-f-]{36}$/i.test(oid) || !/^[0-9a-f-]{36}$/i.test(uid)) {
+    return { ok: false, error: "Invalid id" };
+  }
+  const res = await dashboardApiFetch(`/api/meta/organizations/${oid}/members/${uid}`, {
+    method: "DELETE",
+  });
+  if (res.status === 204) {
+    revalidatePath("/dashboard/settings/team");
+    return { ok: true };
+  }
+  const t = await res.text();
+  return { ok: false, error: t.slice(0, 400) || res.statusText };
+}
+
+export async function revokeOrganizationInviteAction(
+  organizationId: string,
+  inviteId: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const oid = organizationId.trim();
+  const iid = inviteId.trim();
+  if (!/^[0-9a-f-]{36}$/i.test(oid) || !/^[0-9a-f-]{36}$/i.test(iid)) {
+    return { ok: false, error: "Invalid id" };
+  }
+  const res = await dashboardApiFetch(`/api/meta/organizations/${oid}/invites/${iid}`, {
+    method: "DELETE",
+  });
+  if (res.status === 204) {
+    revalidatePath("/dashboard/settings/team");
+    return { ok: true };
+  }
+  const t = await res.text();
+  return { ok: false, error: t.slice(0, 400) || res.statusText };
+}
+
 export type CreateApiKeyResult =
   | { ok: true; key: string; publicId: string; name: string | null }
   | { ok: false; error: string };
