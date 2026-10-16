@@ -1,6 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useState } from "react";
+import { toast } from "sonner";
 import {
   listProjectSourceMapsAction,
   type SourceMapArtifactSummaryRow,
@@ -18,9 +20,11 @@ function formatBytes(n: number): string {
 }
 
 export function SourceMapsSettingsClient({
+  projectId,
   initialApp,
   initialRelease,
 }: {
+  projectId?: string;
   initialApp: string;
   initialRelease: string;
 }) {
@@ -57,21 +61,34 @@ export function SourceMapsSettingsClient({
   return (
     <div className="space-y-6">
       <p className="text-sm text-muted-foreground">
-        Source maps are keyed by app, release, and bundle URL. Upload via{" "}
-        <code className="rounded bg-surface px-1 py-0.5 font-mono text-xs">
-          POST /api/project/source-maps
-        </code>{" "}
-        (EDITOR+ session). See{" "}
-        <a
-          href="https://github.com/Telemetry-Tracker/telemetry-tracker/blob/develop/docs/source-maps.md"
-          className="text-brand hover:underline"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          docs/source-maps.md
-        </a>{" "}
-        for CI examples.
+        Source maps are keyed by app, release, and bundle URL. Upload them from CI with a project
+        API key that has source map upload enabled. See{" "}
+        <Link href="/docs/source-maps" className="text-brand hover:underline">
+          Source maps docs
+        </Link>{" "}
+        for the GitHub Action and Next.js setup.
       </p>
+      {projectId ? (
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-muted-foreground">Project ID</span>
+          <code className="rounded bg-surface px-1.5 py-0.5 font-mono text-xs">{projectId}</code>
+          <button
+            type="button"
+            className="rounded-md border border-border px-2 py-0.5 text-xs hover:bg-surface-elevated"
+            aria-label="Copy project ID"
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(projectId);
+                toast.success("Project ID copied");
+              } catch {
+                toast.error("Could not copy project ID.");
+              }
+            }}
+          >
+            Copy
+          </button>
+        </div>
+      ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="App">

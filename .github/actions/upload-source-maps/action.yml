@@ -5,8 +5,9 @@ inputs:
     description: 'Project API key with source map upload enabled (not a browser ingest key)'
     required: true
   project_id:
-    description: 'Telemetry-Tracker Project ID (X-Project-Id)'
-    required: true
+    description: 'Optional Telemetry-Tracker Project ID (X-Project-Id). The API key already identifies its project; shown in Settings → Source maps.'
+    required: false
+    default: ''
   release:
     description: 'Release version/tag'
     required: true
