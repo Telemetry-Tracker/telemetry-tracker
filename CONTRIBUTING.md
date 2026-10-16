@@ -85,6 +85,7 @@ packages/
   telemetry-next/
   telemetry-node/
   telemetry-react-native/
+  telemetry-vite-plugin/
 ```
 
 SDKs are published as `@telemetry-tracker/*` on npm:

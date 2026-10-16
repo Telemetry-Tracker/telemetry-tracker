@@ -145,7 +145,7 @@ Works with:
 - ✓ **React Native** — `@telemetry-tracker/react-native`
 - ✓ **Vanilla JS** — `@telemetry-tracker/core`
 
-Guides: [core](docs/sdk-core.md) · [Next.js](docs/sdk-next.md) · [Node](docs/sdk-node.md) · [NestJS](docs/sdk-nestjs.md) · [Vue](docs/sdk-vue.md) · [Nuxt](docs/sdk-nuxt.md) · [React Native](docs/sdk-react-native.md)
+Guides: [core](docs/sdk-core.md) · [Next.js](docs/sdk-next.md) · [Node](docs/sdk-node.md) · [NestJS](docs/sdk-nestjs.md) · [Vue](docs/sdk-vue.md) · [Nuxt](docs/sdk-nuxt.md) · [React Native](docs/sdk-react-native.md) · [Vite plugin](docs/sdk-vite.md)
 
 ### Example
 
@@ -272,7 +272,7 @@ Please follow the [Code of Conduct](CODE_OF_CONDUCT.md). Report security issues 
 | RBAC & org model | [docs/RBAC.md](docs/RBAC.md) |
 | Plans & ingest auth | [docs/ENTITLEMENTS.md](docs/ENTITLEMENTS.md) |
 | Ingest PII scrubbing | [docs/PII-SCRUBBING.md](docs/PII-SCRUBBING.md) |
-| SDK guides | [docs/sdk-core.md](docs/sdk-core.md), [docs/sdk-next.md](docs/sdk-next.md), [docs/sdk-node.md](docs/sdk-node.md), [docs/sdk-nestjs.md](docs/sdk-nestjs.md), [docs/sdk-vue.md](docs/sdk-vue.md), [docs/sdk-nuxt.md](docs/sdk-nuxt.md), [docs/sdk-react-native.md](docs/sdk-react-native.md) |
+| SDK guides | [docs/sdk-core.md](docs/sdk-core.md), [docs/sdk-next.md](docs/sdk-next.md), [docs/sdk-node.md](docs/sdk-node.md), [docs/sdk-nestjs.md](docs/sdk-nestjs.md), [docs/sdk-vue.md](docs/sdk-vue.md), [docs/sdk-nuxt.md](docs/sdk-nuxt.md), [docs/sdk-react-native.md](docs/sdk-react-native.md), [docs/sdk-vite.md](docs/sdk-vite.md) |
 | Source maps | [docs/source-maps.md](docs/source-maps.md) |
 
 **Publish SDK packages:** from a clean tagged checkout, `npm login` → `pnpm publish:packages` (optional `--only=core,node,vite-plugin`). See [CONTRIBUTING.md](CONTRIBUTING.md) and root `package.json` scripts.

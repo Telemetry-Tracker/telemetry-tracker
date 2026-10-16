@@ -186,7 +186,7 @@ export function ApiKeysClient({ keys }: { keys: ApiKeyRow[] }) {
                   <th className={tableDateColumnClass}>Created</th>
                   <th className={`hidden sm:table-cell ${tableDateColumnClass}`}>Last used</th>
                   <th>Status</th>
-                  <th />
+                  <th aria-label="Actions" />
                 </tr>
               </thead>
               <tbody>

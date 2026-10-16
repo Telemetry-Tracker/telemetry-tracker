@@ -83,6 +83,7 @@ export function PreferencesSettingsClient({
             </Field>
             <Field label="Compact table density">
               <SettingsToggle
+                aria-label="Compact table density"
                 on={prefs.compactTableDensity}
                 onChange={() =>
                   setPrefs((current) => ({
@@ -95,6 +96,7 @@ export function PreferencesSettingsClient({
             </Field>
             <Field label="Show resolved issues">
               <SettingsToggle
+                aria-label="Show resolved issues"
                 on={prefs.showResolvedIssues}
                 onChange={() =>
                   setPrefs((current) => ({
@@ -111,6 +113,7 @@ export function PreferencesSettingsClient({
           <FieldGroup>
             <Field label="Usage analytics">
               <SettingsToggle
+                aria-label="Usage analytics"
                 on={prefs.usageAnalytics}
                 onChange={() =>
                   setPrefs((current) => ({

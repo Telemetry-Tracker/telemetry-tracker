@@ -31,6 +31,7 @@ init({
   batchInterval: 5000,                        // optional: ms between flushes (default 5000; 0 = no batching)
   batchSize: 10,                             // optional: flush when queue reaches this size (default 10)
   webVitals: true,                           // optional: capture LCP, INP, CLS, TTFB in browser (default true)
+  piiScrub: true,                            // optional: client-side PII scrubbing before send (default off)
 });
 ```
 
@@ -116,6 +117,14 @@ identify(null);  // clear
 ### `getSessionId()` / `endSession()`
 
 On `init()`, the SDK starts an in-memory session and sends `POST /ingest/session`. Events and errors include `session_id`. In browsers, session updates are sent on tab hide/unload via `fetch` with `keepalive`. Call `endSession()` to close explicitly (e.g. on SPA logout).
+
+### `piiScrub` (optional)
+
+Client-side redaction of common PII and secrets before anything is sent. Off by default; `true` uses the defaults, or pass `{ denyKeys: ["ssn", "card"] }` to also redact extra property/context keys (case-insensitive). It complements server-side ingest scrubbing and should never be the only protection. See [PII-SCRUBBING.md](PII-SCRUBBING.md).
+
+### `shutdown()`
+
+Stops ingesting: flushes queued events, clears the batch timer, ends the session and clears the config. Use it in tests, on logout when you want to stop tracking, or before a short-lived process exits. `@telemetry-tracker/next` re-exports it; Node users can import it from `@telemetry-tracker/core`.
 
 ### Helpers
 
