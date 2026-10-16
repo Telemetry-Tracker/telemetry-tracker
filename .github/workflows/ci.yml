@@ -61,6 +61,6 @@ jobs:
 
       - name: Verify committed SDK dist and generated files match build
         run: |
-          git add -A packages/*/dist apps/api/src/generated
+          git add -A packages/telemetry-core/dist packages/telemetry-next/dist apps/api/src/generated
           git diff --cached --exit-code -- packages/*/dist apps/api/src/generated
           git diff --exit-code -- packages/*/dist apps/api/src/generated
