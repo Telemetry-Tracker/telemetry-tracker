@@ -249,6 +249,7 @@ export function AlertRuleEditor({
         <div className="flex flex-col gap-2">
           <label className="flex items-center gap-2 text-[13px] text-foreground">
             <SettingsToggle
+              aria-label="Project alert email"
               on={emailSelected}
               onChange={(on) =>
                 toggleDestination(PROJECT_EMAIL_DESTINATION_ID, on)

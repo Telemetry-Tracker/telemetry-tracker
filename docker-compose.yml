@@ -13,3 +13,13 @@ services:
     environment:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: telemetry
+    volumes:
+      - telemetry_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d telemetry"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  telemetry_pgdata:
