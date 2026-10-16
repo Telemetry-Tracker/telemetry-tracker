@@ -534,6 +534,7 @@ export function AlertsClient({
                         }
                       >
                         <SettingsToggle
+                          aria-label={`Enable alert rule ${rule.name}`}
                           on={rule.enabled}
                           onChange={(enabled) =>
                             toggleAlertRule(rule.id, enabled)
@@ -605,6 +606,7 @@ export function AlertsClient({
             <Field label="Enable error spike alerts" htmlFor="error-spike-toggle">
               <div className={canEdit ? undefined : "pointer-events-none opacity-50"}>
                 <SettingsToggle
+                  aria-label="Enable error spike alerts"
                   id="error-spike-toggle"
                   on={settings.errorSpike.enabled}
                   onChange={() =>
@@ -667,6 +669,7 @@ export function AlertsClient({
             <Field label="Enable quota warnings" htmlFor="quota-toggle">
               <div className={canEdit ? undefined : "pointer-events-none opacity-50"}>
                 <SettingsToggle
+                  aria-label="Enable quota warnings"
                   id="quota-toggle"
                   on={settings.quota.enabled}
                   onChange={() =>
@@ -722,6 +725,7 @@ export function AlertsClient({
             <Field label="Send alert emails for this project">
               <div className={canEdit ? undefined : "pointer-events-none opacity-50"}>
                 <SettingsToggle
+                  aria-label="Send alert emails for this project"
                   on={settings.email.enabled}
                   onChange={(enabled) =>
                     setSettings((s) => ({
@@ -864,6 +868,7 @@ export function AlertsClient({
                   <div className="flex flex-wrap items-center gap-2">
                     <div className={canEdit ? undefined : "pointer-events-none opacity-50"}>
                       <SettingsToggle
+                        aria-label={`Enable ${wh.label?.trim() || providerLabel(wh.provider)}`}
                         on={wh.enabled}
                         onChange={(enabled) => toggleWebhook(wh.id, enabled)}
                         disabled={!canEdit || webhookPending}

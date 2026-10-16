@@ -136,3 +136,53 @@ describe("flushFatalError", () => {
     expect(exit).toHaveBeenCalledWith(1);
   });
 });
+
+describe("TT-022 hostile thrown values (#724)", () => {
+  afterEach(() => resetFatalFlushStateForTests());
+
+  async function capture(thrown: unknown): Promise<Error[]> {
+    const sent: Error[] = [];
+    const exit = vi.fn();
+    flushFatalError(thrown, "uncaughtException", {
+      ingest: async (e) => {
+        // Simulates the real ingest reading message/stack.
+        void e.message.length;
+        void (e.stack ?? "").length;
+        sent.push(e);
+      },
+      exit,
+      timeoutMs: 50,
+    });
+    await new Promise((r) => setTimeout(r, 80));
+    expect(exit).toHaveBeenCalledWith(1);
+    return sent;
+  }
+
+  it("sends a fallback event when the message getter throws", async () => {
+    const err = new Error("x");
+    Object.defineProperty(err, "message", { get() { throw new Error("nope"); } });
+    const sent = await capture(err);
+    expect(sent).toHaveLength(1);
+    expect(sent[0].name).toBe("UninspectableError");
+  });
+
+  it("sends a fallback event when the stack getter throws", async () => {
+    const err = new Error("x");
+    Object.defineProperty(err, "stack", { get() { throw new Error("nope"); } });
+    const sent = await capture(err);
+    expect(sent).toHaveLength(1);
+  });
+
+  it("sends a fallback event for a Proxy whose getPrototypeOf trap throws", async () => {
+    const p = new Proxy(new Error("x"), { getPrototypeOf() { throw new Error("trap"); } });
+    const sent = await capture(p);
+    expect(sent).toHaveLength(1);
+  });
+
+  it("keeps message and stack for normal errors", async () => {
+    const sent = await capture(new TypeError("boom"));
+    expect(sent[0].message).toBe("boom");
+    expect(sent[0].name).toBe("TypeError");
+    expect(sent[0].stack).toContain("boom");
+  });
+});

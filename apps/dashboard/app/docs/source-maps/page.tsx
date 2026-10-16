@@ -39,10 +39,28 @@ export default function DocsSourceMapsPage() {
         hash the map independently of the chunk. Point the uploader at the build output and let it
         follow the last non-inline <code>sourceMappingURL</code> comment.
       </p>
+      <p>
+        Next.js does not emit browser source maps by default. Turn them on in{" "}
+        <code>next.config.ts</code>:
+      </p>
+      <CodeBlock
+        code={`const nextConfig = {
+  productionBrowserSourceMaps: true,
+};
+
+export default nextConfig;`}
+      />
       <ul>
         <li>
-          Local or Node deploy: <code>artifact_path</code> <code>.next</code>, <code>base_url</code>{" "}
-          <code>https://your-domain/_next</code>.
+          Local or Node deploy: <code>artifact_path</code> <code>.next/static</code>,{" "}
+          <code>base_url</code> <code>https://your-domain/_next/static</code>. This uploads only the
+          browser maps. Server maps under <code>.next/server</code> are never loaded by browsers and
+          would use up your quota.
+        </li>
+        <li>
+          Quota: the Free plan stores up to 25 source map artifacts per project across all releases
+          (Pro 250, Business 2,500). Re-uploading the same app, release and bundle URL replaces the
+          artifact instead of adding one. Upload only the maps for releases you deploy.
         </li>
         <li>
           Vercel: the <code>.next</code> output exists on the build machine, not in the GitHub
@@ -63,11 +81,10 @@ export default function DocsSourceMapsPage() {
         code={`- uses: Telemetry-Tracker/telemetry-tracker/.github/actions/upload-source-maps@8d00f9d1527783f6365e7c6e2e1f19630920bc6e # v1.17.24
   with:
     api_key: \${{ secrets.TT_API_KEY }}
-    project_id: "your-project-uuid"
     release: \${{ github.sha }}
     app: "web"
-    artifact_path: ".next"
-    base_url: "https://your-domain/_next"`}
+    artifact_path: ".next/static"
+    base_url: "https://your-domain/_next/static"`}
       />
 
       <DocsAlsoSee

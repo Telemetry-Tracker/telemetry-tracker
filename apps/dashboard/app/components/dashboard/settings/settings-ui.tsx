@@ -172,10 +172,15 @@ export function SettingsToggle({
 }: {
   on: boolean;
   onChange: (v: boolean) => void;
-  label?: string;
   disabled?: boolean;
   id?: string;
-} & Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "onChange">) {
+} & Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "onChange"> &
+  // A switch needs an accessible name: a visible label or aria-label / aria-labelledby (#627).
+  (
+    | { label: string }
+    | { label?: undefined; "aria-label": string }
+    | { label?: undefined; "aria-labelledby": string }
+  )) {
   return (
     <button
       id={id}

@@ -99,6 +99,7 @@ export function LabsSettingsClient({
                     <div className="text-[11px] text-muted-foreground">{flag.desc}</div>
                   </div>
                   <SettingsToggle
+                    aria-label={flag.label}
                     on={enabled}
                     disabled={!flag.available || pending}
                     onChange={isCommandPalette ? () => toggleCommandPalette() : () => {}}

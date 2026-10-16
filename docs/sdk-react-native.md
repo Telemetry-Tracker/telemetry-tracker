@@ -23,13 +23,14 @@ Call **`init(config)`** once at app startup (e.g. in your root component or entr
 Calling `init()` on native enables `screen()`, `endSession()`, and all other APIs; you do not need to guard `init()` for web only.
 
 ```tsx
+import { Platform } from "react-native";
 import { init } from "@telemetry-tracker/react-native";
 
 init({
   ingestUrl: "https://your-api.example.com",
   app: "my-mobile-app",
   apiKey: "tt_live_<publicId>_<secret>",
-  platform: "react-native",  // or "ios" / "android"
+  platform: Platform.OS === "ios" ? "ios" : Platform.OS === "android" ? "android" : "web",
 });
 ```
 
@@ -46,7 +47,7 @@ init({
 | `getSessionId()` | Current session id (or null). |
 | `endSession()` | End the current session (sends session with `ended_at`) and clear session id. |
 
-Config extends [telemetry-core](sdk-core.md#initconfig) and requires `app`; `platform` defaults to `"react-native"`.
+Config extends [telemetry-core](sdk-core.md#initconfig) and requires `app`. There is no `platform` default: set `platform` to `"ios"` or `"android"` (or `"web"` for React Native web), for example from `Platform.OS`.
 
 ## Screen tracking with React Navigation
 

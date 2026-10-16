@@ -85,7 +85,7 @@ async function main() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "X-Project-Id": projectId,
+            ...(projectId ? { "X-Project-Id": projectId } : {}),
             "X-API-Key": apiKey,
             "Content-Length": Buffer.byteLength(payload),
           },

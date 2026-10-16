@@ -105,6 +105,8 @@ export function DashboardUserMenu({
           type="button"
           onClick={toggle}
           aria-expanded={open}
+          aria-haspopup="menu"
+          aria-label={`Account menu, ${name}`}
           className={
             isSidebar
               ? "flex w-full items-center gap-2 rounded-lg px-1 py-1 text-left text-xs text-foreground hover:bg-muted/70"

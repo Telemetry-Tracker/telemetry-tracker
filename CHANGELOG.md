@@ -13,6 +13,19 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ---
 
+## [1.22.4] - 2026-10-16
+
+### Fixed
+
+- **Team members** — organization owners can remove members and see and revoke pending invites (a revoked invite link stops working); the last owner cannot be removed. Both actions are recorded in the audit log ([#714](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/714)).
+- **Source maps for Next.js** — docs now cover `productionBrowserSourceMaps`, upload only browser maps from `.next/static`, and list per-plan artifact quotas; `X-Project-Id` is optional for API-key uploads (the key identifies its project); Settings → Source maps shows a copyable Project ID and links to the docs ([#704](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/704)).
+- **Accessibility** — every settings switch has an accessible name, the account menu trigger is labelled, and the API keys actions column has a header name ([#627](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/627), [#628](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/628), [#629](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/629)); creating the first API key shows errors as a toast ([#626](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/626)).
+
+### Changed
+
+- **Docs and self-hosting** — npm READMEs for all SDK packages, Vite plugin guide links, `piiScrub`/`shutdown` in the core guide, corrected React Native `platform` guidance, and a persistent volume plus healthcheck for local Postgres ([#621](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/621)–[#624](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/624), [#630](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/630), [#631](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/631)).
+- **SDK (unpublished)** — `@telemetry-tracker/node` 1.4.1 prepared: the crash handler always sends an event, even for hostile thrown values ([#724](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/724)). Not yet on npm.
+
 ## [1.22.3] - 2026-10-16
 
 ### Added
