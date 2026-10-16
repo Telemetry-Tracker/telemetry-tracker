@@ -13,9 +13,21 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ---
 
-## [1.22.2] - 2026-10-12
+## [1.22.3] - 2026-10-16
 
-- **Private signup analytics** — Dedicated bearer-token authenticated, rate-limited read-only endpoint with UTC daily/ISO weekly counts, approved first-touch acquisition labels and affiliate signup counts. Unreliable conversion metrics explicitly return null. See `docs/SIGNUP-STATS.md`.
+### Added
+
+- **Private signup analytics** — Dedicated bearer-token authenticated, rate-limited read-only endpoint with UTC daily/ISO weekly counts, approved first-touch acquisition labels and affiliate signup counts. Disabled unless `SIGNUP_STATS_TOKEN` is set. Unreliable conversion metrics explicitly return null. See `docs/SIGNUP-STATS.md` ([#778](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/778)).
+
+### Fixed
+
+- **Recurring resolved errors reopen** — a new occurrence of a resolved issue clears its resolved state, so it returns to Unresolved and notifications ([#713](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/713)).
+- **Settings redirect** — `/dashboard/settings` redirects server-side to the Profile tab without the brief "Application error" flash ([#712](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/712)).
+- **Cookie notice** — after rejecting optional cookies, the notice no longer blocks clicks on the sidebar user menu and can be dismissed ([#715](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/715)).
+
+---
+
+## [1.22.2] - 2026-10-12
 
 ### Fixed
 
