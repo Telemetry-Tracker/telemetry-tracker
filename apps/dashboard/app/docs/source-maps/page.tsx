@@ -78,7 +78,7 @@ export default nextConfig;`}
         <code>github-actions</code> (or Renovate) when you intentionally take a newer release.
       </p>
       <CodeBlock
-        code={`- uses: Telemetry-Tracker/telemetry-tracker/.github/actions/upload-source-maps@8d00f9d1527783f6365e7c6e2e1f19630920bc6e # v1.17.24
+        code={`- uses: Telemetry-Tracker/telemetry-tracker/.github/actions/upload-source-maps@559d1f5b9ca4c79ed282de49b5a7b5f55b33b8bd # v1.22.4
   with:
     api_key: \${{ secrets.TT_API_KEY }}
     release: \${{ github.sha }}
