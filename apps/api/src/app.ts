@@ -1,5 +1,6 @@
 import { checkInManagementRoutes, checkInPingRoutes } from "./routes/checkins.js";
 import { redactCheckInSecrets } from "./lib/checkin-secrets.js";
+import { signupStatsRoutes } from "./routes/signup-stats.js";
 import cors, { type FastifyCorsOptionsDelegateCallback } from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
 import Fastify, { type FastifyInstance } from "fastify";
@@ -76,6 +77,7 @@ export async function createApp(): Promise<FastifyInstance> {
     });
     await f.register(mcpRoutes);
   });
+  await app.register(signupStatsRoutes);
 
   await app.register(
     async function publicSurface(f) {

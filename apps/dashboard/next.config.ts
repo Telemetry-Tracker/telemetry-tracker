@@ -40,6 +40,13 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  // TT-013 (#712): send /dashboard/settings straight to the profile tab with a server redirect,
+  // before any client render (the in-page redirect() flashed React #310).
+  async redirects() {
+    return [
+      { source: "/dashboard/settings", destination: "/dashboard/settings/profile", permanent: false },
+    ];
+  },
 };
 
 export default withSentryConfig(nextConfig, {
