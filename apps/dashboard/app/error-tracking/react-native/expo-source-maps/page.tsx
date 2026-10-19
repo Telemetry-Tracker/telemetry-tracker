@@ -5,9 +5,10 @@ import { GuideJsonLd } from "@/app/components/marketing/guides/GuideJsonLd";
 import { GuideRelatedLinks } from "@/app/components/marketing/guides/GuideRelatedLinks";
 import { MarketingGuideLayout } from "@/app/components/marketing/guides/MarketingGuideLayout";
 import {
+  breadcrumbJsonLd,
+  howToJsonLd,
   marketingGuideMetadata,
   webPageJsonLd,
-  breadcrumbJsonLd,
 } from "@/lib/marketing-guide-metadata";
 import { marketingSiteOrigin } from "@/lib/marketing-json-ld";
 
@@ -28,7 +29,7 @@ const CODE_4 =
 const CODE_5 =
   "md5sum dist/_expo/static/js/android/*.hbc     # Linux\nmd5 -q dist/_expo/static/js/android/*.hbc     # macOS\n# → 0ae689c0639beccfd3b760e124005f1d  (matches .expo-internal/0ae689c0… on the device)";
 const CODE_7 =
-  "Before:  at applyDiscountB (address at /data/user/0/com.example.app/files/.expo-internal/0ae689c0639beccfd3b760e124005f1d:1:564004)\nAfter:   at applyDiscountB (/src/validation/errorB.ts:4:19)";
+  "Before (raw):\n  at reconcileRefundC (address at /data/user/0/com.unjica.tthermesqa/files/.expo-internal/71ba54d845ae02cb98a707d3af6cb2a8:1:563975)\nAfter (symbolicated):\n  at reconcileRefundC (/src/validation/errorC.ts:4:19)\n  at runValidation (/src/validation/run.ts:8:20)\n  at anonymous (/App.tsx:10:51)";
 
 export const metadata = marketingGuideMetadata({
   title: TITLE,
@@ -38,6 +39,7 @@ export const metadata = marketingGuideMetadata({
 
 export default function ExpoSourceMapsPage() {
   const origin = marketingSiteOrigin();
+  const url = `${origin}${PATH}`;
   return (
     <>
       <GuideJsonLd
@@ -49,21 +51,36 @@ export default function ExpoSourceMapsPage() {
             description: DESCRIPTION,
           }),
           breadcrumbJsonLd(origin, [
+            { name: "Home", path: "" },
             {
               name: "React Native error tracking",
               path: "/error-tracking/react-native",
             },
             { name: "Expo source maps", path: PATH },
           ]),
-          {
-            "@context": "https://schema.org",
-            "@type": "TechArticle",
-            headline: H1,
+          howToJsonLd({
+            name: H1,
             description: DESCRIPTION,
-            url: `${origin}${PATH}`,
-            dateModified: "2026-10-19",
-            author: { "@type": "Organization", name: "Telemetry Tracker" },
-          },
+            url,
+            steps: [
+              {
+                name: "Give every JS bundle its own release",
+                text: "Use runtime version + update ID to identify each OTA bundle.",
+              },
+              {
+                name: "Export and publish the same bundle",
+                text: "Export with source maps under the EAS environment, then publish that export with eas update --skip-bundler.",
+              },
+              {
+                name: "Upload the Hermes source map",
+                text: "Upload the .hbc.map under the device file name: the MD5 of the exported .hbc.",
+              },
+              {
+                name: "Verify the stack trace",
+                text: "Check one raw frame per platform, then switch to Symbolicated. We have not tested iOS.",
+              },
+            ],
+          }),
         ]}
       />
       <MarketingGuideLayout
@@ -79,9 +96,9 @@ export default function ExpoSourceMapsPage() {
         }
       >
         <CodeBlock
-          code={CODE_7.split("\n")[0]}
+          code={CODE_7.split("\n")[1]}
           lang="text"
-          caption="Illustrative raw OTA frame (package anonymized)"
+          caption="Raw frame from our test app (Android, EAS Update, hosted Telemetry Tracker, October 2026)"
         />
         <aside className="rounded-xl border border-border bg-surface/60 p-4">
           TL;DR: Give every JS bundle its own release (runtime version + update
@@ -325,7 +342,7 @@ export default function ExpoSourceMapsPage() {
         <CodeBlock
           code={CODE_7}
           lang="text"
-          caption="Illustrative raw frame; symbolicated result verified on hosted TT, 2026-10-12"
+          caption="Raw and symbolicated frames from our test app (Android, EAS Update, hosted Telemetry Tracker, October 2026)"
         />
 
         <h2>Check it worked (5 minutes, once per platform)</h2>
@@ -349,9 +366,8 @@ export default function ExpoSourceMapsPage() {
           </li>
         </ol>
         <p>
-          Configure <Link href="/docs/alerts">alerts</Link> for email or Slack
-          delivery when an error opens a new issue. NEW_ERROR_GROUP rules are
-          API-only; the dashboard editor authors error-count rules.
+          In our dashboard, configure <Link href="/docs/alerts">alerts</Link>{" "}
+          based on error counts, with email or Slack delivery.
         </p>
 
         <h2>Using EAS Observe, Sentry, PostHog or Datadog instead?</h2>
@@ -598,7 +614,7 @@ export default function ExpoSourceMapsPage() {
             {
               href: "/docs/alerts",
               label: "Alerts",
-              description: "Get notified when an error opens a new issue.",
+              description: "Set up error-count alerts with email or Slack delivery.",
             },
           ]}
         />
