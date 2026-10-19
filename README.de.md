@@ -305,4 +305,4 @@ Der **verwaltete Dienst** unter [telemetry-tracker.com](https://telemetry-tracke
 
 Biete keinen mandantenfähigen Hosting-Dienst **für Dritte** unter dem Namen, Logo oder Marketing von **Telemetry Tracker** an, als wäre es das offizielle Produkt. Forks und interne Bereitstellungen sollten einen **eigenständigen Namen** verwenden, sofern du keine schriftliche Genehmigung von Tacko hast.
 
-Details und Beispiele: **[TRADEMARK.md](TRADEMARK.md)** · Partnerschaften: [info@tacko.io](mailto:info@tacko.io)
+Details und Beispiele: **[TRADEMARK.md](TRADEMARK.md)** · Partnerschaften: [info@telemetry-tracker.com](mailto:info@telemetry-tracker.com)

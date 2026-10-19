@@ -75,6 +75,30 @@ export function warnIfTransactionalEmailNotConfigured(
   return false;
 }
 
+/** Official Telemetry Tracker contact address, used as Reply-To unless a caller sets one. */
+export const DEFAULT_EMAIL_REPLY_TO = "info@telemetry-tracker.com";
+
+/**
+ * Reply-To for outgoing mail. `TELEMETRY_EMAIL_REPLY_TO` wins (`none` omits it). Without it, only the
+ * hosted cloud (dashboard origin on telemetry-tracker.com) defaults to the official address, so
+ * self-hosted instances never route replies to us.
+ */
+export function defaultReplyTo(): string | undefined {
+  const raw = process.env.TELEMETRY_EMAIL_REPLY_TO?.trim();
+  if (raw) return raw.toLowerCase() === "none" ? undefined : raw;
+  const origin = process.env.TELEMETRY_DASHBOARD_ORIGIN?.trim();
+  if (!origin) return undefined;
+  try {
+    const host = new URL(origin).hostname.toLowerCase();
+    if (host === "telemetry-tracker.com" || host.endsWith(".telemetry-tracker.com")) {
+      return DEFAULT_EMAIL_REPLY_TO;
+    }
+  } catch {
+    /* invalid origin: no default */
+  }
+  return undefined;
+}
+
 export async function sendTransactionalEmail(opts: {
   to: string | string[];
   subject: string;
@@ -102,6 +126,7 @@ export async function sendTransactionalEmail(opts: {
 
   const apiKey = process.env.RESEND_API_KEY!.trim();
   const from = process.env.TELEMETRY_EMAIL_FROM!.trim();
+  const replyTo = opts.replyTo?.trim() || defaultReplyTo();
 
   const attachments: TransactionalEmailAttachment[] = [...(opts.attachments ?? [])];
   const brandLogo = emailBrandLogoAttachment();
@@ -125,7 +150,7 @@ export async function sendTransactionalEmail(opts: {
         to: Array.isArray(opts.to) ? opts.to : [opts.to],
         subject: opts.subject,
         html: opts.html,
-        ...(opts.replyTo ? { reply_to: opts.replyTo } : {}),
+        ...(replyTo ? { reply_to: replyTo } : {}),
         ...(attachments.length > 0 ? { attachments } : {}),
       }),
     });

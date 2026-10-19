@@ -69,7 +69,7 @@ Use a second monitor so alerts still fire if GitHub Actions is unavailable.
 | Same | HTTPS `https://telemetry-tracker.com` | 5 min |
 | [Better Stack](https://betterstack.com/uptime) | Multi-step HTTP checks | 3–5 min |
 
-Point alert contacts to **info@tacko.io** or your team Slack/email.
+Point alert contacts to **info@telemetry-tracker.com** or your team Slack/email.
 
 ---
 
@@ -168,7 +168,7 @@ Dashboard **project-level** alerts (error spikes, quota) are for **customers**, 
 4. Check [GitHub Actions](https://github.com/Telemetry-Tracker/telemetry-tracker/actions/workflows/production-uptime.yml) for probe history.
 5. Post-incident: note in GitHub issue or internal log; update this doc if steps were missing.
 
-**Contacts:** maintainer @unjica · **info@tacko.io**
+**Contacts:** maintainer @unjica · **info@telemetry-tracker.com**
 
 ---
 
