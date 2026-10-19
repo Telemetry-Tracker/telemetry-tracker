@@ -58,9 +58,12 @@ ENV NEXT_PUBLIC_AFFILIATES_ENABLED=$NEXT_PUBLIC_AFFILIATES_ENABLED \
     NEXT_PUBLIC_TELEMETRY_PUBLIC_DASHBOARD=$NEXT_PUBLIC_TELEMETRY_PUBLIC_DASHBOARD
 
 # Rebuild workspace packages so dashboard never relies on incomplete committed dist.
+# `.next/cache` is the build-time webpack cache (~1.2 GB measured on v1.22.6); `next start`
+# does not read it, and recreates the directory for runtime caches when needed.
 RUN pnpm --filter @telemetry-tracker/core build && \
     pnpm --filter @telemetry-tracker/next build && \
-    pnpm --filter dashboard build
+    pnpm --filter dashboard build && \
+    rm -rf apps/dashboard/.next/cache
 
 FROM base AS runner
 
