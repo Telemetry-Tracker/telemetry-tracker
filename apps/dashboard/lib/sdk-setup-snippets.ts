@@ -15,6 +15,15 @@ NEXT_PUBLIC_TELEMETRY_INGEST_URL=${HOSTED_API_URL}
 NEXT_PUBLIC_TELEMETRY_API_KEY=tt_live_<publicId>_<secret>
 NEXT_PUBLIC_TELEMETRY_APP=my-next-app`;
 
+
+/** Prefill .env.local for the API keys dashboard (secret only when freshly created). */
+export function buildNextEnvLocal(apiKey: string, app = "my-next-app"): string {
+  return `# .env.local — paste into your Next.js app
+NEXT_PUBLIC_TELEMETRY_INGEST_URL=${HOSTED_API_URL}
+NEXT_PUBLIC_TELEMETRY_API_KEY=${apiKey}
+NEXT_PUBLIC_TELEMETRY_APP=${app}`;
+}
+
 /** Optional server-only env for instrumentation.ts (do not prefix with NEXT_PUBLIC_). */
 export const nextEnvLocalServer = `# Optional — only if you add instrumentation.ts for App Router server errors
 TELEMETRY_INGEST_URL=${HOSTED_API_URL}
