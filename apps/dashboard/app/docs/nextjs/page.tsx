@@ -36,6 +36,8 @@ export default function DocsNextJsPage() {
         </p>
       }
     >
+      <p><a href="/docs/sdk-privacy">What we collect: SDK data &amp; privacy labels</a></p>
+
       <h2>1. Install</h2>
       <CodeBlock code={nextInstall} lang="bash" />
 
