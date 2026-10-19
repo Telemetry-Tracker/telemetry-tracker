@@ -10,6 +10,8 @@ x-api-env: &api-env
   DATABASE_URL: postgresql://telemetry:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in selfhost/.env}@postgres:5432/telemetry
   CHECKIN_ENCRYPTION_KEY: ${CHECKIN_ENCRYPTION_KEY:?set CHECKIN_ENCRYPTION_KEY in selfhost/.env}
   TRUST_RAILWAY_EDGE: "false"
+  RESEND_API_KEY: ${RESEND_API_KEY:-}
+  TELEMETRY_EMAIL_FROM: ${TELEMETRY_EMAIL_FROM:-}
 
 services:
   postgres:
@@ -47,8 +49,6 @@ services:
       DASHBOARD_URL: ${DASHBOARD_URL:-http://localhost:3000}
       AFFILIATE_CLIENT_IP_FORWARD_SECRET: ${DASHBOARD_API_SECRET:?set DASHBOARD_API_SECRET in selfhost/.env}
       TELEMETRY_ALLOW_REGISTRATION: ${TELEMETRY_ALLOW_REGISTRATION:-false}
-      RESEND_API_KEY: ${RESEND_API_KEY:-}
-      TELEMETRY_EMAIL_FROM: ${TELEMETRY_EMAIL_FROM:-}
     ports:
       - "${BIND_ADDRESS:-127.0.0.1}:${API_PORT:-3001}:3001"
     healthcheck:
