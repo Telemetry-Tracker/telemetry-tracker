@@ -31,18 +31,21 @@ export default function DocsNextJsPage() {
           Use <code>@telemetry-tracker/next</code> for App Router apps. The package provides a
           provider, error boundary, page-view hook, and (from 1.3.2) an optional server entry for{" "}
           <code>instrumentation.ts</code>. After <code>init()</code>, uncaught browser errors and
-          unhandled promise rejections are reported automatically.
+          unhandled promise rejections are reported automatically. Settings → API keys can copy a
+          prefilled <code>.env.local</code> when you create a key.
         </p>
       }
     >
-      <h2>Install</h2>
+      <p><a href="/docs/sdk-privacy">What we collect: SDK data &amp; privacy labels</a></p>
+
+      <h2>1. Install</h2>
       <CodeBlock code={nextInstall} lang="bash" />
 
-      <h2>API key and ingest URL</h2>
+      <h2>2. API key and ingest URL</h2>
       <p>
         Hosted ingest is <code>{HOSTED_API_URL}</code>. Create a project key under{" "}
-        <strong>Settings → API keys</strong> (the secret is shown once). For browser setup, put
-        these in <code>.env.local</code>:
+        <strong>Settings → API keys</strong> (the secret is shown once; use{" "}
+        <strong>Copy Next.js .env.local</strong> there when available). For browser setup:
       </p>
       <CodeBlock code={nextEnvLocal} lang="bash" caption=".env.local (browser)" />
       <p>
@@ -61,7 +64,7 @@ export default function DocsNextJsPage() {
       </p>
       <CodeBlock code={nextEnvLocalServer} lang="bash" caption=".env.local (optional server)" />
 
-      <h2>Setup</h2>
+      <h2>3. Setup</h2>
       <p>
         Use a <strong>server</strong> root layout with <code>TelemetryProvider</code>, and a small{" "}
         <code>&quot;use client&quot;</code> helper for <code>usePathname()</code> /{" "}
@@ -70,6 +73,34 @@ export default function DocsNextJsPage() {
       </p>
       <CodeBlock code={nextProviderSetup} lang="tsx" caption="app/layout.tsx" />
       <CodeBlock code={nextTrackPageView} lang="tsx" caption="app/track-page-view.tsx" />
+
+      <h2>4. Verify your first error</h2>
+      <p>
+        Do this before you leave setup. Temporarily add a client button that calls{" "}
+        <code>trackError(new Error(&quot;docs-check&quot;))</code>, run the app, click it, then open{" "}
+        <Link href="/dashboard/issues" className="text-brand hover:underline">
+          Issues
+        </Link>
+        . In the network panel you should see <code>/ingest/session</code> and{" "}
+        <code>/ingest/error</code> return <code>204</code>. Delete the temporary files afterward —
+        they are not part of production setup.
+      </p>
+      <CodeBlock code={nextDocsCheckButton} lang="tsx" caption="optional verification button" />
+      <CodeBlock code={nextDocsCheckPage} lang="tsx" caption="optional temporary route" />
+
+      <h2>5. Source maps (readable stacks)</h2>
+      <p>
+        Next.js does not emit browser source maps by default. Set{" "}
+        <code>productionBrowserSourceMaps: true</code> in <code>next.config.ts</code>, keep the SDK{" "}
+        <code>release</code> equal to the value you upload (for example the git SHA), and upload{" "}
+        <code>.next/static</code> with <code>base_url</code>{" "}
+        <code>https://your-domain/_next/static</code>. Prefer pinning the GitHub Action to a full
+        commit SHA. Full steps, Turbopack notes, and quota:{" "}
+        <Link href="/docs/source-maps" className="text-brand hover:underline">
+          Source maps
+        </Link>
+        .
+      </p>
 
       <h2>Next.js Web Vitals monitoring</h2>
       <p>
@@ -84,16 +115,6 @@ export default function DocsNextJsPage() {
         </Link>{" "}
         for metric availability, page-lifecycle limits and privacy considerations.
       </p>
-
-      <h2>Verify ingest (optional)</h2>
-      <p>
-        Not part of production setup. Temporarily add a client button that calls{" "}
-        <code>trackError(new Error(&quot;docs-check&quot;))</code>, click it, confirm{" "}
-        <code>/ingest/session</code> and <code>/ingest/error</code> return <code>204</code>, then
-        open <strong>Issues</strong>. Delete these files afterward.
-      </p>
-      <CodeBlock code={nextDocsCheckButton} lang="tsx" caption="optional verification button" />
-      <CodeBlock code={nextDocsCheckPage} lang="tsx" caption="optional temporary route" />
 
       <h2>Server-side error tracking with Next.js App Router</h2>
       <p>
@@ -149,9 +170,11 @@ identify(null);     // on logout`}
             href: "/error-tracking/nextjs/server-components-render-error",
             label: "Server Components render error",
           },
+          { href: "/docs/source-maps", label: "Source maps" },
           { href: "/docs/migrate-from-sentry", label: "Migrate from Sentry" },
           { href: "/error-tracking/react", label: "React error tracking" },
           { href: "/docs/hosted-cloud", label: "Hosted cloud getting started" },
+          { href: "/docs/sdk-privacy", label: "SDK data & privacy labels" },
         ]}
       />
     </DocsArticle>

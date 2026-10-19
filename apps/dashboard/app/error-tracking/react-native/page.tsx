@@ -88,7 +88,7 @@ export default function ReactNativeErrorTrackingPage() {
         </p>
 
         <p>
-          For Hermes and OTA releases, follow the <a href="https://github.com/Telemetry-Tracker/telemetry-tracker/blob/develop/docs/expo-hermes-source-maps.md">Expo/EAS source-map guide</a>.
+          For Hermes and OTA releases, follow the <a href="/error-tracking/react-native/expo-source-maps">Expo/EAS source-map guide</a>.
           Use a unique release for every JS bundle and separate app labels for Android and iOS.
           Native version alone is insufficient for OTA updates. JavaScript errors only; native crashes are not captured.
         </p>

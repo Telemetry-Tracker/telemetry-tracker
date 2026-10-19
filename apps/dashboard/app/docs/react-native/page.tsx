@@ -24,9 +24,11 @@ export default function DocsReactNativePage() {
       }
     >
       <p>
-        For Hermes and OTA releases, follow the <a href="https://github.com/Telemetry-Tracker/telemetry-tracker/blob/develop/docs/expo-hermes-source-maps.md">Expo/EAS source-map guide</a>.
+        For Hermes and OTA releases, follow the <a href="/error-tracking/react-native/expo-source-maps">Expo/EAS source-map guide</a>.
         Use a unique release for every JS bundle and separate app labels for Android and iOS.
         Native version alone is insufficient for OTA updates. JavaScript errors only; native crashes are not captured.
+        For App Store and Play disclosure fields, see{" "}
+        <a href="/docs/sdk-privacy">SDK data &amp; privacy labels</a>.
       </p>
 
       <h2>Install</h2>
@@ -96,8 +98,8 @@ identify(user.id);`}
       <h2>Global error handler</h2>
       <p>
         After <code>init()</code>, the package sets <code>ErrorUtils.setGlobalHandler</code> so
-        unhandled JavaScript errors are sent to the ingest API. The previous handler is not
-        re-invoked (to avoid duplicate reports).
+        unhandled JavaScript errors are sent to the ingest API. The previous handler is chained. For fatal errors, reporting waits at most one second
+        before invoking it; delivery is best effort.
       </p>
 
       <DocsAlsoSee

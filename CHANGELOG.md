@@ -13,6 +13,17 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ---
 
+## [1.22.6] - 2026-10-19
+
+### Added
+
+- **Docs** — Expo EAS Update source-map guide covering Hermes maps, per-update releases, Android device bundle names, and CI uploads; updated React Native references and handler documentation ([#820](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/820)).
+- **Docs** — SDK data inventory for App Store privacy labels and Google Play Data safety ([#816](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/816), [#822](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/822)); same-origin ingest proxy guide for ad blockers ([#819](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/819)).
+
+### Changed
+
+- **Docs** — faster time-to-first-error in the Next.js guide ([#818](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/818)); the Server Components render error guide targets "Minified React error #441" and adds FAQ structured data ([#823](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/823)).
+
 ## [1.22.5] - 2026-10-16
 
 ### Fixed

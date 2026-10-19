@@ -230,6 +230,7 @@ trackEvent("app.started");`}</DocsCodeBlock>
 
       <DocsAlsoSee
         links={[
+          { href: "/docs/ingest-proxy", label: "Same-origin ingest proxy" },
           { href: "/sentry-alternative", label: "Sentry alternative" },
           { href: "/self-hosted-error-tracking", label: "Self-hosted error tracking" },
           { href: "/error-tracking/nextjs", label: "Next.js error tracking" },

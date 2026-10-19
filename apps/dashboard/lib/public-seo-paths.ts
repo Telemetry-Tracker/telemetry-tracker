@@ -14,8 +14,10 @@ export const PUBLIC_SEO_PATHS = [
   "/docs/nuxt",
   "/docs/vue",
   "/docs/react-native",
+  "/docs/sdk-privacy",
   "/docs/releases",
   "/docs/source-maps",
+  "/docs/ingest-proxy",
   "/docs/mcp",
   "/docs/self-hosting",
   "/docs/checkins",
@@ -33,6 +35,7 @@ export const PUBLIC_SEO_PATHS = [
   "/error-tracking/react",
   "/error-tracking/nodejs",
   "/error-tracking/react-native",
+  "/error-tracking/react-native/expo-source-maps",
 ] as const;
 
 /** Affiliate program pages: indexable, but only listed when NEXT_PUBLIC_AFFILIATES_ENABLED=true. */
@@ -55,10 +58,11 @@ export const MARKETING_GUIDE_PATHS = [
   "/error-tracking/react",
   "/error-tracking/nodejs",
   "/error-tracking/react-native",
+  "/error-tracking/react-native/expo-source-maps",
 ] as const;
 
 /** Content date for sitemap lastmod. Bump when public pages change. */
-export const SITEMAP_LAST_MODIFIED = new Date("2026-10-06T00:00:00.000Z");
+export const SITEMAP_LAST_MODIFIED = new Date("2026-10-19T00:00:00.000Z");
 
 export function sitemapPriority(path: PublicSeoPath): number {
   if (path === "") return 1;

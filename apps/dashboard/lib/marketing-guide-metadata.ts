@@ -6,10 +6,12 @@ export function marketingGuideMetadata(opts: {
   title: string;
   description: string;
   path: string;
+  /** Use the title as-is, without the " | Telemetry Tracker" suffix (for long titles). */
+  omitBrandSuffix?: boolean;
 }): Metadata {
   const origin = metadataBaseOrFallback().origin;
   const url = `${origin}${opts.path}`;
-  const absoluteTitle = `${opts.title} | Telemetry Tracker`;
+  const absoluteTitle = opts.omitBrandSuffix ? opts.title : `${opts.title} | Telemetry Tracker`;
 
   return {
     title: { absolute: absoluteTitle },
@@ -80,5 +82,19 @@ export function webPageJsonLd(opts: {
     url: `${opts.origin}${opts.path}`,
     isPartOf: { "@id": `${opts.origin}/#website` },
     about: { "@id": `${opts.origin}/#app` },
+  };
+}
+
+export function faqPageJsonLd(
+  items: ReadonlyArray<{ question: string; answer: string }>
+): Record<string, unknown> {
+  return {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: items.map((item) => ({
+      "@type": "Question",
+      name: item.question,
+      acceptedAnswer: { "@type": "Answer", text: item.answer },
+    })),
   };
 }
