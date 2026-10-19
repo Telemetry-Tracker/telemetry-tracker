@@ -48,6 +48,7 @@ export const docsNavSections: DocsNavSection[] = [
       { id: "alerts", label: "Alerts", href: "/docs/alerts" },
       { id: "mcp", label: "Agent access (MCP)", href: "/docs/mcp" },
       { id: "source-maps", label: "Source maps", href: "/docs/source-maps" },
+      { id: "ingest-proxy", label: "Ingest proxy (ad-blockers)", href: "/docs/ingest-proxy" },
     ],
   },
   {

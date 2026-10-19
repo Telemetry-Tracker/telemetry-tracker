@@ -16,6 +16,7 @@ export const PUBLIC_SEO_PATHS = [
   "/docs/react-native",
   "/docs/releases",
   "/docs/source-maps",
+  "/docs/ingest-proxy",
   "/docs/mcp",
   "/docs/self-hosting",
   "/docs/checkins",
@@ -58,7 +59,7 @@ export const MARKETING_GUIDE_PATHS = [
 ] as const;
 
 /** Content date for sitemap lastmod. Bump when public pages change. */
-export const SITEMAP_LAST_MODIFIED = new Date("2026-10-06T00:00:00.000Z");
+export const SITEMAP_LAST_MODIFIED = new Date("2026-10-19T00:00:00.000Z");
 
 export function sitemapPriority(path: PublicSeoPath): number {
   if (path === "") return 1;
