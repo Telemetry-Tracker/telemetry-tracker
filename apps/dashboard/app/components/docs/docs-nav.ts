@@ -34,6 +34,7 @@ export const docsNavSections: DocsNavSection[] = [
       { id: "nuxt", label: "Nuxt", href: "/docs/nuxt" },
       { id: "vue", label: "Vue", href: "/docs/vue" },
       { id: "react-native", label: "React Native", href: "/docs/react-native" },
+      { id: "sdk-privacy", label: "SDK data & privacy labels", href: "/docs/sdk-privacy" },
     ],
   },
   {

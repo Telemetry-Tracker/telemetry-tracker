@@ -152,6 +152,7 @@ identify(null);     // on logout`}
           { href: "/docs/migrate-from-sentry", label: "Migrate from Sentry" },
           { href: "/error-tracking/react", label: "React error tracking" },
           { href: "/docs/hosted-cloud", label: "Hosted cloud getting started" },
+          { href: "/docs/sdk-privacy", label: "SDK data & privacy labels" },
         ]}
       />
     </DocsArticle>
