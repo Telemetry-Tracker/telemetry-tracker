@@ -14,6 +14,7 @@ export const PUBLIC_SEO_PATHS = [
   "/docs/nuxt",
   "/docs/vue",
   "/docs/react-native",
+  "/docs/sdk-privacy",
   "/docs/releases",
   "/docs/source-maps",
   "/docs/ingest-proxy",
