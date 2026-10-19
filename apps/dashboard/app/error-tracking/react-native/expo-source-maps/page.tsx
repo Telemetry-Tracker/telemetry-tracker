@@ -282,9 +282,11 @@ export default function ExpoSourceMapsPage() {
         />
         <p>
           Any non-2xx upload fails CI on purpose. Do not hide upload failures
-          with a successful fallback command. The basename + stripped-map script
-          received 2xx from hosted TT for fresh Update C on October 19; its
-          final on-device/dashboard symbolication check is still pending.
+          with a successful fallback command. We verified symbolication on Android
+          with a real EAS Build and two EAS Updates against hosted Telemetry
+          Tracker in October 2026, using one test app on one phone. One update
+          used this guide’s upload script with a basename upload name and a
+          stripped map. We have not tested iOS.
         </p>
         <h3>Store builds (EAS Build)</h3>
         <CodeBlock
@@ -521,7 +523,7 @@ export default function ExpoSourceMapsPage() {
             </tbody>
           </table>
         </div>
-        <h2>Limits, honestly.</h2>
+        <h2>Limits, honestly</h2>
         <p>
           JavaScript errors only: no native crashes or ANRs. We verified EAS
           Build + EAS Update on Android with one app on one physical phone; iOS

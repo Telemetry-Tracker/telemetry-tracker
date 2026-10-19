@@ -121,8 +121,7 @@ Pin a reviewed commit SHA in production workflows. This yields `app:///index.and
 - Matching uses project/app/release/bundle URL. No automatic EAS metadata discovery or upload integration is included.
 - Function labels still use source-map `name` where available; at call sites this can be the callee, not the enclosing function. Original file/line/column is independently tested.
 - Fatal reporting waits at most one second for the error request before invoking the previous RN handler; delivery is best effort, not guaranteed before process termination.
-- Verified on Android (physical device, EAS Build + EAS Update, hosted TT, 2026-10-12); iOS still unverified. One test app on one phone; errors were reported with `trackError` in a catch. Global-handler symbolication, bsdiff updates, and the EAS build hook remain unverified.
-- The basename + stripped-map upload succeeded on hosted TT for fresh Update C on 2026-10-19; its final on-device/dashboard symbolication check remains pending.
+- We verified symbolication on Android with a real EAS Build and two EAS Updates against hosted Telemetry Tracker in October 2026, using one test app on one phone. One update used this guide’s upload script with a basename upload name and a stripped map. We have not tested iOS. Errors were reported with `trackError` in a catch. Global-handler symbolication, bsdiff updates, and the EAS build hook remain unverified.
 - Free stores 25 maps per project across all releases; maps cannot currently be deleted. No unhandled promise rejection capture is included.
 
 References: [React Native release debugging](https://reactnative.dev/docs/debugging-release-builds), [Expo update metadata](https://docs.expo.dev/guides/using-sentry/#usage-with-eas-update), [EAS lifecycle hooks](https://docs.expo.dev/build-reference/npm-hooks/), and [source map uploads](source-maps.md).
