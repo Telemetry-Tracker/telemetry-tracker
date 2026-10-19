@@ -27,6 +27,8 @@ export default function DocsReactNativePage() {
         For Hermes and OTA releases, follow the <a href="/error-tracking/react-native/expo-source-maps">Expo/EAS source-map guide</a>.
         Use a unique release for every JS bundle and separate app labels for Android and iOS.
         Native version alone is insufficient for OTA updates. JavaScript errors only; native crashes are not captured.
+        For App Store and Play disclosure fields, see{" "}
+        <a href="/docs/sdk-privacy">SDK data &amp; privacy labels</a>.
       </p>
 
       <h2>Install</h2>

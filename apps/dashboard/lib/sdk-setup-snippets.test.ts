@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { HOSTED_API_URL } from "./hosted-cloud";
 import {
+  buildNextEnvLocal,
   nextDocsCheckButton,
   nextDocsCheckPage,
   nextEnvLocal,
@@ -77,7 +78,7 @@ describe("sdk setup snippets", () => {
     expect(src).toContain("nextEnvLocalServer");
     expect(src).toContain("nextDocsCheckButton");
     expect(src).toContain("nextInstrumentation");
-    expect(src).toMatch(/Verify ingest \(optional\)/);
+    expect(src).toMatch(/Verify your first error/);
     expect(src).toMatch(/Server-side error tracking with Next\.js App Router/);
     expect(src).not.toMatch(/1\.3\.1 is still browser-only|not on npm until/i);
     expect(src).not.toMatch(/\/\* get pathname from usePathname/);
@@ -92,7 +93,17 @@ describe("sdk setup snippets", () => {
     expect(src).toContain("nextEnvLocalServer");
     expect(src).toContain("nextInstrumentation");
     expect(src).toContain("nextDocsCheckButton");
+    expect(src).toMatch(/Verify your first error/);
     expect(src).toMatch(/Server-side error tracking with Next\.js App Router/);
     expect(src).toContain('href: "/docs/migrate-from-sentry"');
+    expect(src).toContain('href: "/docs/source-maps"');
+    expect(src).toContain("createOnRequestError");
+  });
+
+  it("buildNextEnvLocal embeds the provided API key and hosted ingest URL", () => {
+    const out = buildNextEnvLocal("tt_live_abc_secret", "demo-app");
+    expect(out).toContain(`NEXT_PUBLIC_TELEMETRY_INGEST_URL=${HOSTED_API_URL}`);
+    expect(out).toContain("NEXT_PUBLIC_TELEMETRY_API_KEY=tt_live_abc_secret");
+    expect(out).toContain("NEXT_PUBLIC_TELEMETRY_APP=demo-app");
   });
 });
