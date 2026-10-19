@@ -17,6 +17,7 @@ export const PUBLIC_SEO_PATHS = [
   "/docs/sdk-privacy",
   "/docs/releases",
   "/docs/source-maps",
+  "/docs/ingest-proxy",
   "/docs/mcp",
   "/docs/self-hosting",
   "/docs/checkins",
