@@ -19,7 +19,8 @@ Optional for the marketing contact form (`POST /api/contact`):
 
 | Variable | Description |
 |----------|-------------|
-| `CONTACT_INBOX_EMAIL` | Inbox for form submissions (default `info@tacko.io`) |
+| `TELEMETRY_EMAIL_REPLY_TO` | Optional Reply-To for all outgoing mail (`none` to omit). Defaults to `info@telemetry-tracker.com` when `TELEMETRY_DASHBOARD_ORIGIN` is on telemetry-tracker.com, otherwise unset. The contact form always replies to the submitter. |
+| `CONTACT_INBOX_EMAIL` | Inbox for form submissions (default `info@telemetry-tracker.com`) |
 
 The contact form uses the same Resend credentials as password reset. Resend will reject sends when:
 
@@ -60,7 +61,7 @@ Recommended sender:
 
 ```env
 TELEMETRY_EMAIL_FROM=Telemetry Tracker <noreply@tacko.io>
-CONTACT_INBOX_EMAIL=info@tacko.io
+CONTACT_INBOX_EMAIL=info@telemetry-tracker.com
 ```
 
 You can use another verified domain if you prefer; `TELEMETRY_EMAIL_FROM` must match it exactly.
@@ -73,7 +74,7 @@ On the **API** Railway service (not dashboard), set:
 |----------|---------|
 | `RESEND_API_KEY` | `re_…` |
 | `TELEMETRY_EMAIL_FROM` | `Telemetry Tracker <noreply@tacko.io>` |
-| `CONTACT_INBOX_EMAIL` | `info@tacko.io` |
+| `CONTACT_INBOX_EMAIL` | `info@telemetry-tracker.com` |
 | `TELEMETRY_DASHBOARD_ORIGIN` | `https://telemetry-tracker.com` |
 
 Redeploy the API after saving variables.

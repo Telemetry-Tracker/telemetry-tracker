@@ -39,7 +39,7 @@ export async function submitContactForm(
   } catch {
     return {
       ok: false,
-      error: "Could not reach the server. Check your connection or email info@tacko.io directly.",
+      error: "Could not reach the server. Check your connection or email info@telemetry-tracker.com directly.",
     };
   }
 
@@ -53,7 +53,7 @@ export async function submitContactForm(
   if (!res.ok) {
     return {
       ok: false,
-      error: data.error ?? "Something went wrong. Try again or email info@tacko.io directly.",
+      error: data.error ?? "Something went wrong. Try again or email info@telemetry-tracker.com directly.",
       fields: data.fields,
     };
   }

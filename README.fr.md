@@ -312,7 +312,7 @@ Le **service managé** sur [telemetry-tracker.com](https://telemetry-tracker.com
 
 N'offrez pas de service hébergé multi-tenant **à des tiers** utilisant le nom **Telemetry Tracker**, le logo ou le marketing comme s'il s'agissait du produit officiel. Les forks et les déploiements internes doivent utiliser un **nom distinct** sauf si vous avez une autorisation écrite de Tacko.
 
-Détails et exemples : **[TRADEMARK.md](TRADEMARK.md)** · Partenariats : [info@tacko.io](mailto:info@tacko.io)
+Détails et exemples : **[TRADEMARK.md](TRADEMARK.md)** · Partenariats : [info@telemetry-tracker.com](mailto:info@telemetry-tracker.com)
 
 ## Contribuer
 

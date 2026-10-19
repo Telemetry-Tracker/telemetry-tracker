@@ -305,4 +305,4 @@ El **servicio gestionado** en telemetry-tracker.com es operado por Tacko. Los pl
 
 No ofrezcas un servicio alojado multiinquilino **a terceros** utilizando el nombre **Telemetry Tracker**, su logotipo o marketing como si fuera el producto oficial. Los forks y despliegues internos deben usar un **nombre distinto** a menos que tengas permiso por escrito de Tacko.
 
-Detalles y ejemplos: TRADEMARK.md · Alianzas: info@tacko.io
+Detalles y ejemplos: TRADEMARK.md · Alianzas: info@telemetry-tracker.com
