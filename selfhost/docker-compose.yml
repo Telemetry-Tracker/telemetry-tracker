@@ -1,0 +1,103 @@
+# Telemetry Tracker self-host stack: Postgres + API + dashboard.
+#   cd selfhost && cp .env.example .env   # then fill in the three secrets
+#   docker compose up -d
+# The API applies database migrations itself before it starts listening.
+# Postgres is only reachable on the internal Compose network (no published port).
+name: telemetry-tracker
+
+x-api-env: &api-env
+  NODE_ENV: production
+  DATABASE_URL: postgresql://telemetry:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in selfhost/.env}@postgres:5432/telemetry
+  CHECKIN_ENCRYPTION_KEY: ${CHECKIN_ENCRYPTION_KEY:?set CHECKIN_ENCRYPTION_KEY in selfhost/.env}
+  TRUST_RAILWAY_EDGE: "false"
+  RESEND_API_KEY: ${RESEND_API_KEY:-}
+  TELEMETRY_EMAIL_FROM: ${TELEMETRY_EMAIL_FROM:-}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: telemetry
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in selfhost/.env}
+      POSTGRES_DB: telemetry
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U telemetry -d telemetry"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  api:
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+    image: telemetry-tracker-api:local
+    restart: unless-stopped
+    user: node
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      <<: *api-env
+      HOST: 0.0.0.0
+      PORT: "3001"
+      HEALTH_CHECK_DATABASE: "true"
+      CORS_ORIGINS: ${DASHBOARD_URL:-http://localhost:3000}
+      TELEMETRY_DASHBOARD_ORIGIN: ${DASHBOARD_URL:-http://localhost:3000}
+      DASHBOARD_URL: ${DASHBOARD_URL:-http://localhost:3000}
+      AFFILIATE_CLIENT_IP_FORWARD_SECRET: ${DASHBOARD_API_SECRET:?set DASHBOARD_API_SECRET in selfhost/.env}
+      TELEMETRY_ALLOW_REGISTRATION: ${TELEMETRY_ALLOW_REGISTRATION:-false}
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${API_PORT:-3001}:3001"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      # Each probe starts a short node process, so probe slowly once healthy.
+      interval: 60s
+      timeout: 5s
+      start_period: 120s
+      start_interval: 2s
+      retries: 3
+
+  dashboard:
+    build:
+      context: ..
+      dockerfile: selfhost/dashboard.Dockerfile
+      args:
+        NEXT_PUBLIC_SITE_URL: ${DASHBOARD_URL:-http://localhost:3000}
+    image: telemetry-tracker-dashboard:local
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      API_URL: http://api:3001
+      CHECKIN_PUBLIC_BASE_URL: ${API_PUBLIC_URL:-http://localhost:3001}
+      AFFILIATE_CLIENT_IP_FORWARD_SECRET: ${DASHBOARD_API_SECRET:?set DASHBOARD_API_SECRET in selfhost/.env}
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${DASHBOARD_PORT:-3000}:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/login').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 60s
+      timeout: 5s
+      start_period: 120s
+      start_interval: 2s
+      retries: 3
+
+  # Optional: alert rules with schedules (HEARTBEAT / NO_EVENTS / check-ins).
+  # Start with: docker compose --profile jobs up -d
+  alert-rules-evaluator:
+    image: telemetry-tracker-api:local
+    profiles: ["jobs"]
+    restart: unless-stopped
+    user: node
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      <<: *api-env
+    command: ["node", "dist/jobs/run-alert-rules-evaluator.js", "--loop"]
+
+volumes:
+  pgdata:

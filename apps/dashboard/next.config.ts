@@ -26,6 +26,9 @@ const sentryRelease = dashboardSentryReleaseFromChangelog(changelog);
 const platformVersion = changelog ? latestChangelogVersion(changelog) : null;
 
 const nextConfig: NextConfig = {
+  // Self-host image only (selfhost/dashboard.Dockerfile sets NEXT_OUTPUT=standalone). Unset on
+  // Railway, so the production dashboard build and `next start` are unchanged.
+  ...(process.env.NEXT_OUTPUT === "standalone" ? { output: "standalone" as const } : {}),
   env: {
     ...(sentryRelease ? { TT_SENTRY_RELEASE: sentryRelease } : {}),
     ...(platformVersion ? { TT_PLATFORM_VERSION: platformVersion } : {}),
