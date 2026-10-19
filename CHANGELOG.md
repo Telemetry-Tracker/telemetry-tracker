@@ -11,6 +11,10 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ## [Unreleased]
 
+### Changed
+
+- **Self-hosting** — the dashboard Docker image drops the build-time `.next/cache` and `.dockerignore` skips local `.next` output: on a v1.22.6 test build the image went from 2.35 GB to 1.06 GB.
+
 ---
 
 ## [1.22.6] - 2026-10-19
