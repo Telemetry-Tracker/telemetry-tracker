@@ -11,15 +11,17 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ## [Unreleased]
 
+---
+
+## [1.22.8] - 2026-10-19
+
 ### Added
 
 - **Self-hosting** — `selfhost/` provides a one-command Docker Compose stack (Postgres + API + dashboard). The API applies migrations on start. Services start in order through healthchecks, and the API and dashboard run as a non-root user. Postgres is not published, the API and dashboard listen on 127.0.0.1, and no default secrets ship with the stack. Measured on a test box: about 4 min from clone to a healthy stack on a cold build, 12 s with built images, and about 261 MiB of container memory when idle ([#827](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/827)).
 
 ### Fixed
 
-- **Docs** — DEPLOYMENT.md and /docs/self-hosting no longer claim the API has no Dockerfile (`apps/api/Dockerfile` has built the production API since v1.18.5).
-
----
+- **Docs** — DEPLOYMENT.md and /docs/self-hosting no longer claim the API has no Dockerfile (`apps/api/Dockerfile` has built the production API since v1.18.5) ([#831](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/831)).
 
 ## [1.22.7] - 2026-10-19
 
