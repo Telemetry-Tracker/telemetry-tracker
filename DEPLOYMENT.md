@@ -110,6 +110,43 @@ pnpm --filter api exec prisma migrate deploy
 | Prod API | `pnpm --filter api start` |
 | Prod dashboard | `pnpm --filter dashboard start` |
 
+### Running the API and dashboard in production
+
+- **The API does not load `apps/api/.env` by itself at startup.** Put its variables in the real process environment (systemd `EnvironmentFile=`, your process manager, or `node --env-file=.env dist/index.js` from `apps/api` on Node 20.6+). If `NODE_ENV=production` is only in `.env`, the API skips its migrate-before-listen step. Prisma loads the rest of `.env` later, so everything else looks fine and the skip is easy to miss. Run `pnpm --filter api exec prisma migrate deploy` before starting a new version either way.
+- `pnpm --filter api start` and `pnpm --filter dashboard start` keep a `pnpm` process running next to each server (about 106 MiB RSS each, measured below). Under a process manager, start the servers directly instead: `node --env-file=.env dist/index.js` in `apps/api`, and `./node_modules/.bin/next start` in `apps/dashboard` (Next.js reads the dashboard `.env` itself).
+
+### Requirements and resource usage (measured)
+
+Measured on **2026-10-19** with **v1.22.6** on one test box: 8 vCPU (Intel Xeon), 15.6 GiB RAM, Debian 13, Docker 26.1.5, Node 20.19.2, pnpm 9.15.9. Postgres 16 ran via `docker-compose.yml` with default settings (`shared_buffers` 128 MB). The API and dashboard ran as host Node processes in production mode. No email, Stripe, Sentry or R2 was configured, and the alert-rules evaluator cron was not running. These are numbers from that one setup, not guarantees: your hardware, data volume and traffic will change them.
+
+**Setup, cold caches** (command time only; Node and pnpm were already installed, and time spent reading docs is not included):
+
+| Step | Time |
+|------|------|
+| `git clone` | 3 s |
+| `pnpm install` (empty pnpm store, 1,034 packages) | 15 s |
+| `docker compose up -d` (pulls `postgres:16`, 451 MB) until healthy | 11 s |
+| `pnpm build` | 115 s |
+| `prisma migrate deploy` (55 migrations) | 2 s |
+| API and dashboard start until `/health` and `/` respond | 2 s |
+| Register, create org, project and API key; first error ingested and listed | under 1 s (via the API) |
+
+Clone to first error in the dashboard took 4 min 42 s of wall-clock time, done as a script. The build step dominates. Building the dashboard image with `docker build .` instead took 143 s.
+
+**Memory and CPU.** RSS is per process and counts shared pages more than once. Postgres is container memory from `docker stats`. CPU is % of one core, sampled every 10 s.
+
+| Process | Idle, 5 min after start (median) | Small workload (median / max) |
+|---------|----------------------------------|-------------------------------|
+| API (`node dist/index.js`) | 118 MiB RSS, 0% CPU | 162 / 165 MiB RSS, 5.0% / 7.8% CPU |
+| Dashboard (`next-server`) | 287 MiB RSS, 0% CPU | 288 / 298 MiB RSS, 0% / 5.3% CPU |
+| Postgres 16 | 49 MiB, 0% CPU (short spikes up to 4.8%) | 95 / 106 MiB, 1.1% / 13.3% CPU |
+| **Total** | **453 MiB, under 1% CPU on average** | **540 MiB median, 559 MiB max; 8.6% of one core median, 17.6% max** |
+| `pnpm` wrapper per `pnpm … start` (if used) | 106 MiB RSS each, 0% CPU | unchanged |
+
+The small workload ran for 12 minutes: about 3 events/s, one error every 2 s (8 distinct errors with stack traces), one session every 10 s, and 3 authenticated dashboard page loads every 30 s. That came to 2,160 events, 360 errors and 72 sessions. Every request got a 204, and ingest latency was 12.5 ms p50 / 16.7 ms p95. Afterwards the database was 13 MB and the Postgres volume 71 MB. In a second idle run after the workload, with the servers started directly (no `pnpm` wrapper), the total was 490 MiB (API 121 MiB, dashboard 291 MiB, Postgres 78 MiB).
+
+Image sizes: `postgres:16` 451 MB. The dashboard image from the root `Dockerfile` was 1.06 GB after [#826](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/826) (2.35 GB before).
+
 ---
 
 ## Where to deploy
@@ -120,7 +157,7 @@ pnpm --filter api exec prisma migrate deploy
 | **Single VPS** | Postgres + API + dashboard on one host; reverse proxy (Nginx/Caddy) for HTTPS |
 | **Docker / local infra** | Local Postgres via `docker compose up -d`; root `Dockerfile` builds the **dashboard image only** — no API Dockerfile in this repo |
 
-This repo does **not** ship a single Docker Compose stack for all three production services. For production, use Railway, a VPS, or build your own orchestration.
+This repo does **not** ship a single Docker Compose stack for all three production services (tracked in [#827](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/827)). For production, use Railway, a VPS, or build your own orchestration.
 
 **VPS sketch:** install Postgres 16 (or Docker), clone repo, set `DATABASE_URL`, `pnpm build`, run migrations, start API and dashboard with a process manager, terminate TLS at the proxy.
 
