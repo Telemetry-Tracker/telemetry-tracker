@@ -13,6 +13,14 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ---
 
+## [1.22.9] - 2026-10-19
+
+### Changed
+
+- **Official contact address** — public contact links, the contact form inbox default, README and TRADEMARK now use `info@telemetry-tracker.com`. Hosted-cloud emails set Reply-To to `info@telemetry-tracker.com` (override with `TELEMETRY_EMAIL_REPLY_TO`; self-hosted instances get no default). The sending address is unchanged.
+
+---
+
 ## [1.22.8] - 2026-10-19
 
 ### Added

@@ -5,7 +5,7 @@ import {
 } from "../lib/email.js";
 
 const CONTACT_INBOX =
-  process.env.CONTACT_INBOX_EMAIL?.trim() || "info@tacko.io";
+  process.env.CONTACT_INBOX_EMAIL?.trim() || "info@telemetry-tracker.com";
 
 const TOPICS = new Set(["general", "support", "security", "business", "other"]);
 

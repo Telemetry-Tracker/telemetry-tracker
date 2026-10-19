@@ -13,7 +13,7 @@ The **Telemetry Tracker** source code is open source under the [MIT License](LIC
 | Offer a **multi-tenant hosted service to third parties** marketed as **Telemetry Tracker**, using our name, logo, or look-and-feel | ❌ No — requires written permission |
 | Use **Telemetry Tracker** in a product or domain name in a way that suggests endorsement or affiliation with Tacko | ❌ No |
 
-When in doubt, contact [info@tacko.io](mailto:info@tacko.io).
+When in doubt, contact [info@telemetry-tracker.com](mailto:info@telemetry-tracker.com).
 
 ---
 
@@ -69,7 +69,7 @@ Paid **Pro** and **Business** plans on that offering are billed in **EUR** throu
 
 ## Partnerships and enterprise
 
-For white-label, OEM, reseller, enterprise hosting, or other commercial use of the **Telemetry Tracker** brand, contact **[info@tacko.io](mailto:info@tacko.io)**.
+For white-label, OEM, reseller, enterprise hosting, or other commercial use of the **Telemetry Tracker** brand, contact **[info@telemetry-tracker.com](mailto:info@telemetry-tracker.com)**.
 
 ---
 
