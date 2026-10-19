@@ -23,4 +23,5 @@ it("uses the configured canonical origin in links", async () => {
   const body = await GET().text();
   expect(body).toContain("https://example.com/docs/dashboard");
   expect(body).toContain("https://example.com/pricing");
+  expect(body).toContain("https://example.com/error-tracking/react-native/expo-source-maps");
 });

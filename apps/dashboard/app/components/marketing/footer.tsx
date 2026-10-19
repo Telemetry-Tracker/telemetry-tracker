@@ -31,6 +31,7 @@ const cols: FooterColumn[] = [
       { label: "React", href: "/error-tracking/react" },
       { label: "Node.js", href: "/error-tracking/nodejs" },
       { label: "React Native", href: "/error-tracking/react-native" },
+      { label: "Expo source maps", href: "/error-tracking/react-native/expo-source-maps" },
     ],
   },
   {
