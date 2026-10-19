@@ -11,6 +11,10 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ## [Unreleased]
 
+### Added
+
+- Expo EAS Update source-map guide covering Hermes maps, per-update releases, Android device bundle names, and CI uploads; updated React Native references and handler documentation.
+
 ---
 
 ## [1.22.5] - 2026-10-16
