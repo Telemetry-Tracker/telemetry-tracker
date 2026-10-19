@@ -41,6 +41,7 @@ export function GET() {
 - ${origin}/docs/migrate-from-sentry
 - ${origin}/docs/self-hosting
 - ${origin}/docs/hosted-cloud
+- ${origin}/error-tracking/react-native/expo-source-maps
 - ${origin}/sentry-alternative
 
 ## Not for model training

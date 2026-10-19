@@ -2,6 +2,8 @@
 
 Telemetry Tracker captures **JavaScript errors only**, not native crashes. This guide covers Expo/EAS and bare React Native Hermes bundles; it does not claim full Expo support. Real EAS builds and device verification are still required for your Expo/RN version.
 
+For a worked OTA workflow, see the [Expo EAS Update source-map guide](https://telemetry-tracker.com/error-tracking/react-native/expo-source-maps).
+
 ## SDK and bundle-specific releases
 
 Install `@telemetry-tracker/react-native`. Initialize before app code can throw:
@@ -43,9 +45,11 @@ For iOS, configure `SOURCEMAP_FILE` in the Xcode bundle phase/environment **befo
 ### EAS Update
 
 ```sh
-npx expo export --platform android --source-maps --output-dir dist-android
-npx expo export --platform ios --source-maps --output-dir dist-ios
+npx eas-cli env:exec production "npx expo export --platform android --source-maps --clear --output-dir dist-android"
+npx eas-cli env:exec production "npx expo export --platform ios --source-maps --clear --output-dir dist-ios"
 ```
+
+`EXPO_PUBLIC_*` values must be loaded during export, using `eas env:exec` or CI variables. With `--skip-bundler`, `eas update --environment` cannot add them later. `--clear` avoids stale local Metro transforms. On SDK 57 our exported `.hbc.map` was already composed; do not compose it again.
 
 Export with the same environment, entry point, dependencies and Hermes configuration as the update. Upload maps from the exact export used for the shipped update, rather than rebuilding later. Inspect the output and build logs for your SDK version: if the exported map already maps bytecode offsets to original sources, do not compose it again. If you have a Metro map plus a separate Hermes map, use the matching RN toolchain to compose them:
 
@@ -61,7 +65,7 @@ The composition order is Metro first, Hermes second. A raw Hermes map alone maps
 
 For embedded Android use `index.android.bundle`; for iOS use `main.jsbundle`, after verifying the real release stack. `app:///index.android.bundle`, `assets://index.android.bundle`, file URLs and absolute native paths can match by basename. HTTP-to-HTTP matches retain host/path identity. Multiple artifacts matching a basename are rejected. Releases reaching the 128-artifact metadata limit are conservatively left unsymbolicated, since the capped list cannot prove uniqueness.
 
-For expo-updates, inspect the **actual release stack's sourceURL/path**. If it is a hashed/internal file, upload using that exact path or its unique basename. `index.android.bundle` cannot match an unrelated hash. OTA path conventions are not verified here; do not assume your export filename equals the device filename. If you cannot reliably determine the runtime path, OTA symbolication is not yet configured. Keep only the final matching map for each bundle.
+For expo-updates, inspect the **actual release stack's sourceURL/path**. If it is a hashed/internal file, upload using that exact path or its unique basename. `index.android.bundle` cannot match an unrelated hash. On our Android device, expo-updates used `.expo-internal/<launchAsset.key>`, where EAS CLI sets the key to the **MD5 of the exported `.hbc` file**, not the hash in its export filename. Compute it with `md5sum <bundle.hbc>` (Linux) or `md5 -q <bundle.hbc>` (macOS). Upload under that basename to avoid package/work-profile path differences. iOS uses key + extension and remains unverified; check one raw frame per platform. If you cannot reliably determine the runtime path, OTA symbolication is not yet configured. Keep only the final matching map for each bundle.
 
 The existing API accepts a JSON object or JSON string in `content`:
 
@@ -117,6 +121,8 @@ Pin a reviewed commit SHA in production workflows. This yields `app:///index.and
 - Matching uses project/app/release/bundle URL. No automatic EAS metadata discovery or upload integration is included.
 - Function labels still use source-map `name` where available; at call sites this can be the callee, not the enclosing function. Original file/line/column is independently tested.
 - Fatal reporting waits at most one second for the error request before invoking the previous RN handler; delivery is best effort, not guaranteed before process termination.
-- UNVERIFIED: actual Android/iOS release sourceURL strings; expo-updates OTA paths; real composed-map sizes; live upload; dashboard end-to-end symbolication. Verify all on your supported SDK/device versions before relying on this flow.
+- Verified on Android (physical device, EAS Build + EAS Update, hosted TT, 2026-10-12); iOS still unverified. One test app on one phone; errors were reported with `trackError` in a catch. Global-handler symbolication, bsdiff updates, and the EAS build hook remain unverified.
+- The basename + stripped-map upload succeeded on hosted TT for fresh Update C on 2026-10-19; its final on-device/dashboard symbolication check remains pending.
+- Free stores 25 maps per project across all releases; maps cannot currently be deleted. No unhandled promise rejection capture is included.
 
 References: [React Native release debugging](https://reactnative.dev/docs/debugging-release-builds), [Expo update metadata](https://docs.expo.dev/guides/using-sentry/#usage-with-eas-update), [EAS lifecycle hooks](https://docs.expo.dev/build-reference/npm-hooks/), and [source map uploads](source-maps.md).

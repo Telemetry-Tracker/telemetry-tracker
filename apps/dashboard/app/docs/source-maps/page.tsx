@@ -33,6 +33,8 @@ export default function DocsSourceMapsPage() {
         </li>
       </ul>
 
+      <p><a href="/error-tracking/react-native/expo-source-maps">React Native / Expo (Hermes, EAS Update)</a>: release identity, device bundle names, and composed maps.</p>
+
       <h2>Next.js</h2>
       <p>
         Webpack (Next.js 15) usually emits a map next to each chunk. Turbopack (Next.js 16) can
