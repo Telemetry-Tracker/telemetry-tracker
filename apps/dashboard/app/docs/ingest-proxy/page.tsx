@@ -45,7 +45,11 @@ location /tt/ingest/ {
   proxy_set_header X-API-Key $http_x_api_key;
   proxy_set_header Content-Type $http_content_type;
   proxy_pass_request_body on;
-  # Do NOT forward spoofable client-IP headers to invent visitor identity.
+  # nginx forwards unlisted request headers by default — clear spoofable IPs.
+  proxy_set_header X-Forwarded-For "";
+  proxy_set_header X-Real-IP "";
+  proxy_set_header CF-Connecting-IP "";
+  proxy_set_header True-Client-IP "";
   # Rate limits will use this proxy's egress IP (still partitioned by API key).
 }`;
 
@@ -61,9 +65,15 @@ export default {
       return new Response("Not found", { status: 404 });
     }
     const path = url.pathname.slice("/tt".length) + url.search;
-    const headers = new Headers(request.headers);
+    // Copy auth + content-type only — do not forward spoofable visitor-IP headers.
+    const headers = new Headers();
+    const auth = request.headers.get("authorization");
+    const xKey = request.headers.get("x-api-key");
+    const ct = request.headers.get("content-type");
+    if (auth) headers.set("authorization", auth);
+    if (xKey) headers.set("x-api-key", xKey);
+    if (ct) headers.set("content-type", ct);
     headers.set("Host", "api.telemetry-tracker.com");
-    // Forward auth + body only. Do not invent CF-Connecting-IP / X-Real-IP for TT.
     const init = {
       method: request.method,
       headers,
@@ -156,22 +166,29 @@ export default function DocsIngestProxyPage() {
         Confirm with your project key: create an error and check that{" "}
         <code>/tt/ingest/error</code> returns <code>204</code> and the issue appears. Without a key
         you should see <code>401</code> from our API through the rewrite (path forwarding works).
+        Next.js rewrites pass client headers through (including{" "}
+        <code>X-Forwarded-For</code> / <code>X-Real-IP</code> / <code>CF-Connecting-IP</code>); our
+        API does not treat those as visitor IPs unless they come from a trusted edge (#788), so the
+        rate-limit IP is still this proxy&apos;s egress. Prefer a Route Handler that copies only
+        auth + body if you want to strip those headers yourself.
       </p>
 
       <h2>nginx</h2>
       <CodeBlock code={nginxConf} lang="nginx" caption="nginx location snippet" />
       <p>
-        Runtime of this exact snippet was not executed in our docs CI (no nginx in that environment).
-        The request shape matches the Node relay we did verify against production ingest (401 with
-        missing/invalid keys through a <code>/tt</code> prefix).
+        Verified in Docker (<code>nginx:1.27-alpine</code>): auth + body reach upstream as{" "}
+        <code>204</code>; without the clear headers above, nginx also forwards spoofable client IP
+        headers — keep the <code>proxy_set_header … &quot;&quot;</code> lines. Also verified: Node{" "}
+        <code>/tt</code> relay to production ingest returns <code>204</code> with a live project key.
       </p>
 
       <h2>Cloudflare Worker</h2>
       <CodeBlock code={workerJs} lang="js" caption="worker.js" />
       <p>
-        Attach the Worker to <code>your.app/tt/*</code>. Do not add forged visitor IP headers.
-        Worker runtime was not executed here; use <code>wrangler dev</code> and the same 401/204
-        checks as above before production.
+        Attach the Worker to <code>your.app/tt/*</code>. Verified with{" "}
+        <code>wrangler dev</code>: auth + body forward (<code>204</code>); copying{" "}
+        <code>request.headers</code> wholesale also forwarded spoofable IPs — the snippet above
+        copies only auth + content-type.
       </p>
 
       <h2>Production readiness</h2>
