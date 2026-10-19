@@ -8,9 +8,65 @@ Telemetry Tracker has three runtime pieces:
 
 The dashboard calls the API via **`API_URL`** (server-side only). The API uses **`DATABASE_URL`** for Postgres.
 
-**Repo layout:** `Dockerfile` and `docker-compose.yml` live at the **repo root**. The Dockerfile builds the **dashboard only** (context must be repo root). The API has no Dockerfile in this repo.
+**Repo layout:** the root `Dockerfile` builds the **production dashboard** image, and `apps/api/Dockerfile` builds the **API** image (also used by the cron/worker services). Both use the repo root as build context. The root `docker-compose.yml` starts **Postgres only**, for local development. `selfhost/` contains the **one-command self-host stack** (Postgres + API + dashboard).
 
 ---
+
+## Self-host with Docker Compose
+
+Needs Docker with Compose v2.20+ and about 5 GB of free disk for the build (images plus build cache). No Node or pnpm is needed on the host.
+
+```bash
+git clone https://github.com/Telemetry-Tracker/telemetry-tracker.git
+cd telemetry-tracker/selfhost
+cp .env.example .env
+# Fill in POSTGRES_PASSWORD, CHECKIN_ENCRYPTION_KEY and DASHBOARD_API_SECRET, e.g. each with:
+openssl rand -hex 32
+docker compose up -d
+```
+
+Then open `http://localhost:3000`, register (the first account can always sign up), and create an organization, a project and an API key. Point an SDK at `http://localhost:3001` (`API_PUBLIC_URL`).
+
+What the stack does:
+
+- **Services:** `postgres` (16-alpine), `api` (`apps/api/Dockerfile`) and `dashboard` (`selfhost/dashboard.Dockerfile`, a Next.js standalone build). The API and dashboard run as the unprivileged `node` user.
+- **Migrations:** the API runs `prisma migrate deploy` on every start, before it listens. Startup is ordered with healthchecks: Postgres, then the API, then the dashboard.
+- **Secrets:** none ship with the stack. `docker compose up` refuses to start until the three secrets are set in `selfhost/.env`. Keep `CHECKIN_ENCRYPTION_KEY` with your database backups.
+- **Network:** Postgres has no published port and is only reachable on the internal Compose network. The API and dashboard are published on `127.0.0.1` only. Put a TLS reverse proxy in front of them, or set `BIND_ADDRESS=0.0.0.0` to listen on all interfaces over plain HTTP.
+- **Public URL:** `DASHBOARD_URL` is baked into the dashboard image at build time. After changing it, run `docker compose up -d --build`.
+- **Signup:** after the first account, signup is invite-only unless `TELEMETRY_ALLOW_REGISTRATION=true`.
+- **Scheduled jobs (optional):** scheduled alert rules and check-ins need the evaluator, started with `docker compose --profile jobs up -d` (same API image, `--loop`). For retention, run `docker compose exec api node dist/jobs/run-retention.js` nightly from the host's cron.
+- **Upgrading:** `git pull && docker compose up -d --build`. Migrations apply on start.
+- **Images:** they are built locally. No prebuilt images are published yet.
+
+### Measured: Docker Compose setup (2026-10-19)
+
+Measured with the `selfhost/` stack at v1.22.7 plus this change, on the same test box as below: 8 vCPU (Intel Xeon), 15.6 GiB RAM, Debian 13, Docker 26.1.5 with Compose 2.26.1, on a datacenter network. The steps were scripted, so time spent reading docs is not included. These numbers come from that one setup and are not guarantees.
+
+| Step | Cold (no images, no build cache) | Cached (images already built) |
+|------|-------------------|-------------------------------|
+| `git clone` | 3 s | 3 s |
+| `cp .env.example .env` and set 3 secrets | under 1 s (scripted) | under 1 s |
+| `docker compose up -d` returns (pull, build, start, migrate) | 221 s | 9 s |
+| All three services healthy | 232 s after `up` | 12 s after `up` |
+| Clone to healthy stack | 3 min 55 s | 15 s |
+| Register, org, project and API key (via the API) | | 0.14 s |
+| Node SDK (`@telemetry-tracker/node` 1.4.1) event visible on the dashboard Events page | | 7.5 s after the SDK started (the SDK batches events every 5 s) |
+
+Each run started with an empty database volume. Building the two images takes most of the cold time. The cold run used a 10 s healthcheck interval. The final file probes every 2 s during startup and every 60 s once healthy.
+
+**Idle memory and CPU** (`docker stats --no-stream` every 10 s for 5 min, starting 5 min after the last activity, 30 samples; CPU is % of one core):
+
+| Container | Memory, median (max) | CPU, mean (max) |
+|-----------|----------------------|-----------------|
+| api | 77 MiB (77) | 0.00% (0.01%) |
+| dashboard | 119 MiB (120) | 0.00% (0.00%) |
+| postgres | 65 MiB (66) | 0.40% (3.4%) |
+| **Total** | **261 MiB (262)** | **0.40% (3.4%)** |
+
+This was the cached run with the final healthcheck settings. An earlier idle sample on the cold-run stack, with a 10 s healthcheck interval and more requests served before the sample, came to 391 MiB median (402 max), with probe-driven CPU averaging 5.8% of one core in total. `docker stats` memory excludes reclaimable page cache, so it isn't directly comparable with the RSS figures below.
+
+Image sizes: `telemetry-tracker-api:local` 575 MB, `telemetry-tracker-dashboard:local` 357 MB and `postgres:16-alpine` 294 MB. The build cache after a cold build was 3.6 GB; reclaim it with `docker builder prune`. The Postgres volume was 51 MB after migrations and a few test events.
 
 
 ## Check-in monitoring requirement
@@ -115,7 +171,7 @@ pnpm --filter api exec prisma migrate deploy
 - **The API does not load `apps/api/.env` by itself at startup.** Put its variables in the real process environment (systemd `EnvironmentFile=`, your process manager, or `node --env-file=.env dist/index.js` from `apps/api` on Node 20.6+). If `NODE_ENV=production` is only in `.env`, the API skips its migrate-before-listen step. Prisma loads the rest of `.env` later, so everything else looks fine and the skip is easy to miss. Run `pnpm --filter api exec prisma migrate deploy` before starting a new version either way.
 - `pnpm --filter api start` and `pnpm --filter dashboard start` keep a `pnpm` process running next to each server (about 106 MiB RSS each, measured below). Under a process manager, start the servers directly instead: `node --env-file=.env dist/index.js` in `apps/api`, and `./node_modules/.bin/next start` in `apps/dashboard` (Next.js reads the dashboard `.env` itself).
 
-### Requirements and resource usage (measured)
+### Requirements and resource usage (measured, Node processes)
 
 Measured on **2026-10-19** with **v1.22.6** on one test box: 8 vCPU (Intel Xeon), 15.6 GiB RAM, Debian 13, Docker 26.1.5, Node 20.19.2, pnpm 9.15.9. Postgres 16 ran via `docker-compose.yml` with default settings (`shared_buffers` 128 MB). The API and dashboard ran as host Node processes in production mode. No email, Stripe, Sentry or R2 was configured, and the alert-rules evaluator cron was not running. These are numbers from that one setup, not guarantees: your hardware, data volume and traffic will change them.
 
@@ -155,9 +211,10 @@ Image sizes: `postgres:16` 451 MB. The dashboard image from the root `Dockerfile
 |--------|--------|
 | **Railway** (recommended PaaS) | [docs/RAILWAY.md](docs/RAILWAY.md) — Postgres, API, dashboard, cron, troubleshooting |
 | **Single VPS** | Postgres + API + dashboard on one host; reverse proxy (Nginx/Caddy) for HTTPS |
-| **Docker / local infra** | Local Postgres via `docker compose up -d`; root `Dockerfile` builds the **dashboard image only** — no API Dockerfile in this repo |
+| **Docker Compose (self-host)** | [`selfhost/`](#self-host-with-docker-compose): Postgres + API + dashboard with one `docker compose up -d` |
+| **Local dev** | Postgres only, via `docker compose up -d` in the repo root |
 
-This repo does **not** ship a single Docker Compose stack for all three production services (tracked in [#827](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/827)). For production, use Railway, a VPS, or build your own orchestration.
+For a single host, use the [Docker Compose stack](#self-host-with-docker-compose). Railway and a VPS with a process manager are covered below.
 
 **VPS sketch:** install Postgres 16 (or Docker), clone repo, set `DATABASE_URL`, `pnpm build`, run migrations, start API and dashboard with a process manager, terminate TLS at the proxy.
 
