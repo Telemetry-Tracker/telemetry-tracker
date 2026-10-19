@@ -23,6 +23,8 @@ export default function DocsReactNativePage() {
         </p>
       }
     >
+      <p><a href="/docs/sdk-privacy">What we collect: SDK data &amp; privacy labels</a></p>
+
       <p>
         For Hermes and OTA releases, follow the <a href="https://github.com/Telemetry-Tracker/telemetry-tracker/blob/develop/docs/expo-hermes-source-maps.md">Expo/EAS source-map guide</a>.
         Use a unique release for every JS bundle and separate app labels for Android and iOS.

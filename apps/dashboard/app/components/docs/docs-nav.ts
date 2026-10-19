@@ -28,6 +28,7 @@ export const docsNavSections: DocsNavSection[] = [
     heading: "SDKs",
     items: [
       { id: "sdk", label: "SDK reference", href: "/docs/sdk" },
+      { id: "sdk-privacy", label: "SDK data & privacy labels", href: "/docs/sdk-privacy" },
       { id: "nextjs", label: "Next.js", href: "/docs/nextjs" },
       { id: "node", label: "Node.js", href: "/docs/node" },
       { id: "nestjs", label: "NestJS", href: "/docs/nestjs" },

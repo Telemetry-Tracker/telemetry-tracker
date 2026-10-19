@@ -35,6 +35,8 @@ export default function DocsSdkPage() {
         </p>
       }
     >
+      <p><a href="/docs/sdk-privacy">What we collect: SDK data &amp; privacy labels</a></p>
+
       <section className="mb-10" aria-labelledby="sdk-init-heading">
         <h2 id="sdk-init-heading">init(config)</h2>
         <p>
