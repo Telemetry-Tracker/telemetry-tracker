@@ -36,6 +36,8 @@ export default function DocsNextJsPage() {
         </p>
       }
     >
+      <p><a href="/docs/sdk-privacy">What we collect: SDK data &amp; privacy labels</a></p>
+
       <h2>1. Install</h2>
       <CodeBlock code={nextInstall} lang="bash" />
 
@@ -172,6 +174,7 @@ identify(null);     // on logout`}
           { href: "/docs/migrate-from-sentry", label: "Migrate from Sentry" },
           { href: "/error-tracking/react", label: "React error tracking" },
           { href: "/docs/hosted-cloud", label: "Hosted cloud getting started" },
+          { href: "/docs/sdk-privacy", label: "SDK data & privacy labels" },
         ]}
       />
     </DocsArticle>

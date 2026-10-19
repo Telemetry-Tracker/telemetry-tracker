@@ -148,6 +148,7 @@ export default function DocsSdkPage() {
 
       <DocsAlsoSee
         links={[
+          { href: "/docs/sdk-privacy", label: "SDK data & privacy labels" },
           { href: "/error-tracking/react", label: "React error tracking guide" },
           { href: "/error-tracking/nextjs", label: "Next.js error tracking" },
           { href: "/docs/hosted-cloud", label: "Hosted cloud getting started" },
