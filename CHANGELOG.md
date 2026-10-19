@@ -13,6 +13,7 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ### Changed
 
+- **Self-hosting docs** — measured setup time and idle/workload RAM and CPU for v1.22.6, a note that the API does not load `.env` itself (migrate-before-listen needs `NODE_ENV=production` in the process environment), and how to skip the resident `pnpm` wrapper processes. The local `docker-compose.yml` now binds Postgres to `127.0.0.1` and drops the obsolete `version` key.
 - **Self-hosting** — the dashboard Docker image drops the build-time `.next/cache` and `.dockerignore` skips local `.next` output: on a v1.22.6 test build the image went from 2.35 GB to 1.06 GB.
 
 ---
