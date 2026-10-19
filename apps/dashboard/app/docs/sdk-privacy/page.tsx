@@ -276,11 +276,30 @@ export default function DocsSdkPrivacyPage() {
           ],
           [
             "Users can request deletion",
-            "UNVERIFIED on this page — follow your product privacy policy and our hosted terms",
-            "Do not invent a deletion SLA here",
+            "No end-user / per-identifier deletion API in our product. Our customers can archive a project or organization (soft-delete). Plan retention deletes aged telemetry (errors, events, sessions, maps) on a schedule — not on individual app-user request.",
+            "Archive sets deleted_at; it does not instantly purge rows. Retention windows follow the org plan (e.g. Free 14 days). Do not claim a Play end-user deletion SLA for our SDK alone — follow your app’s privacy policy and our hosted terms.",
           ],
         ]}
       />
+
+      <h2>Data deletion and retention</h2>
+      <ul>
+        <li>
+          Organization and project <strong>archive</strong> (dashboard / meta API): soft-delete via{" "}
+          <code>deleted_at</code>. Archived projects stop accepting ingest; we do not promise an
+          immediate hard purge of every historical row.
+        </li>
+        <li>
+          <strong>Retention job</strong> (<code>runRetentionSweep</code>): deletes telemetry older
+          than the organization plan&apos;s <code>retentionDays</code> (errors, events, ended
+          sessions, stale groups, eligible source maps). This is age-based, not a per-user erasure
+          tool.
+        </li>
+        <li>
+          We have <strong>no</strong> public API to delete by <code>anonymous_id</code>,{" "}
+          <code>user_id</code>, or device for end-users of apps that send us data.
+        </li>
+      </ul>
 
       <h2>What we do not claim</h2>
       <ul>
