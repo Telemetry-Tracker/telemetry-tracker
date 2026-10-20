@@ -11,6 +11,7 @@ import {
   updateDraftCondition,
   validateAlertRuleDraft,
   type AlertRuleRow,
+  type AlertRuleFormDraft,
 } from "./alert-rules";
 
 const baseRule = {
@@ -99,11 +100,11 @@ describe("NO_EVENTS business heartbeats (dashboard)", () => {
     });
   });
 
-  it("omits eventName when left empty (any event)", () => {
+  it("omits eventName for the explicit all-events scope", () => {
     const result = validateAlertRuleDraft({
       ...createDefaultAlertRuleDraft(),
       name: "Any",
-      conditions: [createEmptyNoEventsCondition({ windowHours: 2 })],
+      conditions: [createEmptyNoEventsCondition({ windowHours: 2, eventScope: "all" })],
     });
     expect(result.ok && result.payload.conditions[0]).toEqual({
       type: "NO_EVENTS",
@@ -173,5 +174,100 @@ describe("NO_EVENTS business heartbeats (dashboard)", () => {
         ],
       })
     ).toBe('no "signup_verified" event / 6h in production');
+  });
+});
+
+describe("NO_EVENTS event scope: all events vs a specific event", () => {
+  function draftWith(
+    cond: Parameters<typeof createEmptyNoEventsCondition>[0]
+  ): AlertRuleFormDraft {
+    return {
+      ...createDefaultAlertRuleDraft(),
+      name: "Heartbeat",
+      conditions: [createEmptyNoEventsCondition(cond)],
+    };
+  }
+
+  it("new heartbeat conditions default to a specific event", () => {
+    expect(createEmptyNoEventsCondition().eventScope).toBe("specific");
+  });
+
+  it("'all events' sends no eventName, even if a name was typed earlier", () => {
+    for (const eventName of ["", "signup_verified"]) {
+      const result = validateAlertRuleDraft(
+        draftWith({ eventScope: "all", eventName })
+      );
+      expect(result.ok).toBe(true);
+      if (!result.ok) continue;
+      expect(result.payload.conditions[0]).not.toHaveProperty("eventName");
+    }
+  });
+
+  it("'specific event' requires a non-empty name", () => {
+    for (const eventName of ["", "   "]) {
+      const result = validateAlertRuleDraft(
+        draftWith({ eventScope: "specific", eventName })
+      );
+      expect(result.ok).toBe(false);
+      if (result.ok) continue;
+      expect(result.error).toMatch(/event name/i);
+    }
+  });
+
+  it("'specific event' sends the trimmed name", () => {
+    const result = validateAlertRuleDraft(
+      draftWith({ eventScope: "specific", eventName: "  signup_verified " })
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.payload.conditions[0]).toMatchObject({
+      eventName: "signup_verified",
+    });
+  });
+
+  it("existing rules without eventName open as 'all events' and round-trip unchanged", () => {
+    for (const extra of [{}, { eventName: null }]) {
+      const rule = {
+        ...baseRule,
+        conditions: [
+          { type: "NO_EVENTS", windowMinutes: 360, environment: null, ...extra },
+        ],
+      } as AlertRuleRow;
+      const draft = draftFromAlertRule(rule);
+      const cond = draft.conditions[0]!;
+      expect(cond.type).toBe("NO_EVENTS");
+      if (cond.type !== "NO_EVENTS") continue;
+      expect(cond.eventScope).toBe("all");
+      const result = validateAlertRuleDraft(draft);
+      expect(result.ok).toBe(true);
+      if (!result.ok) continue;
+      expect(result.payload.conditions[0]).not.toHaveProperty("eventName");
+    }
+  });
+
+  it("rules with an eventName open as 'specific event'", () => {
+    const rule = {
+      ...baseRule,
+      conditions: [
+        {
+          type: "NO_EVENTS",
+          windowMinutes: 360,
+          environment: null,
+          eventName: "signup_verified",
+        },
+      ],
+    } as AlertRuleRow;
+    const cond = draftFromAlertRule(rule).conditions[0]!;
+    expect(cond).toMatchObject({ eventScope: "specific", eventName: "signup_verified" });
+  });
+
+  it("switching scope keeps the typed name in the draft", () => {
+    let draft = draftWith({ eventScope: "specific", eventName: "signup_verified" });
+    draft = updateDraftCondition(draft, 0, { eventScope: "all" });
+    draft = updateDraftCondition(draft, 0, { eventScope: "specific" });
+    expect(draft.conditions[0]).toMatchObject({
+      eventScope: "specific",
+      eventName: "signup_verified",
+    });
   });
 });
