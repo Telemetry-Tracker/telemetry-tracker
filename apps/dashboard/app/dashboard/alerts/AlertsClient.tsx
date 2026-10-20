@@ -521,9 +521,9 @@ export function AlertsClient({
                         </p>
                       ) : !alertRuleSupportsDashboardEditor(rule) ? (
                         <p className="mt-1 text-[12px] text-muted-foreground">
-                          Includes scheduled/advanced conditions — toggle or
-                          remove here; edit via API until the dashboard editor
-                          supports them.
+                          Includes conditions the dashboard editor cannot edit
+                          (other scheduled kinds, or a no-events window that is
+                          not whole hours) — toggle or remove here; edit via API.
                         </p>
                       ) : null}
                     </div>
