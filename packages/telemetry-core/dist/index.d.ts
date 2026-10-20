@@ -45,6 +45,13 @@ export type IdentifyTraits = {
 export declare function identify(id: string | null, traits?: IdentifyTraits): void;
 /** Headers for ingest POST requests (Authorization + Content-Type). */
 export declare function buildIngestHeaders(cfg: Pick<TelemetryConfig, "apiKey">): Record<string, string>;
+/** Number of events queued but not yet sent. */
+export declare function pendingEventCount(): number;
+/**
+ * Send all queued events now and resolve once every in-flight batch request
+ * has settled. Never rejects. Batching for long-running processes is unchanged.
+ */
+export declare function flush(): Promise<void>;
 declare function resolveClientPiiScrub(cfg: TelemetryConfig | null): {
     denyKeys?: string[];
 } | null;

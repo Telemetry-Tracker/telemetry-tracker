@@ -153,7 +153,8 @@ export default function MissingEventAlertsPage() {
         </p>
         <h3>Nightly job finished</h3>
         <p>
-          Send <code>daily_report_finished</code> as the last line of the job. The window can be at
+          Send <code>daily_report_finished</code> at the end of the job, followed by{" "}
+          <code>await flush()</code> (Node SDK 1.4.2 or later). The window can be at
           most 24 hours, which leaves little slack for a daily job. For job deadlines, consider{" "}
           <Link href="/docs/checkins" className={linkClass}>
             check-ins

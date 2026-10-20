@@ -3,6 +3,8 @@ import {
   identify,
   trackEvent,
   trackError as coreTrackError,
+  flush as coreFlush,
+  pendingEventCount,
   ingestError,
   getConfigOrNull,
   toReportableError,
@@ -68,9 +70,49 @@ export function createUnhandledRejectionHandler(deps: {
   };
 }
 
+/**
+ * Send all queued events and wait until they are delivered (or failed).
+ * Call `await flush()` at the end of short-lived scripts, cron jobs and CLIs.
+ * Never rejects. Requires @telemetry-tracker/node >= 1.4.2.
+ */
+export function flush(): Promise<void> {
+  return coreFlush();
+}
+
+/** @internal Exported for unit tests. */
+export function createBeforeExitHandler(deps: {
+  pending: () => number;
+  flush: () => Promise<void>;
+}): () => void {
+  return () => {
+    // Only schedule work when something is queued; otherwise Node exits normally
+    // (beforeExit fires again after the flush settles, then finds nothing to do).
+    if (deps.pending() > 0) void deps.flush();
+  };
+}
+
+/** @internal Exported for unit tests. */
+export function createExitHandler(deps: {
+  pending: () => number;
+  warn: (msg: string) => void;
+}): () => void {
+  return () => {
+    // 'exit' cannot run async work (e.g. after process.exit()); best effort is to say so.
+    const n = deps.pending();
+    if (n > 0) {
+      deps.warn(
+        `[telemetry] ${n} queued event(s) were not sent because the process exited. Call \`await flush()\` before process.exit().`
+      );
+    }
+  };
+}
+
 function installGlobalHandlers(): void {
   if (installed) return;
   installed = true;
+
+  process.on("beforeExit", createBeforeExitHandler({ pending: pendingEventCount, flush: coreFlush }));
+  process.on("exit", createExitHandler({ pending: pendingEventCount, warn: (m) => console.warn(m) }));
 
   process.on(
     "uncaughtException",
