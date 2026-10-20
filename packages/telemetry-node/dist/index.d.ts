@@ -32,6 +32,22 @@ export declare function createUnhandledRejectionHandler(deps: {
     exit: (code: number) => void;
     timeoutMs?: number;
 }): (reason: unknown) => void;
+/**
+ * Send all queued events and wait until they are delivered (or failed).
+ * Call `await flush()` at the end of short-lived scripts, cron jobs and CLIs.
+ * Never rejects. Requires @telemetry-tracker/node >= 1.4.2.
+ */
+export declare function flush(): Promise<void>;
+/** @internal Exported for unit tests. */
+export declare function createBeforeExitHandler(deps: {
+    pending: () => number;
+    flush: () => Promise<void>;
+}): () => void;
+/** @internal Exported for unit tests. */
+export declare function createExitHandler(deps: {
+    pending: () => number;
+    warn: (msg: string) => void;
+}): () => void;
 export declare function init(config: TelemetryNodeConfig): void;
 export { identify, trackEvent, coreTrackError as trackError };
 export declare function getConfig(): TelemetryConfig | null;
