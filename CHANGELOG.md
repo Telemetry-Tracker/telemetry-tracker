@@ -13,6 +13,20 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ---
 
+## [1.22.11] - 2026-10-20
+
+### Added
+
+- **Missing-event alerts page** — new marketing page at `/features/missing-event-alerts` describing business heartbeat rules (one named event per condition, 1–24 hour window, checks about every 5 minutes, no recovery notification yet), linking to `/docs/alerts` and `/docs/checkins`; added to the sitemap and `llms.txt` ([#842](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/842))
+- **README** — XERJ Corpus Hub contributor badge in the README and its German, Spanish and French versions ([#840](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/840))
+
+### Changed
+
+- **Heartbeat rule editor** — a "No events" condition now asks explicitly whether to watch all events in the project or a specific event; "A specific event" requires a name. Existing rules without an event name open as "All events" and behave as before. No API change ([#844](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/844))
+- **Docs** — example sender in the email setup docs is now `Telemetry Tracker <info@telemetry-tracker.com>` instead of `noreply@tacko.io` ([#845](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/845))
+
+---
+
 ## [1.22.10] - 2026-10-20
 
 ### Added
