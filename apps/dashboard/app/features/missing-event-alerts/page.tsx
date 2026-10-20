@@ -53,9 +53,6 @@ const TRACK = `import { trackEvent } from "@telemetry-tracker/node"; // or @tele
 // Call it after the flow actually succeeded
 trackEvent("signup_verified");`;
 
-const RULE_JSON = `{ "type": "NO_EVENTS", "eventName": "signup_verified",
-  "windowMinutes": 360, "environment": "production" }`;
-
 const linkClass = "text-brand hover:underline";
 
 export function generateMetadata() {
@@ -114,8 +111,8 @@ export default function MissingEventAlertsPage() {
             SDK.
           </li>
           <li>
-            In Alerts → Custom rules, choose <strong>No events (heartbeat)</strong>. Enter the exact
-            event name, a window in hours (1–24) and, optionally, an environment.
+            Add a <strong>No events (heartbeat)</strong> alert rule for that exact event name, with
+            a window of 1–24 hours and an optional environment.
           </li>
           <li>
             When the event goes missing, the alert names it (for example{" "}
@@ -125,12 +122,12 @@ export default function MissingEventAlertsPage() {
         </ol>
         <CodeBlock code={TRACK} lang="ts" caption="After the flow succeeds" />
         <p>
-          The same rule through the alert rules API is a <code>NO_EVENTS</code> condition with an{" "}
-          <code>eventName</code>:
+          We email you by default. The same alert also shows up in your in-app notifications, and
+          you can send it to HTTPS webhooks, Slack, Discord, Microsoft Teams or Telegram channels
+          you have set up for the project.
         </p>
-        <CodeBlock code={RULE_JSON} lang="json" caption="Alert rule condition" />
         <p>
-          Full setup is in the{" "}
+          Step-by-step setup, including the API version of the rule, is in the{" "}
           <Link href="/docs/alerts#business-heartbeats" className={linkClass}>
             business heartbeats setup
           </Link>{" "}
@@ -180,11 +177,11 @@ export default function MissingEventAlertsPage() {
           <li>Each condition watches one exact event name.</li>
           <li>The window is at most 24 hours.</li>
           <li>
-            It is not real-time. A scheduled evaluator checks rules, by default every 5 minutes, so
+            It is not real-time. Rules are checked about every 5 minutes, so
             you hear about it after your window plus up to one check.
           </li>
           <li>
-            There is no recovery notification. While the event stays missing, the rule fires again
+            Recovery notifications aren&apos;t supported yet. While the event stays missing, the rule fires again
             every cooldown, and it stops when events come back.
           </li>
           <li>There is no learned baseline or anomaly detection. You choose the window.</li>
