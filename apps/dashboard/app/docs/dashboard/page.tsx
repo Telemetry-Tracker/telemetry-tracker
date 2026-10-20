@@ -165,8 +165,8 @@ export default function DocsDashboardPage() {
           and delivery history. <strong className="text-foreground">Alert rules</strong> decide{" "}
           <em>when</em> to fire (conditions, thresholds, cooldowns) and which destinations to bind.
           Built-in error-spike and quota rules ship as system-managed rules; you can add custom
-          error-count rules for project-specific thresholds in the dashboard. Other condition types
-          are API-only. Chat channels use incoming webhook or bot URLs, not OAuth apps. See also{" "}
+          error-count and &ldquo;no events&rdquo; (business heartbeat) rules in the dashboard. Other
+          condition types are API-only. Chat channels use incoming webhook or bot URLs, not OAuth apps. See also{" "}
           <a
             href="https://github.com/Telemetry-Tracker/telemetry-tracker/blob/main/docs/ALERT-RULES.md"
             className="text-brand hover:underline"

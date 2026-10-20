@@ -1132,3 +1132,186 @@ describe("evaluateAlertRulesForProject SESSION_DROP / ERROR_RATE", () => {
     expect(fireProjectAlert).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("NO_EVENTS eventName (business heartbeats)", () => {
+  beforeEach(() => {
+    fireProjectAlert.mockClear();
+    fireProjectAlert.mockResolvedValue(true);
+  });
+
+  function noEventsRuleRow(condition: Record<string, unknown>) {
+    return {
+      id: "rule-hb",
+      name: "Signups stopped",
+      enabled: true,
+      conditions: [condition],
+      destination_ids: [PROJECT_EMAIL_DESTINATION_ID],
+      cooldown_minutes: 360,
+      created_at: new Date(),
+      updated_at: new Date(),
+    };
+  }
+
+  function scheduledPrisma(
+    ruleRow: ReturnType<typeof noEventsRuleRow>,
+    count: ReturnType<typeof vi.fn>
+  ) {
+    return {
+      alertRule: {
+        findMany: vi
+          .fn()
+          .mockResolvedValueOnce([{ project_id: "p1" }])
+          .mockResolvedValueOnce([ruleRow]),
+        updateMany: claimAlways(),
+      },
+      project: { findFirst: async () => ({ id: "p1" }) },
+      event: { count },
+    } as never;
+  }
+
+  it("parses, trims and keeps eventName; omits it when absent", () => {
+    const { conditions } = parseStoredConditions([
+      {
+        type: "NO_EVENTS",
+        windowMinutes: 360,
+        environment: null,
+        eventName: "  signup_verified  ",
+      },
+      { type: "NO_EVENTS", windowMinutes: 15, environment: null },
+      { type: "NO_EVENTS", windowMinutes: 15, environment: null, eventName: null },
+    ]);
+    expect(conditions[0]).toEqual({
+      type: "NO_EVENTS",
+      windowMinutes: 360,
+      environment: null,
+      eventName: "signup_verified",
+    });
+    expect(conditions[1]).toEqual({
+      type: "NO_EVENTS",
+      windowMinutes: 15,
+      environment: null,
+    });
+    expect(conditions[2]).toEqual({
+      type: "NO_EVENTS",
+      windowMinutes: 15,
+      environment: null,
+    });
+  });
+
+  it("rejects empty, too-long and non-string event names", async () => {
+    const prisma = {
+      project: { findFirst: async () => ({ id: "p1" }) },
+      projectWebhook: { count: async () => 0 },
+    } as never;
+    for (const eventName of ["   ", "x".repeat(201), 42]) {
+      const result = await createAlertRule(prisma, "p1", {
+        name: "Bad",
+        conditions: [{ type: "NO_EVENTS", windowMinutes: 60, eventName }],
+        destinationIds: [PROJECT_EMAIL_DESTINATION_ID],
+      });
+      expect(result.ok).toBe(false);
+    }
+  });
+
+  it("rejects windows over 24h", async () => {
+    const prisma = {
+      project: { findFirst: async () => ({ id: "p1" }) },
+      projectWebhook: { count: async () => 0 },
+    } as never;
+    const result = await createAlertRule(prisma, "p1", {
+      name: "Too long",
+      conditions: [
+        { type: "NO_EVENTS", windowMinutes: 24 * 60 + 1, eventName: "x" },
+      ],
+      destinationIds: [PROJECT_EMAIL_DESTINATION_ID],
+    });
+    expect(result.ok).toBe(false);
+  });
+
+  it("filters the count by event name and names the event in the alert", async () => {
+    const count = vi.fn(async () => 0);
+    const prisma = scheduledPrisma(
+      noEventsRuleRow({
+        type: "NO_EVENTS",
+        windowMinutes: 360,
+        environment: null,
+        eventName: "signup_verified",
+      }),
+      count
+    );
+    const result = await runScheduledAlertRuleEvaluation(prisma);
+    expect(result.rulesFired).toBe(1);
+    const where = (count.mock.calls[0]![0] as { where: Record<string, unknown> })
+      .where;
+    expect(where.name).toBe("signup_verified");
+    expect(where).not.toHaveProperty("environment");
+    expect(fireProjectAlert).toHaveBeenCalledWith(
+      prisma,
+      expect.objectContaining({
+        title: "Signups stopped",
+        body: 'no "signup_verified" events in the last 6 hours.',
+        href: "/dashboard/events?name=signup_verified",
+      })
+    );
+  });
+
+  it("combines event name and environment filters", async () => {
+    const count = vi.fn(async () => 0);
+    const prisma = scheduledPrisma(
+      noEventsRuleRow({
+        type: "NO_EVENTS",
+        windowMinutes: 120,
+        environment: "production",
+        eventName: "stripe webhook/processed",
+      }),
+      count
+    );
+    await runScheduledAlertRuleEvaluation(prisma);
+    const where = (count.mock.calls[0]![0] as { where: Record<string, unknown> })
+      .where;
+    expect(where.name).toBe("stripe webhook/processed");
+    expect(where.environment).toBe("production");
+    expect(fireProjectAlert).toHaveBeenCalledWith(
+      prisma,
+      expect.objectContaining({
+        body: 'no "stripe webhook/processed" events in the last 2 hours in production.',
+        href: "/dashboard/events?name=stripe%20webhook%2Fprocessed",
+      })
+    );
+  });
+
+  it("does not fire when the named event arrived", async () => {
+    const count = vi.fn(async () => 1);
+    const prisma = scheduledPrisma(
+      noEventsRuleRow({
+        type: "NO_EVENTS",
+        windowMinutes: 60,
+        environment: null,
+        eventName: "daily_report_finished",
+      }),
+      count
+    );
+    const result = await runScheduledAlertRuleEvaluation(prisma);
+    expect(result.rulesFired).toBe(0);
+    expect(fireProjectAlert).not.toHaveBeenCalled();
+  });
+
+  it("keeps rules without eventName unchanged (no name filter, overview link)", async () => {
+    const count = vi.fn(async () => 0);
+    const prisma = scheduledPrisma(
+      noEventsRuleRow({ type: "NO_EVENTS", windowMinutes: 5, environment: null }),
+      count
+    );
+    await runScheduledAlertRuleEvaluation(prisma);
+    const where = (count.mock.calls[0]![0] as { where: Record<string, unknown> })
+      .where;
+    expect(where).not.toHaveProperty("name");
+    expect(fireProjectAlert).toHaveBeenCalledWith(
+      prisma,
+      expect.objectContaining({
+        body: "no events in the last 5 minutes.",
+        href: "/dashboard/overview?range=24h",
+      })
+    );
+  });
+});

@@ -674,7 +674,7 @@ export default function ServerComponentsRenderErrorPage() {
         <p>
           Configure a NEW_ERROR_GROUP rule through the alert rules API, then bind delivery channels
           (in-app, email, HTTPS webhooks, Slack, Discord, Microsoft Teams, or Telegram). The dashboard
-          editor currently authors error-count rules only. A new-error-group rule fires when
+          editor authors error-count and &ldquo;no events&rdquo; rules; new-error-group is API-only. A new-error-group rule fires when
           ingest opens a new issue, which is the first time this server error is reported. Later
           occurrences of the same message and stack join that issue. See{" "}
           <Link href="/docs/alerts" className="text-brand hover:underline">
