@@ -78,7 +78,14 @@ export default function DocsAlertsPage() {
       </p>
       <pre><code>{`trackEvent("signup_verified");          // user confirmed their email
 trackEvent("stripe_webhook_processed"); // webhook handler finished the work
-trackEvent("daily_report_finished");    // last line of the nightly job`}</code></pre>
+trackEvent("daily_report_finished");    // end of the nightly job
+await flush();                          // send before the job exits (Node SDK >= 1.4.2)`}</code></pre>
+      <p>
+        In a short-lived Node process, <code>await flush()</code> after the last{" "}
+        <code>trackEvent()</code> so the event is sent before the process exits (import{" "}
+        <code>flush</code> from <code>@telemetry-tracker/node</code>; requires 1.4.2 or later). See{" "}
+        <Link href="/docs/node">Node SDK</Link>.
+      </p>
       <p>
         In Alerts → Custom rules, choose <strong>No events (heartbeat)</strong>, enter the exact
         event name and how many hours without it should alert. Through the API that is a{" "}

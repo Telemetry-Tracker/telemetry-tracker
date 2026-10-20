@@ -488,6 +488,25 @@ function flushEvents(): void {
   sendEventBatch(cfg, batch, false);
 }
 
+/** Batch requests still in flight, so flush() can await them. */
+const inFlightBatches = new Set<Promise<unknown>>();
+
+/** Number of events queued but not yet sent. */
+export function pendingEventCount(): number {
+  return eventQueue.length;
+}
+
+/**
+ * Send all queued events now and resolve once every in-flight batch request
+ * has settled. Never rejects. Batching for long-running processes is unchanged.
+ */
+export async function flush(): Promise<void> {
+  flushEvents();
+  while (inFlightBatches.size > 0) {
+    await Promise.allSettled([...inFlightBatches]);
+  }
+}
+
 /** Flush queued events with keepalive for tab hide / unload (CLS and short visits). */
 function flushEventsKeepalive(): void {
   const cfg = getConfigOrNull();
@@ -512,12 +531,15 @@ function sendEventBatch(cfg: TelemetryConfig, batch: QueuedEvent[], keepalive: b
     properties: e.properties,
   }));
   try {
-    void fetch(`${base}/ingest/batch`, {
+    const p: Promise<unknown> = fetch(`${base}/ingest/batch`, {
       method: "POST",
       headers: buildIngestHeaders(cfg),
       body: JSON.stringify({ events }),
       ...(keepalive ? { keepalive: true } : {}),
-    }).catch((e) => console.warn("[telemetry] batch send error:", e));
+    })
+      .catch((e) => console.warn("[telemetry] batch send error:", e))
+      .finally(() => inFlightBatches.delete(p));
+    inFlightBatches.add(p);
   } catch (e) {
     console.warn("[telemetry] batch send error:", e);
   }

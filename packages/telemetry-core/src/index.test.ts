@@ -163,3 +163,29 @@ describe("ingest fetch", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("flush() (#843)", () => {
+  it("sends queued events and resolves after the batch request settles", async () => {
+    const core = await import("./index.js");
+    let release!: () => void;
+    const fetchMock = vi.fn(
+      () => new Promise<Response>((r) => { release = () => r(new Response("{}", { status: 200 })); })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    core.init({ app: "t", ingestUrl: "http://x", apiKey: "k", environment: "test", batchInterval: 60000 });
+    core.trackEvent("job_done");
+    expect(core.pendingEventCount()).toBe(1);
+    let done = false;
+    const p = core.flush().then(() => { done = true; });
+    await new Promise((r) => setTimeout(r, 5));
+    expect(core.pendingEventCount()).toBe(0);
+    expect(done).toBe(false);
+    const batchCalls = fetchMock.mock.calls.filter((c) => String(c[0]).endsWith("/ingest/batch"));
+    expect(batchCalls).toHaveLength(1);
+    release();
+    await p;
+    expect(done).toBe(true);
+    core.shutdown();
+    vi.unstubAllGlobals();
+  });
+});
