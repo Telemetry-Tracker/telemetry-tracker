@@ -11,6 +11,10 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ## [Unreleased]
 
+---
+
+## [1.22.12] - 2026-10-20
+
 ### Fixed
 
 - **Node SDK: events lost in short-lived processes** — `@telemetry-tracker/node` 1.4.2 (with `@telemetry-tracker/core` 1.5.2) exports `async flush()` and flushes queued events on `beforeExit`; it warns on exit if events are still queued (e.g. after `process.exit()`). Long-running processes keep batching. `/docs/node` and the heartbeat example in `/docs/alerts` now `await flush()` at the end of a job (requires Node SDK 1.4.2 or later) ([#843](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/843))
