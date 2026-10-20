@@ -11,6 +11,10 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ## [Unreleased]
 
+---
+
+## [1.22.10] - 2026-10-20
+
 ### Added
 
 - **Business heartbeats** — `NO_EVENTS` alert conditions take an optional `eventName`, so a rule can alert when an expected custom event (for example `trackEvent("signup_verified")`) has not arrived for up to 24 hours. The alert names the event and links to the Events page filtered to it. The dashboard rule editor can now create and edit these conditions ("No events (heartbeat)": event name, window in hours, environment), defaulting to a 6-hour window with a cooldown equal to the window. Rules without `eventName` behave as before. Recipe in [docs/ALERT-RULES.md](docs/ALERT-RULES.md#business-heartbeats) and `/docs/alerts`. No recovery notification and no database migration.
