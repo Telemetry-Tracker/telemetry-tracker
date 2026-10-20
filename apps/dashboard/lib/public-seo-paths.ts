@@ -36,6 +36,7 @@ export const PUBLIC_SEO_PATHS = [
   "/error-tracking/nodejs",
   "/error-tracking/react-native",
   "/error-tracking/react-native/expo-source-maps",
+  "/features/missing-event-alerts",
 ] as const;
 
 /** Affiliate program pages: indexable, but only listed when NEXT_PUBLIC_AFFILIATES_ENABLED=true. */
@@ -59,10 +60,11 @@ export const MARKETING_GUIDE_PATHS = [
   "/error-tracking/nodejs",
   "/error-tracking/react-native",
   "/error-tracking/react-native/expo-source-maps",
+  "/features/missing-event-alerts",
 ] as const;
 
 /** Content date for sitemap lastmod. Bump when public pages change. */
-export const SITEMAP_LAST_MODIFIED = new Date("2026-10-19T00:00:00.000Z");
+export const SITEMAP_LAST_MODIFIED = new Date("2026-10-20T00:00:00.000Z");
 
 export function sitemapPriority(path: PublicSeoPath): number {
   if (path === "") return 1;

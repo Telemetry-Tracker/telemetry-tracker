@@ -288,7 +288,7 @@ async function main() {
       if (isResendDomainVerificationError(result.error)) {
         console.error(
           "Resend rejected the sender domain. Set TELEMETRY_EMAIL_FROM to an address on a verified domain " +
-            "(hosted cloud: Telemetry Tracker <noreply@tacko.io>). See docs/BILLING.md#production-setup-hosted-cloud."
+            "(hosted cloud: Telemetry Tracker <info@telemetry-tracker.com>). See docs/BILLING.md#production-setup-hosted-cloud."
         );
         process.exit(1);
       }

@@ -118,11 +118,19 @@ export type ErrorCountConditionDraft = {
   environment: string;
 };
 
+/** Which events a NO_EVENTS condition watches. */
+export type NoEventsEventScope = "all" | "specific";
+
 /** "No `eventName` event for `windowHours` hours" (business heartbeat). */
 export type NoEventsConditionDraft = {
   key: string;
   type: "NO_EVENTS";
-  /** Empty = any event (original NO_EVENTS behaviour). */
+  /**
+   * "all" = any event in the project (original NO_EVENTS behaviour, no
+   * `eventName` sent). "specific" = only events named `eventName` (required).
+   */
+  eventScope: NoEventsEventScope;
+  /** Used only when `eventScope` is "specific"; kept while toggling scope. */
   eventName: string;
   windowHours: number;
   environment: string;
@@ -186,6 +194,11 @@ export function createEmptyNoEventsCondition(
   return {
     key: nextDraftKey(),
     type: "NO_EVENTS",
+    eventScope:
+      overrides?.eventScope ??
+      (overrides?.eventName !== undefined && overrides.eventName.trim() === ""
+        ? "all"
+        : "specific"),
     eventName: overrides?.eventName ?? "",
     windowHours: overrides?.windowHours ?? DEFAULT_NO_EVENTS_WINDOW_HOURS,
     environment: overrides?.environment ?? "",
@@ -274,6 +287,7 @@ export function updateDraftCondition(
     }
     return {
       ...c,
+      ...(patch.eventScope !== undefined ? { eventScope: patch.eventScope } : {}),
       ...(patch.eventName !== undefined ? { eventName: patch.eventName } : {}),
       ...(patch.windowHours !== undefined
         ? { windowHours: patch.windowHours }
@@ -330,6 +344,7 @@ export function draftFromAlertRule(rule: AlertRuleRow): AlertRuleFormDraft {
     } else if (c.type === "NO_EVENTS" && noEventsConditionIsEditable(c)) {
       editableConditions.push(
         createEmptyNoEventsCondition({
+          eventScope: c.eventName ? "specific" : "all",
           eventName: c.eventName ?? "",
           windowHours: c.windowMinutes / 60,
           environment: c.environment ?? "",
@@ -510,7 +525,13 @@ export function validateAlertRuleDraft(
           error: `Condition #${i + 1}: window must be ${MIN_NO_EVENTS_WINDOW_HOURS}–${MAX_NO_EVENTS_WINDOW_HOURS} hours`,
         };
       }
-      const eventName = c.eventName.trim();
+      const eventName = c.eventScope === "specific" ? c.eventName.trim() : "";
+      if (c.eventScope === "specific" && eventName.length === 0) {
+        return {
+          ok: false,
+          error: `Condition #${i + 1}: enter the event name, or choose "All events"`,
+        };
+      }
       if (eventName.length > MAX_ALERT_RULE_EVENT_NAME_LENGTH) {
         return {
           ok: false,

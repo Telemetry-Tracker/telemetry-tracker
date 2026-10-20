@@ -167,7 +167,41 @@ export function AlertRuleEditor({
                 </div>
                 {condition.type === "NO_EVENTS" ? (
                   <>
+                    <fieldset className="mb-3 flex flex-col gap-1.5 text-[12px] text-muted-foreground">
+                      <legend className="mb-1">Watch</legend>
+                      <div className="flex flex-wrap gap-4">
+                        <label className="flex items-center gap-1.5 text-[13px] text-foreground">
+                          <input
+                            type="radio"
+                            name={`condition-${condition.key}-event-scope`}
+                            value="all"
+                            checked={condition.eventScope === "all"}
+                            disabled={pending}
+                            onChange={() =>
+                              updateCondition(index, { eventScope: "all" })
+                            }
+                            aria-label={`Condition ${index + 1} all events`}
+                          />
+                          All events in the project
+                        </label>
+                        <label className="flex items-center gap-1.5 text-[13px] text-foreground">
+                          <input
+                            type="radio"
+                            name={`condition-${condition.key}-event-scope`}
+                            value="specific"
+                            checked={condition.eventScope === "specific"}
+                            disabled={pending}
+                            onChange={() =>
+                              updateCondition(index, { eventScope: "specific" })
+                            }
+                            aria-label={`Condition ${index + 1} specific event`}
+                          />
+                          A specific event
+                        </label>
+                      </div>
+                    </fieldset>
                     <div className="flex flex-wrap gap-3">
+                      {condition.eventScope === "specific" ? (
                       <label className="flex min-w-[12rem] flex-1 flex-col gap-1 text-[12px] text-muted-foreground">
                         Event name
                         <input
@@ -181,8 +215,16 @@ export function AlertRuleEditor({
                           maxLength={MAX_ALERT_RULE_EVENT_NAME_LENGTH}
                           className={`${inputClass} font-mono`}
                           aria-label={`Condition ${index + 1} event name`}
+                          aria-invalid={!condition.eventName.trim()}
+                          required
                         />
+                        {!condition.eventName.trim() ? (
+                          <span className="text-destructive" role="status">
+                            Enter the event name, or choose &quot;All events&quot;.
+                          </span>
+                        ) : null}
                       </label>
+                      ) : null}
                       <label className="flex flex-col gap-1 text-[12px] text-muted-foreground">
                         No event for (hours)
                         <input
@@ -219,8 +261,14 @@ export function AlertRuleEditor({
                       </label>
                     </div>
                     <p className="mt-2 text-[12px] text-muted-foreground">
-                      Exact name as sent with <code>trackEvent()</code>; leave empty
-                      for any event. Pick a window comfortably longer than the usual
+                      {condition.eventScope === "specific" ? (
+                        <>
+                          Exact name as sent with <code>trackEvent()</code>.{" "}
+                        </>
+                      ) : (
+                        <>Alerts when no event of any name arrives. </>
+                      )}
+                      Pick a window comfortably longer than the usual
                       gap between these events (max {MAX_NO_EVENTS_WINDOW_HOURS}h) —
                       quiet apps can go hours without a signup. While the event stays
                       missing the alert repeats every cooldown; there is no recovery
@@ -414,6 +462,12 @@ export function AlertRuleEditor({
             pending ||
             !draft.name.trim() ||
             draft.conditions.length === 0 ||
+            draft.conditions.some(
+              (c) =>
+                c.type === "NO_EVENTS" &&
+                c.eventScope === "specific" &&
+                !c.eventName.trim()
+            ) ||
             draft.destinationIds.length === 0
           }
           onClick={onSubmit}

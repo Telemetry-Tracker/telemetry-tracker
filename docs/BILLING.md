@@ -11,7 +11,7 @@ Without email configured, admins must share invite or reset links manually. In p
 | Variable | Description |
 |----------|-------------|
 | `RESEND_API_KEY` | API key from [Resend](https://resend.com) |
-| `TELEMETRY_EMAIL_FROM` | Sender address, e.g. `Telemetry Tracker <noreply@tacko.io>` |
+| `TELEMETRY_EMAIL_FROM` | Sender address, e.g. `Telemetry Tracker <info@telemetry-tracker.com>` |
 
 Both are required for outbound email. Verify your sending domain in Resend for production.
 
@@ -60,7 +60,7 @@ The hosted cloud sends from **tacko.io** (operator domain). `telemetry-tracker.c
 Recommended sender:
 
 ```env
-TELEMETRY_EMAIL_FROM=Telemetry Tracker <noreply@tacko.io>
+TELEMETRY_EMAIL_FROM=Telemetry Tracker <info@telemetry-tracker.com>
 CONTACT_INBOX_EMAIL=info@telemetry-tracker.com
 ```
 
@@ -73,7 +73,7 @@ On the **API** Railway service (not dashboard), set:
 | Variable | Example |
 |----------|---------|
 | `RESEND_API_KEY` | `re_…` |
-| `TELEMETRY_EMAIL_FROM` | `Telemetry Tracker <noreply@tacko.io>` |
+| `TELEMETRY_EMAIL_FROM` | `Telemetry Tracker <info@telemetry-tracker.com>` |
 | `CONTACT_INBOX_EMAIL` | `info@telemetry-tracker.com` |
 | `TELEMETRY_DASHBOARD_ORIGIN` | `https://telemetry-tracker.com` |
 
