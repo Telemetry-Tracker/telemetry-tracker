@@ -24,6 +24,7 @@ describe("public SEO paths", () => {
     expect(PUBLIC_SEO_PATHS).toContain(
       "/error-tracking/nextjs/server-components-render-error"
     );
+    expect(PUBLIC_SEO_PATHS).toContain("/features/missing-event-alerts");
     expect(PUBLIC_SEO_PATHS).not.toContain("/error-tracking/nextjs/source-maps");
   });
 

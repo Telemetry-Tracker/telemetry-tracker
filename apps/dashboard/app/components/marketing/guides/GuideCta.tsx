@@ -6,11 +6,13 @@ export function GuideCta({
   body = "No credit card. Create a project, install the SDK, and the first error shows up in Issues.",
   secondaryHref = "/docs/hosted-cloud",
   secondaryLabel = "Hosted cloud guide",
+  primaryLabel = "Start free",
 }: {
   heading?: string;
   body?: string;
   secondaryHref?: string;
   secondaryLabel?: string;
+  primaryLabel?: string;
 }) {
   return (
     <section className="not-prose mt-14 rounded-2xl border border-border-strong bg-surface/50 p-6 sm:p-8">
@@ -22,7 +24,7 @@ export function GuideCta({
           pendingLabel="Loading…"
           className="inline-flex items-center gap-1.5 rounded-full bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-transform hover:scale-[1.02]"
         >
-          Start free
+          {primaryLabel}
           <svg
             viewBox="0 0 16 16"
             className="h-3.5 w-3.5"

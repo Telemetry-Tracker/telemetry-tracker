@@ -69,11 +69,12 @@ export default function DocsAlertsPage() {
           <code>ERROR_RATE</code> between error ingests
         </li>
       </ul>
-      <h2>Business heartbeats</h2>
+      <h2 id="business-heartbeats">Business heartbeats</h2>
       <p>
         Some failures throw nothing: a verification email is never sent, a webhook returns 200 but
         skips the work, a nightly job never runs. Track an event when the flow succeeds, then alert
-        when that event has not arrived for a number of hours.
+        when that event has not arrived for a number of hours. Examples and limits are on{" "}
+        <Link href="/features/missing-event-alerts">missing-event alerts</Link>.
       </p>
       <pre><code>{`trackEvent("signup_verified");          // user confirmed their email
 trackEvent("stripe_webhook_processed"); // webhook handler finished the work
