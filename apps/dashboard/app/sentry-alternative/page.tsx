@@ -86,7 +86,7 @@ export default function SentryAlternativePage() {
           <li>
             <strong>Alerts</strong> — in-app notifications, email, HTTPS webhooks, Slack, Discord,
             Microsoft Teams and Telegram. Chat channels use incoming webhook or bot URLs, not OAuth
-            apps. The dashboard rule editor currently authors error-count conditions.
+            apps. The dashboard rule editor authors error-count and &ldquo;no events&rdquo; (business heartbeat) conditions.
           </li>
           <li>
             <strong>Releases and Web Vitals</strong> — release filters and performance views in the
