@@ -51,10 +51,10 @@ Use this checklist for **telemetry-tracker.com** on Railway (API service only �
 
 #### 2. Verify sending domain
 
-The hosted cloud sends from **tacko.io** (operator domain). `telemetry-tracker.com` is the app URL, not the mail-from domain.
+The hosted cloud sends from **telemetry-tracker.com** (`info@telemetry-tracker.com`), verified in Resend (region `eu-west-1`).
 
-1. **Domains** → **Add domain** → `tacko.io`.
-2. Add the DNS records Resend shows (typically **SPF**, **DKIM**, and optionally **DMARC**) at your DNS host for `tacko.io`.
+1. **Domains** → **Add domain** → `telemetry-tracker.com` (region `eu-west-1`).
+2. Add the DNS records Resend shows (typically **SPF**, **DKIM**, and optionally **DMARC**) at your DNS host for `telemetry-tracker.com`.
 3. Wait until Resend shows the domain as **Verified**.
 
 Recommended sender:
@@ -135,7 +135,7 @@ Test with Stripe CLI or Dashboard **Send test webhook** after deploy.
 
 ## Production checklist
 
-- [ ] Resend domain verified (`tacko.io` or your sending domain) — see [Resend production setup](./BILLING.md#production-setup-hosted-cloud)
+- [ ] Resend domain verified (`telemetry-tracker.com` or your sending domain) — see [Resend production setup](./BILLING.md#production-setup-hosted-cloud)
 - [ ] `RESEND_API_KEY` and `TELEMETRY_EMAIL_FROM` set on Railway API; `/health` shows `"email":"configured"`
 - [ ] Test invite, password reset, and contact form delivery
 - [ ] Stripe webhook URL reachable from the internet
