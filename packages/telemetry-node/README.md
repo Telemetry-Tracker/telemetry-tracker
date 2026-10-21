@@ -28,10 +28,17 @@ License: see the [repository](https://github.com/Telemetry-Tracker/telemetry-tra
 
 ## Short-lived scripts and jobs
 
-Events are batched. In a cron job, CLI or script, call `await flush()` after the last `trackEvent()` (requires 1.4.2 or later). The SDK also flushes on `beforeExit`, but not after `process.exit()`.
+Events are batched. In a cron job, CLI or script, call `await flush()` after the last `trackEvent()` or handled `trackError()`. With Node SDK 1.4.3 and core 1.5.3 or later, it sends queued events and waits for in-flight event batches and handled errors. It never throws and waits at most two seconds; a timeout does not guarantee delivery or cancel pending requests. The SDK also flushes on `beforeExit`, but not after `process.exit()`.
 
 ```js
-import { init, trackEvent, flush } from "@telemetry-tracker/node";
-trackEvent("daily_report_finished");
-await flush();
+import { init, trackError, flush } from "@telemetry-tracker/node";
+
+init({ ingestUrl: process.env.TELEMETRY_INGEST_URL, app: "nightly-report", apiKey: process.env.TELEMETRY_API_KEY });
+try {
+  await runReport();
+} catch (error) {
+  trackError(error, { job: "nightly" });
+  await flush();
+  process.exit(1);
+}
 ```

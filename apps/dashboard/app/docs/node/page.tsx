@@ -51,22 +51,25 @@ trackError(new Error("DB connection failed"), { db: "primary" });`}
 
       <h2>Short-lived scripts and jobs</h2>
       <p>
-        Events are batched and sent every few seconds, so long-running servers need no extra code.
-        In a cron job, CLI or script that exits right away, call <code>await flush()</code> after
-        the last <code>trackEvent()</code>. It sends queued events and resolves once they are
-        delivered or have failed; it never throws. <code>flush()</code> requires{" "}
-        <code>@telemetry-tracker/node</code> 1.4.2 or later. From 1.4.2 the SDK also flushes
-        automatically when Node exits on its own (<code>beforeExit</code>), but not after{" "}
-        <code>process.exit()</code>, so awaiting <code>flush()</code> is the reliable option.
+        Events are batched, so long-running servers need no extra code. In short-lived jobs,
+        call <code>await flush()</code> after the last <code>trackEvent()</code> or handled{" "}
+        <code>trackError()</code>. With Node SDK 1.4.3 and core 1.5.3 or later, it sends queued
+        events and waits for in-flight event batches and handled errors. It never throws and
+        waits at most two seconds; a timeout does not guarantee delivery or cancel pending requests.
+        The SDK also flushes automatically on <code>beforeExit</code>, but not after{" "}
+        <code>process.exit()</code>, so await <code>flush()</code> before exiting explicitly.
       </p>
       <CodeBlock
-        code={`import { init, trackEvent, flush } from "@telemetry-tracker/node";
+        code={`import { init, trackError, flush } from "@telemetry-tracker/node";
 
 init({ ingestUrl: process.env.TELEMETRY_INGEST_URL, app: "nightly-report", apiKey: process.env.TELEMETRY_API_KEY });
-
-await runReport();
-trackEvent("daily_report_finished");
-await flush(); // requires @telemetry-tracker/node >= 1.4.2`}
+try {
+  await runReport();
+} catch (error) {
+  trackError(error, { job: "nightly" });
+  await flush();
+  process.exit(1);
+}`}
       />
 
       <h2>Global error handlers</h2>

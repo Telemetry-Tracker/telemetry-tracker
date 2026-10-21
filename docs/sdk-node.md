@@ -86,3 +86,20 @@ app.use(telemetryMiddleware);
 ```
 
 For Express you’d typically do `app.use(telemetryMiddleware)` if the middleware calls `next()` and matches Express’ (req, res, next) shape. Our middleware is generic and may need a thin wrapper to match your framework’s expectations. For **NestJS**, see [sdk-nestjs.md](sdk-nestjs.md).
+
+## Short-lived scripts and jobs
+
+Events are batched. In a cron job, CLI or script, call `await flush()` after the last `trackEvent()` or handled `trackError()`. With Node SDK 1.4.3 and core 1.5.3 or later, it sends queued events and waits for in-flight event batches and handled errors. It never throws and waits at most two seconds; a timeout does not guarantee delivery or cancel pending requests. The SDK also flushes on `beforeExit`, but not after `process.exit()`.
+
+```js
+import { init, trackError, flush } from "@telemetry-tracker/node";
+
+init({ ingestUrl: process.env.TELEMETRY_INGEST_URL, app: "nightly-report", apiKey: process.env.TELEMETRY_API_KEY });
+try {
+  await runReport();
+} catch (error) {
+  trackError(error, { job: "nightly" });
+  await flush();
+  process.exit(1);
+}
+```
