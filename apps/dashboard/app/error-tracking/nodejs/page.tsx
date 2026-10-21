@@ -11,7 +11,8 @@ import {
   webPageJsonLd,
 } from "@/lib/marketing-guide-metadata";
 import { marketingSiteOrigin } from "@/lib/marketing-json-ld";
-import { nodeInstall, nodeMiddleware, nodeSetup, nodeTestError } from "@/lib/sdk-setup-snippets";
+import { nodeExpressErrorHandler, nodeInstall, nodeMiddleware, nodeSetup, nodeTestError } from "@/lib/sdk-setup-snippets";
+import { HOSTED_API_URL } from "@/lib/hosted-cloud";
 
 const PATH = "/error-tracking/nodejs";
 const TITLE = "Node.js Error Tracking";
@@ -111,6 +112,12 @@ export default function NodeJsErrorTrackingPage() {
         <h2>Minimal setup</h2>
         <p>Call init at the top of your entry file. Keep the API key in an environment variable:</p>
         <CodeBlock code={nodeSetup} lang="typescript" caption="init" />
+        <p>
+          <code>ingestUrl</code> is required: the SDK has no built-in default. The fallback above is
+          the hosted API (<code>{HOSTED_API_URL}</code>); point <code>TELEMETRY_INGEST_URL</code> at
+          your own API when self-hosting. The package is ES modules only; see the{" "}
+          <Link href="/docs/node" className="text-brand hover:underline">Node.js docs</Link> for use from CommonJS.
+        </p>
 
         <h2>Send a test error</h2>
         <CodeBlock code={nodeTestError} lang="typescript" caption="Test error" />
@@ -126,6 +133,13 @@ export default function NodeJsErrorTrackingPage() {
           to include bodies (PII and size).
         </p>
         <CodeBlock code={nodeMiddleware} lang="typescript" caption="middleware" />
+
+        <h2>Express error handler</h2>
+        <p>
+          Errors Express catches in a route do not reach the global handlers. Report them from an
+          error-handling middleware registered after your routes:
+        </p>
+        <CodeBlock code={nodeExpressErrorHandler} lang="typescript" caption="Express error handler" />
 
         <h2>What you will see</h2>
         <p>
