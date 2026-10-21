@@ -3,6 +3,8 @@ import Link from "next/link";
 import { CodeBlock } from "@/app/components/docs/CodeBlock";
 import { DocsAlsoSee } from "@/app/components/docs/DocsAlsoSee";
 import { DocsArticle } from "@/app/components/docs/DocsArticle";
+import { HOSTED_API_URL } from "@/lib/hosted-cloud";
+import { nodeCommonJs, nodeExpressErrorHandler, nodeSetup } from "@/lib/sdk-setup-snippets";
 
 export const metadata: Metadata = {
   title: "Node.js",
@@ -35,19 +37,23 @@ npm install @telemetry-tracker/node`}
       <p>
         Call <code>init()</code> as early as possible (e.g. at the top of your entry file):
       </p>
-      <CodeBlock
-        code={`import { init, trackEvent, trackError } from "@telemetry-tracker/node";
+      <CodeBlock code={nodeSetup} />
+      <p>
+        <code>ingestUrl</code> is required: the SDK has no built-in default. The fallback above is
+        the hosted API (<code>{HOSTED_API_URL}</code>); set <code>TELEMETRY_INGEST_URL</code> to
+        your own API when self-hosting.
+      </p>
 
-init({
-  ingestUrl: process.env.TELEMETRY_INGEST_URL || "https://your-api.example.com",
-  app: "my-api",
-  apiKey: process.env.TELEMETRY_API_KEY,
-  platform: "node",
-});
-
-trackEvent("server_started", { version: "1.0.0" });
-trackError(new Error("DB connection failed"), { db: "primary" });`}
-      />
+      <h2>ES modules only</h2>
+      <p>
+        <code>@telemetry-tracker/node</code> is published as an ES module only: its <code>package.json</code> sets{" "}
+        <code>{`"type": "module"`}</code> and exports only an <code>import</code> condition. Use{" "}
+        <code>import</code> in <code>.mjs</code> files or packages with{" "}
+        <code>{`"type": "module"`}</code>. <code>{`require("@telemetry-tracker/node")`}</code> is not
+        supported. From CommonJS code, load it with a dynamic <code>import()</code> and await{" "}
+        <code>flush()</code> inside an async function:
+      </p>
+      <CodeBlock code={nodeCommonJs} />
 
       <h2>Short-lived scripts and jobs</h2>
       <p>
@@ -109,6 +115,14 @@ app.use((req, res, next) => {
         </Link>
         .
       </p>
+
+      <h2>Express error handler</h2>
+      <p>
+        Errors that Express catches in a route never reach the global handlers. Report them from an
+        error-handling middleware (four arguments, registered after your routes) with{" "}
+        <code>trackError()</code>, then pass the error on:
+      </p>
+      <CodeBlock code={nodeExpressErrorHandler} />
 
       <DocsAlsoSee
         links={[
