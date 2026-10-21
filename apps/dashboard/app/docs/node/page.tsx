@@ -47,9 +47,9 @@ npm install @telemetry-tracker/node`}
       <h2>ES modules only</h2>
       <p>
         <code>@telemetry-tracker/node</code> is published as an ES module only: its <code>package.json</code> sets{" "}
-        <code>"type": "module"</code> and exports only an <code>import</code> condition. Use{" "}
+        <code>{`"type": "module"`}</code> and exports only an <code>import</code> condition. Use{" "}
         <code>import</code> in <code>.mjs</code> files or packages with{" "}
-        <code>"type": "module"</code>. <code>require("@telemetry-tracker/node")</code> is not
+        <code>{`"type": "module"`}</code>. <code>{`require("@telemetry-tracker/node")`}</code> is not
         supported. From CommonJS code, load it with a dynamic <code>import()</code> and await{" "}
         <code>flush()</code> inside an async function:
       </p>
