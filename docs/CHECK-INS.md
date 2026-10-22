@@ -165,6 +165,26 @@ viewable URL; SHA-256 of the 256-bit random token provides indexed authenticatio
 Losing/changing this encryption key makes existing URLs unreadable in the dashboard;
 rotate affected monitor URLs afterwards. Do not reuse an ingest key or a public key.
 
+### Rotating CHECKIN_ENCRYPTION_KEY without data loss
+
+Pings authenticate by SHA-256 hash, so they keep working throughout. The key only
+protects the copyable URL shown in the dashboard. New encryption always uses
+`CHECKIN_ENCRYPTION_KEY`; `CHECKIN_ENCRYPTION_KEY_PREVIOUS` (comma-separated, optional)
+is used only to decrypt older values. Never paste key values into tickets or logs.
+
+1. Deploy a release that contains key-rotation support (this change).
+2. Generate a new key (`openssl rand -hex 32`). On the API service **and on any job
+   service that shares API code**, set `CHECKIN_ENCRYPTION_KEY_PREVIOUS` to the old key and
+   `CHECKIN_ENCRYPTION_KEY` to the new key. Deploy.
+3. Dry run (default, counts only): `node dist/jobs/run-checkin-reencrypt.js`
+4. Apply: `node dist/jobs/run-checkin-reencrypt.js --apply` (batched, idempotent, safe to re-run).
+5. Verify: re-run the dry run; expect `reencrypted: 0`, `failed: 0`, `alreadyCurrent` equal to
+   `scanned`. Open a monitor in the dashboard and confirm its URL is shown.
+6. Remove `CHECKIN_ENCRYPTION_KEY_PREVIOUS` and deploy. Then retire the old key.
+
+If the script reports `failed > 0`, keep `CHECKIN_ENCRYPTION_KEY_PREVIOUS` set and investigate;
+those rows cannot be decrypted with any configured key (rotate those monitor URLs instead).
+
 Set dashboard **CHECKIN_PUBLIC_BASE_URL** to the publicly reachable API origin
 if `API_URL` is an internal address. Otherwise `API_URL` is used for copied URLs.
 

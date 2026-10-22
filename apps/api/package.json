@@ -14,6 +14,7 @@
     "alert-rules-evaluator": "tsx src/jobs/run-alert-rules-evaluator.ts",
     "builtin-alert-rules-backfill": "tsx src/jobs/run-builtin-alert-rules-backfill.ts",
     "pii-scrub-backfill": "tsx src/jobs/run-pii-scrub-backfill.ts",
+    "checkin-reencrypt": "tsx src/jobs/run-checkin-reencrypt.ts",
     "brief-worker": "tsx src/jobs/run-brief-worker.ts",
     "alert-webhook-worker": "tsx src/jobs/run-alert-webhook-worker.ts",
     "seed:dev-api-key": "tsx scripts/seed-dev-api-key.ts"
