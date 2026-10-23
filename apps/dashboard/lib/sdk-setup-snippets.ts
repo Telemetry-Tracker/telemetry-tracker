@@ -172,6 +172,36 @@ app.use((req, res, next) => {
   });
 });`;
 
+export const nodeExpressErrorHandler = `import express from "express";
+import { init, middleware, trackError } from "@telemetry-tracker/node";
+
+init({
+  ingestUrl: process.env.TELEMETRY_INGEST_URL || "${HOSTED_API_URL}",
+  app: "my-api",
+  apiKey: process.env.TELEMETRY_API_KEY,
+});
+
+const app = express();
+app.use(middleware());
+
+// ... your routes ...
+
+// Error-handling middleware: four arguments, registered after all routes.
+app.use((err, req, res, next) => {
+  trackError(err, { method: req.method, url: req.originalUrl });
+  next(err); // keep Express's default error response (or send your own)
+});`;
+
+export const nodeCommonJs = `// CommonJS file (.cjs, or "type" is not "module"): load the ESM package with import()
+async function main() {
+  const { init, trackEvent, flush } = await import("@telemetry-tracker/node");
+  init({ ingestUrl: process.env.TELEMETRY_INGEST_URL || "${HOSTED_API_URL}", app: "my-script", apiKey: process.env.TELEMETRY_API_KEY });
+  trackEvent("script_finished");
+  await flush();
+}
+
+main();`;
+
 export const nodeTestError = `import { trackError } from "@telemetry-tracker/node";
 
 trackError(new Error("Test error from Node.js"), { route: "/health" });`;

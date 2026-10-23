@@ -80,7 +80,7 @@ function contactDeliveryError(result: { status?: number; error?: string }): stri
     resendMessage.includes("resend.dev")
   ) {
     return (
-      `Email delivery is blocked by Resend: verify tacko.io (or your sending domain) in the Resend dashboard ` +
+      `Email delivery is blocked by Resend: verify telemetry-tracker.com (or your sending domain) in the Resend dashboard ` +
       `and set TELEMETRY_EMAIL_FROM to an address on that domain (e.g. Telemetry <info@telemetry-tracker.com>). ` +
       `Until then, email ${CONTACT_INBOX} directly.`
     );
