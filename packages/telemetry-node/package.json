@@ -1,6 +1,6 @@
 {
   "name": "@telemetry-tracker/node",
-  "version": "1.4.2",
+  "version": "1.4.3",
   "description": "Telemetry Tracker SDK for Node.js: global error handlers, request middleware.",
   "license": "MIT",
   "repository": {

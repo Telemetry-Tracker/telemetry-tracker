@@ -71,9 +71,9 @@ export function createUnhandledRejectionHandler(deps: {
 }
 
 /**
- * Send all queued events and wait until they are delivered (or failed).
+ * Send queued events and await pending handled errors, for up to 2 seconds.
  * Call `await flush()` at the end of short-lived scripts, cron jobs and CLIs.
- * Never rejects. Requires @telemetry-tracker/node >= 1.4.2.
+ * Never rejects. Handled errors require @telemetry-tracker/node >= 1.4.3.
  */
 export function flush(): Promise<void> {
   return coreFlush();
@@ -101,7 +101,7 @@ export function createExitHandler(deps: {
     const n = deps.pending();
     if (n > 0) {
       deps.warn(
-        `[telemetry] ${n} queued event(s) were not sent because the process exited. Call \`await flush()\` before process.exit().`
+        `[telemetry] ${n} pending event(s) or error(s) were not sent because the process exited. Call \`await flush()\` before process.exit().`
       );
     }
   };
