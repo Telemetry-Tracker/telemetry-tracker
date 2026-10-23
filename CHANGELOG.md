@@ -13,6 +13,18 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ---
 
+## [1.22.13] - 2026-10-23
+
+### Added
+
+- **Check-in key rotation** — the API accepts an optional `CHECKIN_ENCRYPTION_KEY_PREVIOUS` (decrypt only), so `CHECKIN_ENCRYPTION_KEY` can be rotated without losing stored check-in tokens. A new `run-checkin-reencrypt` job re-encrypts tokens with the current key (dry run by default, `--apply` to write, counts only in output). Runbook in `docs/CHECK-INS.md` ([#863](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/863))
+
+### Changed
+
+- **Docs** — Node SDK docs align the ingest URL, add ESM-only guidance and an Express error handler example ([#862](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/862)); leftover `tacko.io` sender references replaced ([#861](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/861))
+
+---
+
 ## [1.22.12] - 2026-10-20
 
 ### Fixed
