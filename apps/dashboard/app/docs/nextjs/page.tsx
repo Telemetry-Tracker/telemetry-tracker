@@ -113,7 +113,12 @@ export default function DocsNextJsPage() {
         <Link href="/docs/sdk#sdk-web-vitals-heading" className="text-brand hover:underline">
           SDK reference
         </Link>{" "}
-        for metric availability, page-lifecycle limits and privacy considerations.
+        for metric availability, page-lifecycle limits and privacy considerations. For a complete
+        Next.js monitoring overview covering errors, Web Vitals, releases and alerts, see{" "}
+        <Link href="/monitoring/nextjs" className="text-brand hover:underline">
+          Next.js monitoring
+        </Link>
+        .
       </p>
 
       <h2>Server-side error tracking with Next.js App Router</h2>

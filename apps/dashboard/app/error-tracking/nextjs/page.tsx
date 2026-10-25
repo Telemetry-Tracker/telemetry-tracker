@@ -145,6 +145,10 @@ export default function NextJsErrorTrackingPage() {
           <Link href="/docs/sdk#sdk-web-vitals-heading" className="text-brand hover:underline">
             Web Vitals configuration and limitations
           </Link>
+          . For a broader Next.js monitoring overview covering Web Vitals, releases, alerts and more in one place, see{" "}
+          <Link href="/monitoring/nextjs" className="text-brand hover:underline">
+            Next.js monitoring
+          </Link>
           .
         </p>
 
