@@ -1,6 +1,5 @@
 import Image from "next/image";
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { CodeBlock } from "@/app/components/docs/CodeBlock";
 import { GuideCta } from "@/app/components/marketing/guides/GuideCta";
 import { GuideJsonLd } from "@/app/components/marketing/guides/GuideJsonLd";
@@ -8,8 +7,6 @@ import { MarketingGuideLayout } from "@/app/components/marketing/guides/Marketin
 import { breadcrumbJsonLd, marketingGuideMetadata, webPageJsonLd } from "@/lib/marketing-guide-metadata";
 import { nextEnvLocalServer, nextInstall, nextInstrumentation, nextErrorBoundary } from "@/lib/sdk-setup-snippets";
 
-// Server-only, evaluated per request: a preview must never make the route public by default.
-export const dynamic = "force-dynamic";
 const PATH = "/monitoring/nextjs";
 const ORIGIN = "https://telemetry-tracker.com";
 const TITLE = "Next.js Monitoring: Errors, Web Vitals & Releases";
@@ -27,13 +24,10 @@ export function generateMetadata() {
     ...metadata,
     alternates: { canonical: `${ORIGIN}${PATH}` },
     openGraph: { ...metadata.openGraph, url: `${ORIGIN}${PATH}` },
-    robots: { index: false, follow: false },
   };
 }
 
 export default function NextJsMonitoringPage() {
-  if (process.env.MONITORING_NEXTJS_PAGE_ENABLED !== "true") notFound();
-
   return (
     <>
       <GuideJsonLd data={[
@@ -41,9 +35,7 @@ export default function NextJsMonitoringPage() {
         breadcrumbJsonLd(ORIGIN, [{ name: "Home", path: "" }, { name: "Next.js monitoring", path: PATH }]),
         { "@context": "https://schema.org", "@type": "FAQPage", mainEntity: FAQ.map(({ question, answer }) => ({ "@type": "Question", name: question, acceptedAnswer: { "@type": "Answer", text: answer } })) },
       ]} />
-      <MarketingGuideLayout kicker="Next.js monitoring · unpublished draft" title="Monitor a Next.js app: errors, Web Vitals and releases in one place" lede={<p>Connect browser errors, App Router server errors, real-user Web Vitals and release health with Telemetry Tracker. Use hosted cloud or your own API and dashboard.</p>} updated="2026-10">
-        <p className="rounded-lg border border-border bg-muted/40 p-4">Draft for Sanja’s 25 October review. This preview remains noindex, nofollow even when the preview flag is enabled.</p>
-
+      <MarketingGuideLayout kicker="Next.js monitoring" title="Monitor a Next.js app: errors, Web Vitals and releases in one place" lede={<p>Connect browser errors, App Router server errors, real-user Web Vitals and release health with Telemetry Tracker. Use hosted cloud or your own API and dashboard.</p>} updated="2026-10">
         <h2>Client errors and page changes</h2>
         <p><code>TelemetryProvider</code> initializes the browser SDK, which captures uncaught errors and unhandled promise rejections. <code>TelemetryErrorBoundary</code> reports React render errors. <code>useTrackPage(pathname)</code> sends screen events as routes change.</p>
         <CodeBlock code={nextInstall} lang="bash" caption="Install the Next.js SDK" />
@@ -64,7 +56,7 @@ export default function NextJsMonitoringPage() {
         <h2>Node request latency: where the middleware fits</h2>
         <p>The <code>@telemetry-tracker/node</code> request middleware emits <code>$request</code> events with <code>method</code>, <code>url</code> and <code>duration_ms</code> when the Node response finishes or closes. Performance summarizes p50 and p95 latency per route.</p>
         <p>This fits an Express-style custom Node server around Next.js, or a separate Node API, after initializing the Node SDK. It is not an automatic App Router Route Handler integration: Route Handlers use Web Request/Response objects rather than the Node response emitter this middleware times. The server error hook above does not collect request latency.</p>
-        <p><strong>Route error-rate caveat:</strong> the middleware does not automatically record the HTTP status code. Route error rate stays empty unless you send <code>status_code</code> with your request events. Latency measurement alone does not establish a request’s success or failure.</p>
+        <p><strong>Route error-rate caveat:</strong> the middleware does not automatically record the HTTP status code. Route error rate stays empty unless you send <code>status_code</code> with your request events. Latency measurement alone does not establish a request&apos;s success or failure.</p>
 
         <h2>Custom events and session timelines</h2>
         <p>Send meaningful actions with <code>trackEvent</code> from client code after the provider initializes. Sessions connect events, screens and errors in a telemetry timeline. They do not record video or replay the browser.</p>
@@ -77,7 +69,7 @@ export default function NextJsMonitoringPage() {
 
         <h2>Alerts with explicit editor limits</h2>
         <p>Alert channels include in-app notifications, email, generic webhooks, Slack, Discord, Telegram and Microsoft Teams. Built-in error-spike and quota rules are available.</p>
-        <p>The dashboard rule editor authors only <code>ERROR_COUNT</code>. <code>ERROR_RATE</code>, <code>SESSION_DROP</code>, <code>NEW_ERROR_GROUP</code>, <code>AFFECTED_USERS</code>, <code>QUOTA_PERCENT</code>, <code>NO_EVENTS</code> and <code>HEARTBEAT</code> are API-only conditions. Self-hosted scheduled conditions require the alert-rules evaluator cron. See <Link href="/docs/alerts" className="text-brand hover:underline">alert setup and delivery documentation</Link>.</p>
+        <p>The dashboard rule editor authors <code>ERROR_COUNT</code> and <code>NO_EVENTS</code> (business heartbeat) conditions. <code>ERROR_RATE</code>, <code>SESSION_DROP</code>, <code>NEW_ERROR_GROUP</code>, <code>AFFECTED_USERS</code>, <code>QUOTA_PERCENT</code> and <code>HEARTBEAT</code> are API-only conditions. Self-hosted scheduled conditions require the alert-rules evaluator cron. See <Link href="/docs/alerts" className="text-brand hover:underline">alert setup and delivery documentation</Link>.</p>
 
         <h2>Source maps for readable errors</h2>
         <p>Upload source maps for the same app and release as your telemetry to symbolicate minified stack frames. The Vite plugin is available for Vite builds; it is not a Next.js build plugin. For Next.js, follow the upload workflow in the <Link href="/docs/source-maps" className="text-brand hover:underline">source-map documentation</Link>.</p>

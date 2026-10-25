@@ -42,6 +42,7 @@ export function GET() {
 - ${origin}/docs/self-hosting
 - ${origin}/docs/hosted-cloud
 - ${origin}/error-tracking/react-native/expo-source-maps
+- ${origin}/monitoring/nextjs
 - ${origin}/sentry-alternative
 - ${origin}/features/missing-event-alerts
 
