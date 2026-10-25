@@ -15,6 +15,15 @@ NEXT_PUBLIC_TELEMETRY_INGEST_URL=${HOSTED_API_URL}
 NEXT_PUBLIC_TELEMETRY_API_KEY=tt_live_<publicId>_<secret>
 NEXT_PUBLIC_TELEMETRY_APP=my-next-app`;
 
+
+/** Prefill .env.local for the API keys dashboard (secret only when freshly created). */
+export function buildNextEnvLocal(apiKey: string, app = "my-next-app"): string {
+  return `# .env.local — paste into your Next.js app
+NEXT_PUBLIC_TELEMETRY_INGEST_URL=${HOSTED_API_URL}
+NEXT_PUBLIC_TELEMETRY_API_KEY=${apiKey}
+NEXT_PUBLIC_TELEMETRY_APP=${app}`;
+}
+
 /** Optional server-only env for instrumentation.ts (do not prefix with NEXT_PUBLIC_). */
 export const nextEnvLocalServer = `# Optional — only if you add instrumentation.ts for App Router server errors
 TELEMETRY_INGEST_URL=${HOSTED_API_URL}
@@ -40,6 +49,8 @@ export default function RootLayout({
               "${HOSTED_API_URL}",
             app: process.env.NEXT_PUBLIC_TELEMETRY_APP ?? "my-next-app",
             apiKey: process.env.NEXT_PUBLIC_TELEMETRY_API_KEY,
+            // Must match the release used for the source-map upload (e.g. the commit SHA).
+            release: process.env.NEXT_PUBLIC_TELEMETRY_RELEASE,
           }}
         >
           <TrackPageView />
@@ -160,6 +171,36 @@ app.use((req, res, next) => {
     next();
   });
 });`;
+
+export const nodeExpressErrorHandler = `import express from "express";
+import { init, middleware, trackError } from "@telemetry-tracker/node";
+
+init({
+  ingestUrl: process.env.TELEMETRY_INGEST_URL || "${HOSTED_API_URL}",
+  app: "my-api",
+  apiKey: process.env.TELEMETRY_API_KEY,
+});
+
+const app = express();
+app.use(middleware());
+
+// ... your routes ...
+
+// Error-handling middleware: four arguments, registered after all routes.
+app.use((err, req, res, next) => {
+  trackError(err, { method: req.method, url: req.originalUrl });
+  next(err); // keep Express's default error response (or send your own)
+});`;
+
+export const nodeCommonJs = `// CommonJS file (.cjs, or "type" is not "module"): load the ESM package with import()
+async function main() {
+  const { init, trackEvent, flush } = await import("@telemetry-tracker/node");
+  init({ ingestUrl: process.env.TELEMETRY_INGEST_URL || "${HOSTED_API_URL}", app: "my-script", apiKey: process.env.TELEMETRY_API_KEY });
+  trackEvent("script_finished");
+  await flush();
+}
+
+main();`;
 
 export const nodeTestError = `import { trackError } from "@telemetry-tracker/node";
 

@@ -5,6 +5,7 @@
 export type PlanLimits = {
   /** Max ingest units per calendar month (event POST = 1, batch item = 1, error = 1, session = 1). */
   monthlyIngestUnits: number;
+  maxCheckInMonitorsPerProject: number;
   /** Sustained requests/sec per project (burst can be higher with token bucket). */
   maxIngestRps: number;
   /** Distinct `app` strings allowed per project (SDK `app` field). */
@@ -21,6 +22,7 @@ export type PlanLimits = {
 
 export const PLAN_LIMITS: Record<"FREE" | "PRO" | "BUSINESS", PlanLimits> = {
   FREE: {
+    maxCheckInMonitorsPerProject: 5,
     monthlyIngestUnits: 250_000,
     maxIngestRps: 20,
     maxAppsPerProject: 5,
@@ -30,6 +32,7 @@ export const PLAN_LIMITS: Record<"FREE" | "PRO" | "BUSINESS", PlanLimits> = {
     retentionDays: 14,
   },
   PRO: {
+    maxCheckInMonitorsPerProject: 50,
     monthlyIngestUnits: 5_000_000,
     maxIngestRps: 100,
     maxAppsPerProject: 50,
@@ -39,6 +42,7 @@ export const PLAN_LIMITS: Record<"FREE" | "PRO" | "BUSINESS", PlanLimits> = {
     retentionDays: 90,
   },
   BUSINESS: {
+    maxCheckInMonitorsPerProject: 500,
     monthlyIngestUnits: 50_000_000,
     maxIngestRps: 500,
     maxAppsPerProject: 500,

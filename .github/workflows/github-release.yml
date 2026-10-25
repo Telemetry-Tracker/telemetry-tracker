@@ -1,0 +1,98 @@
+name: GitHub Release
+
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Production release tag (e.g. v1.22.1)"
+        required: true
+        type: string
+      dry_run:
+        description: "Print release details without creating a release"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: github-release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      DRY_RUN: ${{ inputs.dry_run || false }}
+    steps:
+      - name: Validate tag and skip existing release
+        id: check
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid production release tag: $TAG" >&2
+            exit 1
+          fi
+          if gh release view "$TAG"; then
+            echo "Release already exists, skipping"
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.check.outputs.exists != 'true'
+        with:
+          fetch-depth: 0
+          ref: refs/tags/${{ env.TAG }}
+
+      - name: Prepare and publish release
+        if: steps.check.outputs.exists != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Checkout also fails if this tag does not exist; never create a tag here.
+          git show-ref --verify "refs/tags/$TAG"
+          NOTES="$RUNNER_TEMP/github-release-notes.md"
+          awk -v version="${TAG#v}" '
+            /^## / {
+              heading = $0
+              sub(/^## +/, "", heading)
+              sub(/^\[/, "", heading)
+              sub(/^v/, "", heading)
+              sub(/\].*$/, "", heading)
+              sub(/ .*/, "", heading)
+              if (heading ~ /^[0-9]+\.[0-9]+\.[0-9]+$/) {
+                if (found) exit
+                if (heading == version) { found = 1; next }
+              }
+            }
+            found { print }
+            END { if (!found) exit 1 }
+          ' CHANGELOG.md > "$NOTES" || {
+            echo "Missing CHANGELOG.md section for $TAG" >&2
+            exit 1
+          }
+          if ! grep -Eq '[[:alnum:]]' "$NOTES"; then
+            echo "Empty CHANGELOG.md section for $TAG" >&2
+            exit 1
+          fi
+          HIGHEST=$(git tag -l 'v*.*.*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)
+          LATEST=false
+          if [ "$TAG" = "$HIGHEST" ]; then
+            LATEST=true
+          fi
+          TITLE="Telemetry Tracker $TAG"
+          echo "Title: $TITLE"
+          echo "Latest: --latest=$LATEST"
+          cat "$NOTES"
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "Dry run: release creation skipped"
+            exit 0
+          fi
+          gh release create "$TAG" --verify-tag --title "$TITLE" \
+            --notes-file "$NOTES" --latest="$LATEST"

@@ -1,6 +1,10 @@
+import { checkInManagementRoutes, checkInPingRoutes } from "./routes/checkins.js";
+import { redactCheckInSecrets } from "./lib/checkin-secrets.js";
+import { signupStatsRoutes } from "./routes/signup-stats.js";
 import cors, { type FastifyCorsOptionsDelegateCallback } from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
 import Fastify, { type FastifyInstance } from "fastify";
+import { clientIpKeyGenerator, ingestKeyGenerator, registerIpDiagnostics } from "./lib/client-ip.js";
 import { prisma } from "./lib/db.js";
 import { buildHealthResponse } from "./lib/health.js";
 import { resolveCorsOptionsForRequest } from "./lib/cors-config.js";
@@ -9,6 +13,7 @@ import {
   rateLimitMaxApi,
   rateLimitMaxAuth,
   rateLimitMaxIngest,
+  rateLimitMaxMcp,
   rateLimitMaxPublic,
   RATE_LIMIT_WINDOW_MS,
 } from "./lib/rate-limit-env.js";
@@ -20,8 +25,12 @@ import { marketingRoutes } from "./routes/marketing.js";
 import { projectDashboardRoutes } from "./routes/project-dashboard.js";
 import { billingRoutes } from "./routes/billing.js";
 import { affiliatesAdminRoutes } from "./routes/affiliates-admin.js";
+import { affiliateApplicationRoutes } from "./routes/affiliate-applications.js";
 import { briefRoutes } from "./routes/brief.js";
 import { registerStripeWebhookIfConfigured } from "./routes/stripe-webhook.js";
+
+import { mcpRoutes } from "./routes/mcp.js";
+import { mcpTokenRoutes } from "./routes/mcp-tokens.js";
 
 const PAYLOAD_LIMIT = 200 * 1024; // 200 KB
 
@@ -32,12 +41,26 @@ export async function createApp(): Promise<FastifyInstance> {
   const isTest = process.env.NODE_ENV === "test";
 
   const app = Fastify({
-    logger: !isTest,
+    logger: isTest ? false : {
+      serializers: {
+        req(request) { return { method: request.method, url: redactCheckInSecrets(request.url ?? ""), id: request.id }; },
+        err(error) { return { type: error.name, message: redactCheckInSecrets(error.message ?? ""), stack: redactCheckInSecrets(error.stack ?? "") }; },
+      },
+      // Filter the serialized line too, including arbitrary log fields/messages.
+      stream: { write(line) { process.stdout.write(redactCheckInSecrets(line)); } },
+    },
     bodyLimit: PAYLOAD_LIMIT,
     genReqId,
   });
 
   registerObservabilityHooks(app);
+  registerIpDiagnostics(app);
+  // Dedicated read credentials never fall through to legacy unauthenticated reads.
+  app.addHook("onRequest", async (request, reply) => {
+    if (/^Bearer\s+tt_read_/i.test(request.headers.authorization ?? "") && request.url.split("?")[0] !== "/mcp") {
+      return reply.code(401).send({ error: "Read tokens are accepted only on /mcp" });
+    }
+  });
 
   const corsDelegator: FastifyCorsOptionsDelegateCallback = (req, callback) => {
     callback(null, resolveCorsOptionsForRequest(req));
@@ -46,12 +69,22 @@ export async function createApp(): Promise<FastifyInstance> {
   await app.register(cors, { delegator: corsDelegator });
 
   await registerStripeWebhookIfConfigured(app);
+  await app.register(async function mcpScope(f) {
+    await f.register(rateLimit, {
+      max: rateLimitMaxMcp(isTest),
+      timeWindow: RATE_LIMIT_WINDOW_MS,
+      keyGenerator: clientIpKeyGenerator,
+    });
+    await f.register(mcpRoutes);
+  });
+  await app.register(signupStatsRoutes);
 
   await app.register(
     async function publicSurface(f) {
       await f.register(rateLimit, {
         max: rateLimitMaxPublic(isTest),
         timeWindow: RATE_LIMIT_WINDOW_MS,
+        keyGenerator: clientIpKeyGenerator,
       });
       // Set HEALTH_CHECK_DATABASE=true in production (or staging) to verify DB connectivity; omit in dev if you prefer a dependency-free /health.
       // Optional HEALTH_DETAILED=true adds uptime and Node version (no secrets). See DEPLOYMENT.md.
@@ -70,17 +103,24 @@ export async function createApp(): Promise<FastifyInstance> {
       await f.register(rateLimit, {
         max: rateLimitMaxIngest(isTest),
         timeWindow: RATE_LIMIT_WINDOW_MS,
+        keyGenerator: ingestKeyGenerator,
       });
       await f.register(ingestRoutes);
     },
     { prefix: "/ingest" }
   );
 
+  await app.register(async function checkInScope(f) {
+    await f.register(rateLimit, { max: 600, timeWindow: RATE_LIMIT_WINDOW_MS, keyGenerator: clientIpKeyGenerator });
+    await f.register(checkInPingRoutes);
+  }, { prefix: "/checkin" });
+
   await app.register(
     async function authScope(f) {
       await f.register(rateLimit, {
         max: rateLimitMaxAuth(isTest),
         timeWindow: RATE_LIMIT_WINDOW_MS,
+        keyGenerator: clientIpKeyGenerator,
       });
       await f.register(authRoutes);
     },
@@ -92,9 +132,11 @@ export async function createApp(): Promise<FastifyInstance> {
       await f.register(rateLimit, {
         max: rateLimitMaxPublic(isTest),
         timeWindow: RATE_LIMIT_WINDOW_MS,
+        keyGenerator: clientIpKeyGenerator,
       });
       await f.register(contactRoutes);
       await f.register(marketingRoutes);
+      await f.register(affiliateApplicationRoutes);
     },
     { prefix: "/api" }
   );
@@ -104,10 +146,13 @@ export async function createApp(): Promise<FastifyInstance> {
       await f.register(rateLimit, {
         max: rateLimitMaxApi(isTest),
         timeWindow: RATE_LIMIT_WINDOW_MS,
+        keyGenerator: clientIpKeyGenerator,
       });
       await f.register(apiRoutes);
       await f.register(projectDashboardRoutes);
+      await f.register(checkInManagementRoutes);
       await f.register(briefRoutes);
+      await f.register(mcpTokenRoutes);
       await f.register(billingRoutes);
       await f.register(affiliatesAdminRoutes);
     },

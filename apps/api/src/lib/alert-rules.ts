@@ -42,6 +42,18 @@ export const PROJECT_EMAIL_DESTINATION_ID = "project-email";
 const windowMinutesSchema = z.number().int().min(5).max(24 * 60);
 const thresholdSchema = z.number().int().min(1).max(10_000);
 const percentSchema = z.number().int().min(1).max(100);
+/** Max length of a NO_EVENTS `eventName` filter (exact match against Event.name). */
+export const MAX_ALERT_RULE_EVENT_NAME_LENGTH = 200;
+
+const eventNameSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(MAX_ALERT_RULE_EVENT_NAME_LENGTH)
+  .nullable()
+  .optional()
+  .transform((v) => (v === undefined ? null : v));
+
 const environmentSchema = z
   .string()
   .trim()
@@ -102,6 +114,11 @@ export type NoEventsCondition = {
   /** Fire when zero events were received in this window. */
   windowMinutes: number;
   environment: string | null;
+  /**
+   * When set, only count events with this exact name (business heartbeat).
+   * Omitted / null keeps the original "any event" behaviour.
+   */
+  eventName?: string | null;
 };
 
 export type HeartbeatCondition = {
@@ -197,6 +214,7 @@ const noEventsConditionSchema = z.object({
   type: z.literal("NO_EVENTS"),
   windowMinutes: windowMinutesSchema,
   environment: environmentSchema,
+  eventName: eventNameSchema,
 });
 
 const heartbeatConditionSchema = z.object({
@@ -320,6 +338,8 @@ function normalizeCondition(
         type: "NO_EVENTS",
         windowMinutes: c.windowMinutes,
         environment: c.environment ?? null,
+        // Only include the key when set so rules without a name serialize exactly as before.
+        ...(c.eventName ? { eventName: c.eventName } : {}),
       };
     case "HEARTBEAT":
       return {
@@ -685,12 +705,27 @@ function windowSince(windowMinutes: number, now = Date.now()): Date {
   return new Date(now - windowMinutes * 60 * 1000);
 }
 
+/** "6 hours" / "90 minutes" — whole hours read better in heartbeat alerts. */
+function formatWindow(windowMinutes: number): string {
+  if (windowMinutes % 60 === 0) {
+    const h = windowMinutes / 60;
+    return `${h} hour${h === 1 ? "" : "s"}`;
+  }
+  return `${windowMinutes} minutes`;
+}
+
 function envLabel(environment: string | null): string {
   return environment ? ` in ${environment}` : "";
 }
 
 type ConditionEvalResult =
-  | { ok: true; summary: string; hrefHint?: "errors" | "sessions" | "billing" | "overview" }
+  | {
+      ok: true;
+      summary: string;
+      hrefHint?: "errors" | "sessions" | "billing" | "overview" | "events";
+      /** Set with hrefHint "events" so the alert link opens that event name. */
+      eventName?: string;
+    }
   | { ok: false };
 
 async function countErrorOccurrences(
@@ -731,13 +766,15 @@ async function countEvents(
   prisma: PrismaClient,
   projectId: string,
   since: Date,
-  environment: string | null
+  environment: string | null,
+  eventName: string | null = null
 ): Promise<number> {
   return prisma.event.count({
     where: {
       project_id: projectId,
       created_at: { gte: since },
       ...(environment ? { environment } : {}),
+      ...(eventName ? { name: eventName } : {}),
     },
   });
 }
@@ -894,9 +931,18 @@ async function evaluateNoEventsCondition(
     prisma,
     projectId,
     windowSince(condition.windowMinutes),
-    condition.environment
+    condition.environment,
+    condition.eventName ?? null
   );
   if (count > 0) return { ok: false };
+  if (condition.eventName) {
+    return {
+      ok: true,
+      hrefHint: "events",
+      eventName: condition.eventName,
+      summary: `no "${condition.eventName}" events in the last ${formatWindow(condition.windowMinutes)}${envLabel(condition.environment)}`,
+    };
+  }
   return {
     ok: true,
     hrefHint: "overview",
@@ -953,8 +999,12 @@ async function evaluateCondition(
 }
 
 function hrefForHints(
-  hints: Array<NonNullable<Extract<ConditionEvalResult, { ok: true }>["hrefHint"]>>
+  hints: Array<NonNullable<Extract<ConditionEvalResult, { ok: true }>["hrefHint"]>>,
+  eventName: string | null = null
 ): string {
+  if (eventName && hints.length > 0 && hints.every((h) => h === "events")) {
+    return `/dashboard/events?name=${encodeURIComponent(eventName)}`;
+  }
   if (hints.includes("billing") && hints.every((h) => h === "billing")) {
     return "/dashboard/settings/billing";
   }
@@ -983,12 +1033,14 @@ async function evaluateAlertRule(
   const hrefHints: Array<
     NonNullable<Extract<ConditionEvalResult, { ok: true }>["hrefHint"]>
   > = [];
+  let linkEventName: string | null = null;
 
   for (const condition of rule.conditions) {
     const result = await evaluateCondition(prisma, projectId, condition);
     if (!result.ok) return false;
     summaryParts.push(result.summary);
     if (result.hrefHint) hrefHints.push(result.hrefHint);
+    if (result.eventName && !linkEventName) linkEventName = result.eventName;
   }
 
   const claimedAt = await tryClaimAlertRuleFire(
@@ -1006,7 +1058,7 @@ async function evaluateAlertRule(
       dedupeKey,
       title: rule.name,
       body: `${summaryParts.join("; ")}.`,
-      href: hrefForHints(hrefHints),
+      href: hrefForHints(hrefHints, linkEventName),
       destinations: resolveDestinationIds(rule.destinationIds),
     });
   } catch (e) {

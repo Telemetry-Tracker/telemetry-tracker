@@ -39,6 +39,9 @@ function isUniqueViolation(e: unknown): boolean {
 export function alertEventHref(rule: AlertRuleType, stored: string | null): string | null {
   if (stored) return stored;
   switch (rule) {
+    case "CHECKIN_DOWN":
+    case "CHECKIN_RECOVERED":
+      return "/dashboard/checkins";
     case "ERROR_SPIKE":
     case "ALERT_RULE":
       return "/dashboard/errors";

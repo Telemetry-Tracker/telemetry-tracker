@@ -25,6 +25,7 @@ model Organization {
   created_at           DateTime    @default(now()) @map("created_at")
   updated_at           DateTime    @updatedAt @map("updated_at")
   deleted_at           DateTime?   @map("deleted_at")
+  read_tokens          McpReadToken[]
   projects             Project[]
   memberships          OrganizationMembership[]
   invites              OrganizationInvite[]
@@ -57,6 +58,15 @@ model OrganizationAuditEvent {
 
 /// Dashboard user (email + password). Ingest remains API-key only.
 model User {
+  signup_channel String? @db.VarChar(32)
+  first_landing_path String? @db.VarChar(2048)
+  utm_source String? @db.VarChar(100)
+  utm_medium String? @db.VarChar(100)
+  utm_campaign String? @db.VarChar(100)
+  utm_content String? @db.VarChar(100)
+  utm_term String? @db.VarChar(100)
+  referrer_host String? @db.VarChar(253)
+
   id             String                     @id @default(uuid())
   email          String                     @unique
   password_hash  String                     @map("password_hash")
@@ -69,6 +79,7 @@ model User {
   labs_preferences         Json?            @map("labs_preferences")
   created_at     DateTime                   @default(now()) @map("created_at")
   updated_at     DateTime                   @updatedAt @map("updated_at")
+  read_tokens    McpReadToken[]
   sessions       UserSession[]
   memberships    OrganizationMembership[]
   invites_sent   OrganizationInvite[] @relation("InviteCreatedBy")
@@ -248,6 +259,7 @@ model Project {
   organization    Organization   @relation(fields: [organization_id], references: [id], onDelete: Cascade)
   name            String
   slug            String
+  first_event_at  DateTime?
   created_at      DateTime       @default(now()) @map("created_at")
   updated_at      DateTime       @updatedAt @map("updated_at")
   deleted_at      DateTime?      @map("deleted_at")
@@ -261,6 +273,7 @@ model Project {
   pii_scrub_settings Json?       @map("pii_scrub_settings")
   alert_events    AlertEvent[]
   alert_rules     AlertRule[]
+  checkin_monitors CheckInMonitor[]
   webhooks        ProjectWebhook[]
   webhook_deliveries AlertWebhookDelivery[]
   source_map_artifacts SourceMapArtifact[]
@@ -270,6 +283,98 @@ model Project {
   @@index([organization_id])
   @@index([deleted_at])
 }
+
+
+enum CheckInScheduleType {
+  INTERVAL
+  CRON
+}
+enum CheckInMonitorStatus {
+  NEW
+  UP
+  DOWN
+  PAUSED
+}
+enum CheckInKind {
+  START
+  OK
+  FAIL
+  MISSED
+  TIMEOUT
+}
+
+model CheckInMonitor {
+  id String @id @default(uuid())
+  project_id String
+  project Project @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  name String
+  token_hash String @unique
+  token_encrypted String
+  schedule_type CheckInScheduleType
+  interval_seconds Int?
+  cron_expr String?
+  timezone String @default("UTC")
+  grace_seconds Int @default(300)
+  max_runtime_seconds Int?
+  destination_ids Json
+  status CheckInMonitorStatus @default(NEW)
+  last_ping_at DateTime?
+  next_due_at DateTime?
+  deadline_at DateTime?
+  down_since DateTime?
+  incident_id String?
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  deleted_at DateTime?
+  checkins CheckIn[]
+  runs CheckInRun[]
+  notices CheckInNotice[]
+  @@index([project_id, deleted_at])
+  @@index([status, deadline_at])
+}
+
+model CheckIn {
+  id String @id @default(uuid())
+  monitor_id String
+  monitor CheckInMonitor @relation(fields: [monitor_id], references: [id], onDelete: Cascade)
+  kind CheckInKind
+  run_id String?
+  exit_code Int?
+  duration_ms Int?
+  received_at DateTime @default(now())
+  @@unique([monitor_id, run_id, kind])
+  @@index([monitor_id, received_at(sort: Desc)])
+  @@index([received_at])
+}
+
+model CheckInRun {
+  id String @id @default(uuid())
+  monitor_id String
+  monitor CheckInMonitor @relation(fields: [monitor_id], references: [id], onDelete: Cascade)
+  run_id String
+  started_at DateTime
+  timeout_at DateTime?
+  finished_at DateTime?
+  @@unique([monitor_id, run_id])
+  @@index([timeout_at, finished_at])
+}
+
+// Durable outbox: state transition and notification intent commit together.
+model CheckInNotice {
+  id String @id @default(uuid())
+  monitor_id String
+  monitor CheckInMonitor @relation(fields: [monitor_id], references: [id], onDelete: Cascade)
+  project_id String
+  rule AlertRuleType
+  dedupe_key String @unique
+  title String
+  body String
+  destination_ids Json
+  delivered_at DateTime?
+  created_at DateTime @default(now())
+  @@index([delivered_at, id])
+}
+
 
 /// Ingest credential (manageable object, not only a secret).
 /// Key format: `tt_live_<publicId>_<secret>` (see docs/ENTITLEMENTS.md).
@@ -322,6 +427,8 @@ enum PlanTier {
 }
 
 enum AlertRuleType {
+  CHECKIN_DOWN
+  CHECKIN_RECOVERED
   ERROR_SPIKE
   QUOTA_NEAR
   QUOTA_EXCEEDED
@@ -713,6 +820,7 @@ model Affiliate {
   commissions             AffiliateCommission[]
   adjustments             AffiliateAdjustment[]
   payouts                 AffiliatePayout[]
+  applications            AffiliateApplication[]
 
   @@index([email_normalized])
   @@index([state])
@@ -836,4 +944,67 @@ model AffiliatePayout {
   adjustments       AffiliateAdjustment[]
 
   @@index([affiliate_id, paid_at])
+}
+
+/// Public affiliate program application from /affiliates (no account needed).
+/// Founder approves (creates an Affiliate) or rejects in the dashboard admin. Applicants are never emailed.
+model AffiliateApplication {
+  id                String     @id @default(uuid())
+  name              String
+  email             String
+  /// Same normalization as Affiliate.email_normalized (lowercase, +tag stripped, gmail dots removed).
+  email_normalized  String     @map("email_normalized")
+  /// Equals email_normalized while status = pending, NULL otherwise. Unique → at most one pending
+  /// application per normalized email (repeat submissions dedupe onto the existing row).
+  pending_email_key String?    @unique @map("pending_email_key")
+  website_url       String     @map("website_url")
+  /// Short answer: how / where the applicant will promote Telemetry Tracker.
+  promotion_plan    String     @map("promotion_plan")
+  /// Version label of the affiliate terms the applicant accepted (e.g. 2026-10-06).
+  terms_version     String     @map("terms_version")
+  terms_accepted_at DateTime   @map("terms_accepted_at")
+  /// pending | approved | rejected (CHECK constraint in the migration)
+  status            String     @default("pending")
+  /// Optional founder note on approve / reject (internal only).
+  review_note       String?    @map("review_note")
+  /// User id of the founder who approved / rejected.
+  reviewed_by       String?    @map("reviewed_by")
+  reviewed_at       DateTime?  @map("reviewed_at")
+  /// Affiliate created on approval.
+  affiliate_id      String?    @map("affiliate_id")
+  affiliate         Affiliate? @relation(fields: [affiliate_id], references: [id], onDelete: SetNull)
+  created_at        DateTime   @default(now()) @map("created_at")
+  updated_at        DateTime   @updatedAt @map("updated_at")
+
+  @@index([status, created_at])
+  @@index([email_normalized])
+  @@index([affiliate_id])
+}
+
+/// Dedicated read-only credentials; explicit project IDs are revalidated on every request.
+model McpReadToken {
+  id String @id @default(uuid())
+  public_id String @unique
+  secret_hash String
+  name String
+  organization_id String
+  organization Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  created_by_user_id String
+  creator User @relation(fields: [created_by_user_id], references: [id], onDelete: Cascade)
+  project_ids String[]
+  created_at DateTime @default(now())
+  expires_at DateTime
+  revoked_at DateTime?
+  expiry_logged_at DateTime?
+  last_used_at DateTime?
+  usage_count Int @default(0)
+  last_tool String?
+  @@index([organization_id])
+}
+
+/// Fixed rows per token/org, shared across API replicas; no IP/proxy dependency.
+model McpRateBucket {
+  key String @id
+  window_start DateTime
+  count Int
 }

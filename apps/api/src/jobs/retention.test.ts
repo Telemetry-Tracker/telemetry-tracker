@@ -50,6 +50,9 @@ function liveTx() {
     return 0;
   });
   return {
+    $queryRaw: vi.fn(async () => []),
+    checkInRun: { deleteMany: vi.fn(async () => ({ count: 0 })) },
+    checkInNotice: { deleteMany: vi.fn(async () => ({ count: 0 })) },
     errorOccurrence: { deleteMany: vi.fn(async () => ({ count: 0 })) },
     event: { deleteMany: vi.fn(async () => ({ count: 0 })) },
     session: {
@@ -118,6 +121,9 @@ describe("runRetentionSweep", () => {
       return 0;
     });
     const tx = {
+      $queryRaw: vi.fn(async () => []),
+      checkInRun: { deleteMany: vi.fn(async () => ({ count: 0 })) },
+      checkInNotice: { deleteMany: vi.fn(async () => ({ count: 0 })) },
       errorOccurrence: { deleteMany: vi.fn(async () => ({ count: 0 })) },
       event: { deleteMany: vi.fn(async () => ({ count: 0 })) },
       session: { deleteMany: vi.fn(async () => ({ count: 0 })) },
@@ -162,6 +168,7 @@ describe("runRetentionSweep", () => {
     };
     const queryRaw = vi.fn(async (query: unknown) => {
       const sql = sqlFromExecuteRaw(query);
+      if (sql.includes("CheckIn")) return [{ count: 0n }];
       if (sql.includes("ErrorOccurrence")) return [{ count: 8n }];
       if (sql.includes("SourceMapArtifact")) return [{ count: 5n }];
       return [{ count: 0n }];
@@ -197,7 +204,7 @@ describe("runRetentionSweep", () => {
     expect(event.deleteMany).not.toHaveBeenCalled();
     expect(session.deleteMany).not.toHaveBeenCalled();
     expect(errorGroup.deleteMany).not.toHaveBeenCalled();
-    expect(queryRaw).toHaveBeenCalledTimes(2);
+    expect(queryRaw).toHaveBeenCalledTimes(3);
     expect(executeRaw).not.toHaveBeenCalled();
   });
 

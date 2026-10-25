@@ -144,6 +144,7 @@ export function NotificationsSettingsClient({
                   <div className="text-[11px] text-muted-foreground">{c.desc}</div>
                 </div>
                 <SettingsToggle
+                  aria-label={`${c.label} notifications`}
                   on={prefs.channels[c.id]}
                   onChange={() => setChannel(c.id, !prefs.channels[c.id])}
                 />
@@ -187,6 +188,7 @@ export function NotificationsSettingsClient({
                             }
                           >
                             <SettingsToggle
+                              aria-label={`${cat.label} via ${c.label}`}
                               on={channelOn && routeOn}
                               onChange={() => setRoute(cat.id, c.id, !routeOn)}
                             />
@@ -208,6 +210,7 @@ export function NotificationsSettingsClient({
           <FieldGroup>
             <Field label="Enable quiet hours">
               <SettingsToggle
+                aria-label="Enable quiet hours"
                 on={prefs.quietHours.enabled}
                 onChange={() =>
                   setPrefs((current) => ({

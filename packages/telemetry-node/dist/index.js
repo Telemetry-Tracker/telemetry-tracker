@@ -1,4 +1,4 @@
-import { init as coreInit, identify, trackEvent, trackError as coreTrackError, ingestError, getConfigOrNull, toReportableError, } from "@telemetry-tracker/core";
+import { init as coreInit, identify, trackEvent, trackError as coreTrackError, flush as coreFlush, pendingEventCount, ingestError, getConfigOrNull, toReportableError, } from "@telemetry-tracker/core";
 import { FATAL_FLUSH_TIMEOUT_MS, flushFatalError } from "./fatal.js";
 export { FATAL_FLUSH_TIMEOUT_MS, flushFatalError } from "./fatal.js";
 let installed = false;
@@ -25,10 +25,39 @@ export function createUnhandledRejectionHandler(deps) {
         deps.trackError(err, { source: "unhandledRejection" });
     };
 }
+/**
+ * Send all queued events and wait until they are delivered (or failed).
+ * Call `await flush()` at the end of short-lived scripts, cron jobs and CLIs.
+ * Never rejects. Requires @telemetry-tracker/node >= 1.4.2.
+ */
+export function flush() {
+    return coreFlush();
+}
+/** @internal Exported for unit tests. */
+export function createBeforeExitHandler(deps) {
+    return () => {
+        // Only schedule work when something is queued; otherwise Node exits normally
+        // (beforeExit fires again after the flush settles, then finds nothing to do).
+        if (deps.pending() > 0)
+            void deps.flush();
+    };
+}
+/** @internal Exported for unit tests. */
+export function createExitHandler(deps) {
+    return () => {
+        // 'exit' cannot run async work (e.g. after process.exit()); best effort is to say so.
+        const n = deps.pending();
+        if (n > 0) {
+            deps.warn(`[telemetry] ${n} queued event(s) were not sent because the process exited. Call \`await flush()\` before process.exit().`);
+        }
+    };
+}
 function installGlobalHandlers() {
     if (installed)
         return;
     installed = true;
+    process.on("beforeExit", createBeforeExitHandler({ pending: pendingEventCount, flush: coreFlush }));
+    process.on("exit", createExitHandler({ pending: pendingEventCount, warn: (m) => console.warn(m) }));
     process.on("uncaughtException", createUncaughtExceptionHandler({
         ingest: ingestError,
         exit: (code) => process.exit(code),
@@ -104,4 +133,49 @@ export function middleware(opts) {
             done();
         }
     };
+}
+/** Run a job with start/ok/fail signals (header authentication by default). Check-in network errors
+ * never replace the job result. Store the URL as a secret, not in source code. */
+export async function withCheckIn(url, fn, options = {}) {
+    const { randomUUID } = await import("node:crypto");
+    const rid = randomUUID();
+    async function ping(suffix) {
+        try {
+            const target = new URL(url);
+            if (!["http:", "https:"].includes(target.protocol))
+                return;
+            const headers = {};
+            const match = target.pathname.match(/^(.*\/checkin)\/(ttc_[a-f0-9]{64})\/?$/);
+            if (match && options.tokenTransport !== "url") {
+                headers["X-TT-Checkin-Token"] = match[2];
+                target.pathname = match[1];
+            }
+            target.pathname = `${target.pathname.replace(/\/$/, "")}${suffix}`;
+            target.searchParams.set("rid", rid);
+            for (let attempt = 0; attempt < 3; attempt++) {
+                try {
+                    const response = await fetch(target, { method: "POST", headers, signal: AbortSignal.timeout(5000), redirect: "error" });
+                    await response.body?.cancel();
+                    if (response.ok || (response.status < 500 && response.status !== 429))
+                        return;
+                }
+                catch { /* Best effort; retries use the same run ID. */ }
+            }
+        }
+        catch { /* Invalid URL must not prevent the user's job running. */ }
+    }
+    await ping("/start");
+    try {
+        const result = await fn();
+        await ping("");
+        return result;
+    }
+    catch (error) {
+        await ping("/fail");
+        try {
+            coreTrackError(error, { checkin: options.monitorName ?? "background-job", checkin_run_id: rid });
+        }
+        catch { /* Preserve original error. */ }
+        throw error;
+    }
 }

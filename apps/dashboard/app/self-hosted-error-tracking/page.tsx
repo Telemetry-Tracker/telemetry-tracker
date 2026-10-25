@@ -72,8 +72,12 @@ export default function SelfHostedErrorTrackingPage() {
           >
             DEPLOYMENT.md
           </a>
-          . The dashboard Dockerfile is at the repo root; the API has no Dockerfile in this
-          repository, so you deploy that process yourself (or compose it beside Postgres).
+          . For a single host, <code>selfhost/</code> starts Postgres, the API and the dashboard
+          with one <code>docker compose up -d</code>. See{" "}
+          <Link href="/docs/self-hosting" className="text-brand hover:underline">
+            self-hosting
+          </Link>
+          .
         </p>
 
         <h2>Hosted cloud vs self-host</h2>

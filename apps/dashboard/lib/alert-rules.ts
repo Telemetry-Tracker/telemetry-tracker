@@ -11,8 +11,17 @@ export const MIN_ERROR_COUNT_THRESHOLD = 1;
 export const MAX_ERROR_COUNT_THRESHOLD = 10_000;
 export const MIN_ERROR_COUNT_WINDOW_MINUTES = 5;
 export const MAX_ERROR_COUNT_WINDOW_MINUTES = 24 * 60;
+/** NO_EVENTS ("business heartbeat") windows are authored in whole hours, 1–24. */
+export const MIN_NO_EVENTS_WINDOW_HOURS = 1;
+export const MAX_NO_EVENTS_WINDOW_HOURS = 24;
+/** Default "no event for X hours" — hours, not minutes, to avoid false alarms. */
+export const DEFAULT_NO_EVENTS_WINDOW_HOURS = 6;
+/** Default cooldown for a rule that only uses error-count conditions. */
+export const DEFAULT_ALERT_COOLDOWN_MINUTES = 15;
+/** Mirrors API `MAX_ALERT_RULE_EVENT_NAME_LENGTH`. */
+export const MAX_ALERT_RULE_EVENT_NAME_LENGTH = 200;
 
-/** Mirrors API condition kinds (#534). Dashboard editor still authors ERROR_COUNT only. */
+/** Mirrors API condition kinds (#534). Dashboard editor authors ERROR_COUNT and NO_EVENTS. */
 export type AlertConditionType =
   | "ERROR_COUNT"
   | "ERROR_RATE"
@@ -66,6 +75,8 @@ export type NoEventsCondition = {
   type: "NO_EVENTS";
   windowMinutes: number;
   environment: string | null;
+  /** Exact event name to watch; omitted/null = any event. */
+  eventName?: string | null;
 };
 
 export type HeartbeatCondition = {
@@ -98,7 +109,7 @@ export type AlertRuleRow = {
 };
 
 /** Client draft for create / edit forms (environment is a free-text field). */
-export type AlertRuleConditionDraft = {
+export type ErrorCountConditionDraft = {
   /** Stable React key — not sent to the API. */
   key: string;
   type: "ERROR_COUNT";
@@ -106,6 +117,31 @@ export type AlertRuleConditionDraft = {
   windowMinutes: number;
   environment: string;
 };
+
+/** Which events a NO_EVENTS condition watches. */
+export type NoEventsEventScope = "all" | "specific";
+
+/** "No `eventName` event for `windowHours` hours" (business heartbeat). */
+export type NoEventsConditionDraft = {
+  key: string;
+  type: "NO_EVENTS";
+  /**
+   * "all" = any event in the project (original NO_EVENTS behaviour, no
+   * `eventName` sent). "specific" = only events named `eventName` (required).
+   */
+  eventScope: NoEventsEventScope;
+  /** Used only when `eventScope` is "specific"; kept while toggling scope. */
+  eventName: string;
+  windowHours: number;
+  environment: string;
+};
+
+export type AlertRuleConditionDraft =
+  | ErrorCountConditionDraft
+  | NoEventsConditionDraft;
+
+/** Condition types the dashboard editor can author. */
+export type EditableConditionType = AlertRuleConditionDraft["type"];
 
 export type AlertRuleFormDraft = {
   name: string;
@@ -141,8 +177,8 @@ function nextDraftKey(): string {
 }
 
 export function createEmptyErrorCountCondition(
-  overrides?: Partial<Omit<AlertRuleConditionDraft, "type" | "key">>
-): AlertRuleConditionDraft {
+  overrides?: Partial<Omit<ErrorCountConditionDraft, "type" | "key">>
+): ErrorCountConditionDraft {
   return {
     key: nextDraftKey(),
     type: "ERROR_COUNT",
@@ -152,40 +188,173 @@ export function createEmptyErrorCountCondition(
   };
 }
 
+export function createEmptyNoEventsCondition(
+  overrides?: Partial<Omit<NoEventsConditionDraft, "type" | "key">>
+): NoEventsConditionDraft {
+  return {
+    key: nextDraftKey(),
+    type: "NO_EVENTS",
+    eventScope:
+      overrides?.eventScope ??
+      (overrides?.eventName !== undefined && overrides.eventName.trim() === ""
+        ? "all"
+        : "specific"),
+    eventName: overrides?.eventName ?? "",
+    windowHours: overrides?.windowHours ?? DEFAULT_NO_EVENTS_WINDOW_HOURS,
+    environment: overrides?.environment ?? "",
+  };
+}
+
 export function createDefaultAlertRuleDraft(): AlertRuleFormDraft {
   return {
     name: "",
     conditions: [createEmptyErrorCountCondition()],
     destinationIds: [PROJECT_EMAIL_DESTINATION_ID],
-    cooldownMinutes: 15,
+    cooldownMinutes: DEFAULT_ALERT_COOLDOWN_MINUTES,
   };
 }
 
+/** Longest NO_EVENTS window in the draft, in minutes (0 when there is none). */
+function longestNoEventsWindowMinutes(
+  conditions: AlertRuleConditionDraft[]
+): number {
+  let max = 0;
+  for (const c of conditions) {
+    if (c.type === "NO_EVENTS") max = Math.max(max, c.windowHours * 60);
+  }
+  return max;
+}
+
 /**
- * Dashboard create/edit form currently authors ERROR_COUNT only (#533).
+ * Keep the cooldown in step with NO_EVENTS windows while the user has not
+ * chosen one: a still-silent heartbeat re-fires every cooldown, so the
+ * default cooldown for heartbeat rules equals the window (e.g. 6h → 6h).
+ * A cooldown the user already changed by hand is left alone.
+ */
+function syncedCooldown(
+  previous: AlertRuleFormDraft,
+  nextConditions: AlertRuleConditionDraft[]
+): number {
+  const prevWindow = longestNoEventsWindowMinutes(previous.conditions);
+  const autoValue = prevWindow > 0 ? prevWindow : DEFAULT_ALERT_COOLDOWN_MINUTES;
+  if (previous.cooldownMinutes !== autoValue) return previous.cooldownMinutes;
+  const nextWindow = longestNoEventsWindowMinutes(nextConditions);
+  return nextWindow > 0 ? nextWindow : DEFAULT_ALERT_COOLDOWN_MINUTES;
+}
+
+/** Replace condition `index` with a fresh condition of `type` (editor Type select). */
+export function changeDraftConditionType(
+  draft: AlertRuleFormDraft,
+  index: number,
+  type: EditableConditionType
+): AlertRuleFormDraft {
+  const current = draft.conditions[index];
+  if (!current || current.type === type) return draft;
+  const replacement: AlertRuleConditionDraft =
+    type === "NO_EVENTS"
+      ? createEmptyNoEventsCondition({ environment: current.environment })
+      : createEmptyErrorCountCondition({ environment: current.environment });
+  const conditions = draft.conditions.map((c, i) =>
+    i === index ? replacement : c
+  );
+  return {
+    ...draft,
+    conditions,
+    cooldownMinutes: syncedCooldown(draft, conditions),
+  };
+}
+
+/** Patch one condition (same type) and keep an untouched cooldown in step. */
+export function updateDraftCondition(
+  draft: AlertRuleFormDraft,
+  index: number,
+  patch: Partial<Omit<ErrorCountConditionDraft, "key" | "type">> &
+    Partial<Omit<NoEventsConditionDraft, "key" | "type">>
+): AlertRuleFormDraft {
+  const conditions = draft.conditions.map((c, i) => {
+    if (i !== index) return c;
+    if (c.type === "ERROR_COUNT") {
+      return {
+        ...c,
+        ...(patch.threshold !== undefined ? { threshold: patch.threshold } : {}),
+        ...(patch.windowMinutes !== undefined
+          ? { windowMinutes: patch.windowMinutes }
+          : {}),
+        ...(patch.environment !== undefined
+          ? { environment: patch.environment }
+          : {}),
+      };
+    }
+    return {
+      ...c,
+      ...(patch.eventScope !== undefined ? { eventScope: patch.eventScope } : {}),
+      ...(patch.eventName !== undefined ? { eventName: patch.eventName } : {}),
+      ...(patch.windowHours !== undefined
+        ? { windowHours: patch.windowHours }
+        : {}),
+      ...(patch.environment !== undefined
+        ? { environment: patch.environment }
+        : {}),
+    };
+  });
+  return {
+    ...draft,
+    conditions,
+    cooldownMinutes: syncedCooldown(draft, conditions),
+  };
+}
+
+function noEventsConditionIsEditable(c: NoEventsCondition): boolean {
+  // The editor works in whole hours; API-created minute windows stay API-only
+  // so opening them never silently rounds the window.
+  return (
+    c.windowMinutes % 60 === 0 &&
+    c.windowMinutes / 60 >= MIN_NO_EVENTS_WINDOW_HOURS &&
+    c.windowMinutes / 60 <= MAX_NO_EVENTS_WINDOW_HOURS
+  );
+}
+
+/**
+ * Dashboard create/edit form authors ERROR_COUNT and NO_EVENTS (hour windows).
  * Rules with other condition kinds (#534) remain listable/toggleable/removable.
  */
 export function alertRuleSupportsDashboardEditor(rule: AlertRuleRow): boolean {
   if (rule.conditions.length === 0) return true;
-  return rule.conditions.every((c) => c.type === "ERROR_COUNT");
+  return rule.conditions.every(
+    (c) =>
+      c.type === "ERROR_COUNT" ||
+      (c.type === "NO_EVENTS" && noEventsConditionIsEditable(c))
+  );
 }
 
 export function draftFromAlertRule(rule: AlertRuleRow): AlertRuleFormDraft {
   // Preserve empty conditions as-is. API `toPublic` maps wholly-unparsable stored JSON
   // to []; do not synthesize a default ERROR_COUNT — that would let an edit that
   // only changes name/cooldown/destinations persist thresholds and re-arm the rule.
-  const errorCountConditions = rule.conditions.filter(
-    (c): c is ErrorCountCondition => c.type === "ERROR_COUNT"
-  );
+  const editableConditions: AlertRuleConditionDraft[] = [];
+  for (const c of rule.conditions) {
+    if (c.type === "ERROR_COUNT") {
+      editableConditions.push(
+        createEmptyErrorCountCondition({
+          threshold: c.threshold,
+          windowMinutes: c.windowMinutes,
+          environment: c.environment ?? "",
+        })
+      );
+    } else if (c.type === "NO_EVENTS" && noEventsConditionIsEditable(c)) {
+      editableConditions.push(
+        createEmptyNoEventsCondition({
+          eventScope: c.eventName ? "specific" : "all",
+          eventName: c.eventName ?? "",
+          windowHours: c.windowMinutes / 60,
+          environment: c.environment ?? "",
+        })
+      );
+    }
+  }
   const conditions =
-    errorCountConditions.length > 0
-      ? errorCountConditions.map((c) =>
-          createEmptyErrorCountCondition({
-            threshold: c.threshold,
-            windowMinutes: c.windowMinutes,
-            environment: c.environment ?? "",
-          })
-        )
+    editableConditions.length > 0
+      ? editableConditions
       : rule.conditions.length === 0
         ? []
         : [createEmptyErrorCountCondition()];
@@ -212,7 +381,7 @@ export function conditionTypeLabel(type: AlertConditionType): string {
     case "QUOTA_PERCENT":
       return "Quota percent";
     case "NO_EVENTS":
-      return "No events";
+      return "No events (heartbeat)";
     case "HEARTBEAT":
       return "Heartbeat";
     default: {
@@ -248,7 +417,10 @@ function formatConditionSummary(c: AlertRuleCondition): string {
       return `≥ ${c.thresholdPercent}% quota`;
     case "NO_EVENTS": {
       const env = c.environment ? ` in ${c.environment}` : "";
-      return `no events / ${c.windowMinutes}m${env}`;
+      const window =
+        c.windowMinutes % 60 === 0 ? `${c.windowMinutes / 60}h` : `${c.windowMinutes}m`;
+      if (c.eventName) return `no "${c.eventName}" event / ${window}${env}`;
+      return `no events / ${window}${env}`;
     }
     case "HEARTBEAT": {
       const env = c.environment ? ` in ${c.environment}` : "";
@@ -341,6 +513,46 @@ export function validateAlertRuleDraft(
   const conditions: AlertRuleCondition[] = [];
   for (let i = 0; i < draft.conditions.length; i++) {
     const c = draft.conditions[i]!;
+    if (c.type === "NO_EVENTS") {
+      const windowHours = clampInt(
+        c.windowHours,
+        MIN_NO_EVENTS_WINDOW_HOURS,
+        MAX_NO_EVENTS_WINDOW_HOURS
+      );
+      if (c.windowHours !== windowHours) {
+        return {
+          ok: false,
+          error: `Condition #${i + 1}: window must be ${MIN_NO_EVENTS_WINDOW_HOURS}–${MAX_NO_EVENTS_WINDOW_HOURS} hours`,
+        };
+      }
+      const eventName = c.eventScope === "specific" ? c.eventName.trim() : "";
+      if (c.eventScope === "specific" && eventName.length === 0) {
+        return {
+          ok: false,
+          error: `Condition #${i + 1}: enter the event name, or choose "All events"`,
+        };
+      }
+      if (eventName.length > MAX_ALERT_RULE_EVENT_NAME_LENGTH) {
+        return {
+          ok: false,
+          error: `Condition #${i + 1}: event name must be at most ${MAX_ALERT_RULE_EVENT_NAME_LENGTH} characters`,
+        };
+      }
+      const noEventsEnv = c.environment.trim();
+      if (noEventsEnv.length > 64) {
+        return {
+          ok: false,
+          error: `Condition #${i + 1}: environment must be at most 64 characters`,
+        };
+      }
+      conditions.push({
+        type: "NO_EVENTS",
+        windowMinutes: windowHours * 60,
+        environment: noEventsEnv.length > 0 ? noEventsEnv : null,
+        ...(eventName.length > 0 ? { eventName } : {}),
+      });
+      continue;
+    }
     if (c.type !== "ERROR_COUNT") {
       return { ok: false, error: `Unsupported condition type at #${i + 1}` };
     }
@@ -440,6 +652,13 @@ function isCondition(value: unknown): value is AlertRuleCondition {
     case "QUOTA_PERCENT":
       return isNonNegativeInt(o.thresholdPercent);
     case "NO_EVENTS":
+      return (
+        isNonNegativeInt(o.windowMinutes) &&
+        isEnvironment(o.environment) &&
+        (o.eventName === undefined ||
+          o.eventName === null ||
+          typeof o.eventName === "string")
+      );
     case "HEARTBEAT":
       return isNonNegativeInt(o.windowMinutes) && isEnvironment(o.environment);
     default:

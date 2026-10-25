@@ -1,3 +1,4 @@
+import { CopyForAgentButton } from "./CopyForAgentButton";
 import { PageTitle } from "@/app/components/PageTitle";
 import { Badge, ResolvedBadge } from "@/app/components/Badge";
 import { EmptyState } from "@/app/components/EmptyState";
@@ -333,7 +334,7 @@ export default async function ErrorDetailPage({
             {resolved ? <ResolvedBadge /> : null}
           </>
         }
-        actions={<ErrorResolveButton errorGroupId={group.id} resolved={resolved} />}
+        actions={<div className="flex gap-2"><CopyForAgentButton issueId={group.id} /><ErrorResolveButton errorGroupId={group.id} resolved={resolved} /></div>}
         metrics={[
           { label: "Occurrences", value: group.occurrences.toLocaleString() },
           {

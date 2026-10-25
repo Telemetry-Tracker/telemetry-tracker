@@ -14,6 +14,7 @@
     "alert-rules-evaluator": "tsx src/jobs/run-alert-rules-evaluator.ts",
     "builtin-alert-rules-backfill": "tsx src/jobs/run-builtin-alert-rules-backfill.ts",
     "pii-scrub-backfill": "tsx src/jobs/run-pii-scrub-backfill.ts",
+    "checkin-reencrypt": "tsx src/jobs/run-checkin-reencrypt.ts",
     "brief-worker": "tsx src/jobs/run-brief-worker.ts",
     "alert-webhook-worker": "tsx src/jobs/run-alert-webhook-worker.ts",
     "seed:dev-api-key": "tsx scripts/seed-dev-api-key.ts"
@@ -23,8 +24,10 @@
     "@fastify/cors": "^10.0.1",
     "@fastify/rate-limit": "^10.1.1",
     "@jridgewell/trace-mapping": "^0.3.31",
+    "@modelcontextprotocol/sdk": "^1.26.0",
     "@prisma/client": "^6.19.3",
     "@sentry/node": "^10.66.0",
+    "cron-parser": "^5.4.0",
     "fastify": "^5.12.5",
     "prisma": "^6.19.3",
     "stripe": "^22.0.2",

@@ -25,7 +25,7 @@ const EMAIL_RE = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
 const JWT_RE = /eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/g;
 const BEARER_RE = /\bBearer\s+[A-Za-z0-9._~+/=-]{4,}\b/gi;
 const API_KEY_RE =
-  /\b(?:tt_live_[A-Za-z0-9_]+|sk-[A-Za-z0-9]{16,}|pk-[A-Za-z0-9]{16,})\b/g;
+  /\b(?:tt_(?:live|read)_[A-Za-z0-9_]+|sk-[A-Za-z0-9]{16,}|pk-[A-Za-z0-9]{16,})\b/g;
 const SENSITIVE_PARAM_RE =
   /([?&](?:password|token|secret|api[_-]?key|access[_-]?token|auth|session|cookie)=)[^&\s]+/gi;
 const SENSITIVE_ASSIGNMENT_RE =

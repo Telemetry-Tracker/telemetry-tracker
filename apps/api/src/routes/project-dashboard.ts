@@ -847,6 +847,108 @@ export async function projectDashboardRoutes(
     }
   );
 
+  // TT-015 (#714): owners list and revoke pending invites, and remove members.
+  app.get<{ Params: { orgId: string } }>(
+    "/meta/organizations/:orgId/invites",
+    async (request, reply) => {
+      const session = await getSessionUser(request);
+      if (!session) return reply.status(401).send({ error: "Unauthorized" });
+      const orgId = request.params.orgId.trim();
+      if (!UUID_RE.test(orgId)) return reply.status(400).send({ error: "Invalid organization id" });
+      const role = await getMembershipRoleForOrganization(session.userId, orgId);
+      if (!canManageMembers(role)) return reply.status(403).send({ error: "Forbidden" });
+      const rows = await prisma.organizationInvite.findMany({
+        where: { organization_id: orgId, expires_at: { gt: new Date() } },
+        orderBy: { created_at: "desc" },
+        select: { id: true, email: true, role: true, expires_at: true, created_at: true },
+      });
+      return reply.send({
+        invites: rows.map((r) => ({
+          id: r.id,
+          email: r.email,
+          role: r.role,
+          expiresAt: r.expires_at.toISOString(),
+          createdAt: r.created_at.toISOString(),
+        })),
+      });
+    }
+  );
+
+  app.delete<{ Params: { orgId: string; inviteId: string } }>(
+    "/meta/organizations/:orgId/invites/:inviteId",
+    async (request, reply) => {
+      const session = await getSessionUser(request);
+      if (!session) return reply.status(401).send({ error: "Unauthorized" });
+      const orgId = request.params.orgId.trim();
+      const inviteId = request.params.inviteId.trim();
+      if (!UUID_RE.test(orgId) || !UUID_RE.test(inviteId)) {
+        return reply.status(400).send({ error: "Invalid id" });
+      }
+      const role = await getMembershipRoleForOrganization(session.userId, orgId);
+      if (!canManageMembers(role)) return reply.status(403).send({ error: "Forbidden" });
+      const deleted = await prisma.organizationInvite.deleteMany({
+        where: { id: inviteId, organization_id: orgId },
+      });
+      if (deleted.count === 0) return reply.status(404).send({ error: "Invite not found" });
+      void recordOrganizationAuditEvent(
+        prisma,
+        orgId,
+        session.userId,
+        AUDIT_ACTIONS.ORGANIZATION_INVITE_REVOKE,
+        `invite:${inviteId}`
+      );
+      return reply.status(204).send();
+    }
+  );
+
+  app.delete<{ Params: { orgId: string; userId: string } }>(
+    "/meta/organizations/:orgId/members/:userId",
+    async (request, reply) => {
+      const session = await getSessionUser(request);
+      if (!session) return reply.status(401).send({ error: "Unauthorized" });
+      const orgId = request.params.orgId.trim();
+      const targetUserId = request.params.userId.trim();
+      if (!UUID_RE.test(orgId) || !UUID_RE.test(targetUserId)) {
+        return reply.status(400).send({ error: "Invalid id" });
+      }
+      const actorRole = await getMembershipRoleForOrganization(session.userId, orgId);
+      if (!canManageMembers(actorRole)) return reply.status(403).send({ error: "Forbidden" });
+      const result = await prisma.$transaction(async (tx) => {
+        await tx.$executeRaw(
+          Prisma.sql`SELECT 1 FROM "Organization" WHERE id = ${orgId} FOR UPDATE`
+        );
+        const membership = await tx.organizationMembership.findUnique({
+          where: { user_id_organization_id: { user_id: targetUserId, organization_id: orgId } },
+          select: { role: true, user: { select: { email: true } } },
+        });
+        if (!membership) return { status: 404 as const, error: "Member not found" };
+        if (membership.role === OrgRole.OWNER) {
+          const ownerCount = await tx.organizationMembership.count({
+            where: { organization_id: orgId, role: OrgRole.OWNER },
+          });
+          if (ownerCount <= 1) {
+            return { status: 400 as const, error: "Cannot remove the last owner" };
+          }
+        }
+        await tx.organizationMembership.delete({
+          where: { user_id_organization_id: { user_id: targetUserId, organization_id: orgId } },
+        });
+        return { status: 204 as const, email: membership.user.email };
+      });
+      if (result.status !== 204) {
+        return reply.status(result.status).send({ error: result.error });
+      }
+      void recordOrganizationAuditEvent(
+        prisma,
+        orgId,
+        session.userId,
+        AUDIT_ACTIONS.ORGANIZATION_MEMBER_REMOVE,
+        `user:${targetUserId} email=${result.email}`
+      );
+      return reply.status(204).send();
+    }
+  );
+
   /**
    * Role and capability flags: project-scoped actions use membership for `X-Project-Id`;
    * org-scoped actions use `X-Organization-Id` when set so they match the sidebar org, not the

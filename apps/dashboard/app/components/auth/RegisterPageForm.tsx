@@ -1,5 +1,7 @@
 "use client";
 
+import { trackSignup } from "@/lib/signup-analytics";
+import { readSignupAttribution } from "@/lib/signup-attribution";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useTransition, type FormEvent } from "react";
@@ -71,6 +73,8 @@ export function RegisterPageForm({ serverChoice }: RegisterPageFormProps) {
     const referral = urlReferral ?? stored;
 
     const formData = new FormData();
+    const attribution = readSignupAttribution();
+    if (attribution) formData.set("signupAttribution", JSON.stringify(attribution));
     formData.set("email", parsed.data.email);
     formData.set("password", parsed.data.password);
     formData.set("displayName", parsed.data.name);
@@ -89,6 +93,7 @@ export function RegisterPageForm({ serverChoice }: RegisterPageFormProps) {
         setFormError(result.error);
         return;
       }
+      trackSignup();
       router.push(
         inviteToken ? "/dashboard/overview" : "/dashboard/settings/organization",
       );

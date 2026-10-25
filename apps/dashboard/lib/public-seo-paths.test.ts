@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { MARKETING_GUIDE_PATHS, PUBLIC_SEO_PATHS, sitemapPriority } from "./public-seo-paths";
+import robots from "@/app/robots";
+import {
+  AFFILIATE_SEO_PATHS,
+  MARKETING_GUIDE_PATHS,
+  PUBLIC_SEO_PATHS,
+  sitemapPaths,
+  sitemapPriority,
+} from "./public-seo-paths";
 
 describe("public SEO paths", () => {
   it("includes marketing guides and excludes dashboard/auth routes", () => {
@@ -17,6 +24,7 @@ describe("public SEO paths", () => {
     expect(PUBLIC_SEO_PATHS).toContain(
       "/error-tracking/nextjs/server-components-render-error"
     );
+    expect(PUBLIC_SEO_PATHS).toContain("/features/missing-event-alerts");
     expect(PUBLIC_SEO_PATHS).not.toContain("/error-tracking/nextjs/source-maps");
   });
 
@@ -25,5 +33,23 @@ describe("public SEO paths", () => {
     expect(sitemapPriority("/docs")).toBe(0.9);
     expect(sitemapPriority("/error-tracking/nextjs")).toBe(0.85);
     expect(sitemapPriority("/privacy")).toBe(0.75);
+  });
+
+  it("lists affiliate pages in the sitemap only when the program is enabled", () => {
+    expect(sitemapPaths(true)).toEqual(expect.arrayContaining(["/affiliates", "/affiliates/terms"]));
+    for (const path of AFFILIATE_SEO_PATHS) {
+      expect(sitemapPaths(false)).not.toContain(path);
+    }
+  });
+
+  it("does not block affiliate pages in robots.txt", () => {
+    const rules = robots().rules;
+    const list = Array.isArray(rules) ? rules : [rules];
+    for (const rule of list) {
+      const disallow = ([] as string[]).concat(rule.disallow ?? []);
+      for (const path of AFFILIATE_SEO_PATHS) {
+        expect(disallow.some((d) => path.startsWith(d))).toBe(false);
+      }
+    }
   });
 });

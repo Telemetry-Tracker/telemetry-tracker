@@ -1,5 +1,6 @@
 🇩🇪 Deutsch: [README.de.md](README.de.md)
 🇪🇸 Español: [README.es.md](README.es.md)
+🇫🇷 Français: [README.fr.md](README.fr.md)
 # Telemetry Tracker
 
 ![License](https://img.shields.io/github/license/Telemetry-Tracker/telemetry-tracker)
@@ -9,6 +10,7 @@
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat&logo=typescript&logoColor=white)
 [![npm version](https://img.shields.io/npm/v/@telemetry-tracker/core)](https://www.npmjs.com/package/@telemetry-tracker/core)
 [![npm downloads](https://img.shields.io/npm/dm/@telemetry-tracker/core)](https://www.npmjs.com/package/@telemetry-tracker/core)
+[![XERJ Corpus Hub contributor](https://hub.xerj.org/contributors/unjica/badge.svg)](https://hub.xerj.org/contributors/unjica.html)
 
 <p align="center">
   <strong>Open-source error tracking, product analytics, and session telemetry.</strong>
@@ -68,7 +70,7 @@
 | Alert rules (conditions & destinations) | ✅ |
 | Source maps | ✅ |
 
-Alert delivery is in-app notifications, email, HTTPS webhooks, Slack, Discord and Telegram. Slack and Discord take incoming webhook URLs. Telegram takes a Bot API `sendMessage` URL plus a chat id. These are not OAuth app installs. The dashboard rule editor currently authors error-count conditions.
+Alert delivery is in-app notifications, email, HTTPS webhooks, Slack, Discord, Microsoft Teams and Telegram. Slack, Discord and Microsoft Teams take incoming webhook URLs (Teams uses legacy Office 365 MessageCard webhooks). Telegram takes a Bot API `sendMessage` URL plus a chat id. These are not OAuth app installs. The dashboard rule editor authors error-count and "no events" (business heartbeat) conditions; other condition types are API-only.
 
 Self-host setup: [DEPLOYMENT.md](DEPLOYMENT.md)
 
@@ -144,7 +146,7 @@ Works with:
 - ✓ **React Native** — `@telemetry-tracker/react-native`
 - ✓ **Vanilla JS** — `@telemetry-tracker/core`
 
-Guides: [core](docs/sdk-core.md) · [Next.js](docs/sdk-next.md) · [Node](docs/sdk-node.md) · [NestJS](docs/sdk-nestjs.md) · [Vue](docs/sdk-vue.md) · [Nuxt](docs/sdk-nuxt.md) · [React Native](docs/sdk-react-native.md)
+Guides: [core](docs/sdk-core.md) · [Next.js](docs/sdk-next.md) · [Node](docs/sdk-node.md) · [NestJS](docs/sdk-nestjs.md) · [Vue](docs/sdk-vue.md) · [Nuxt](docs/sdk-nuxt.md) · [React Native](docs/sdk-react-native.md) · [Vite plugin](docs/sdk-vite.md)
 
 ### Example
 
@@ -271,7 +273,7 @@ Please follow the [Code of Conduct](CODE_OF_CONDUCT.md). Report security issues 
 | RBAC & org model | [docs/RBAC.md](docs/RBAC.md) |
 | Plans & ingest auth | [docs/ENTITLEMENTS.md](docs/ENTITLEMENTS.md) |
 | Ingest PII scrubbing | [docs/PII-SCRUBBING.md](docs/PII-SCRUBBING.md) |
-| SDK guides | [docs/sdk-core.md](docs/sdk-core.md), [docs/sdk-next.md](docs/sdk-next.md), [docs/sdk-node.md](docs/sdk-node.md), [docs/sdk-nestjs.md](docs/sdk-nestjs.md), [docs/sdk-vue.md](docs/sdk-vue.md), [docs/sdk-nuxt.md](docs/sdk-nuxt.md), [docs/sdk-react-native.md](docs/sdk-react-native.md) |
+| SDK guides | [docs/sdk-core.md](docs/sdk-core.md), [docs/sdk-next.md](docs/sdk-next.md), [docs/sdk-node.md](docs/sdk-node.md), [docs/sdk-nestjs.md](docs/sdk-nestjs.md), [docs/sdk-vue.md](docs/sdk-vue.md), [docs/sdk-nuxt.md](docs/sdk-nuxt.md), [docs/sdk-react-native.md](docs/sdk-react-native.md), [docs/sdk-vite.md](docs/sdk-vite.md) |
 | Source maps | [docs/source-maps.md](docs/source-maps.md) |
 
 **Publish SDK packages:** from a clean tagged checkout, `npm login` → `pnpm publish:packages` (optional `--only=core,node,vite-plugin`). See [CONTRIBUTING.md](CONTRIBUTING.md) and root `package.json` scripts.
@@ -311,7 +313,7 @@ The **managed service** at [telemetry-tracker.com](https://telemetry-tracker.com
 
 Do not offer a multi-tenant hosted service **to third parties** using the **Telemetry Tracker** name, logo, or marketing as if it were the official product. Forks and internal deployments should use a **distinct name** unless you have written permission from Tacko.
 
-Details and examples: **[TRADEMARK.md](TRADEMARK.md)** · Partnerships: [info@tacko.io](mailto:info@tacko.io)
+Details and examples: **[TRADEMARK.md](TRADEMARK.md)** · Partnerships: [info@telemetry-tracker.com](mailto:info@telemetry-tracker.com)
 
 ## Contributing
 

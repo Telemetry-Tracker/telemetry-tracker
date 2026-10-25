@@ -1,15 +1,18 @@
 # GitHub Release notes template
 
-Use this when publishing a semver tag on `main`. **CHANGELOG.md** is the full record; the GitHub Release is a short summary for deployers and hosted users.
+The [GitHub Release workflow](../.github/workflows/github-release.yml) automatically publishes the matching **CHANGELOG.md** version section when a production semver tag is pushed. Verify the workflow succeeded and `gh release view vX.Y.Z` exists (author `github-actions[bot]`); see [RELEASE.md](./RELEASE.md).
 
-Copy this file, replace placeholders, then publish:
+Use this template only as a **manual fallback** when automation is unavailable, or as guidance when preparing changelog upgrade notes. Retry automation with `gh workflow run github-release.yml --ref main -f tag=vX.Y.Z` first.
+
+For the manual fallback, verify the tag exists and no release already exists. Copy this file, replace placeholders, then publish (authored by your account). Set `LATEST=true` only if this is the highest stable semver tag; use `false` for older backfills:
 
 ```bash
 VERSION=1.2.0
 PREVIOUS=1.1.0
+LATEST=false # Set true only after comparing all stable vX.Y.Z tags
 cp docs/RELEASE_NOTES_TEMPLATE.md /tmp/release-notes-v${VERSION}.md
 # Edit /tmp/release-notes-v${VERSION}.md — fill every section below
-gh release create "v${VERSION}" \
+gh release create "v${VERSION}" --verify-tag --latest="$LATEST" \
   --title "Telemetry Tracker v${VERSION}" \
   --notes-file "/tmp/release-notes-v${VERSION}.md"
 ```

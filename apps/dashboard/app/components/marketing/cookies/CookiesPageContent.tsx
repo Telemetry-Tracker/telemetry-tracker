@@ -5,7 +5,7 @@ import { Footer } from "@/app/components/marketing/footer";
 import { Nav } from "@/app/components/marketing/nav";
 import { COOKIE_CONSENT_STORAGE_KEY } from "@/lib/cookie-consent";
 
-const EFFECTIVE = "July 3, 2026";
+const EFFECTIVE = "October 11, 2026";
 
 type Row = {
   name: string;
@@ -44,6 +44,12 @@ const rows: Row[] = [
     purpose: "Google Analytics — page views and traffic on the marketing site (hosted cloud only, when you accept cookies).",
     type: "Analytics",
     retention: "Up to 2 years (Google)",
+  },
+  {
+    name: "tt_signup_attribution",
+    purpose: "Remembers how you first arrived (UTM campaign tags, coarse acquisition channel, first landing path with only source/medium/campaign query tags, and the referring website's hostname) so it can be saved with your account if you sign up. Set only after you accept cookies; deleted if you reject.",
+    type: "Analytics",
+    retention: "60 days",
   },
 ];
 

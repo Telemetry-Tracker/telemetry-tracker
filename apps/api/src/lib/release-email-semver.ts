@@ -191,3 +191,46 @@ export function shouldSendProductUpdateEmail(
     reason: `patch-only release (${from} → ${to}) — mid-line patches skip; use line_close on the final release of ${lineLabel}`,
   };
 }
+
+/**
+ * Minor line that a new `vX.Y.0` / `vX.0.0` tag completes: the latest semver line
+ * strictly before the opening tag. Returns null for patch tags (Z > 0) or when no
+ * earlier line exists. Opening a new line is the signal that the previous line is done,
+ * so tag pushes can auto-send the line-close email without a manual milestone close.
+ */
+export function previousLineClosedByOpeningTag(
+  tags: readonly string[],
+  openingTag: string
+): { major: number; minor: number; lineLabel: string } | null {
+  const opening = parseReleaseVersion(openingTag);
+  if (!opening || opening.patch !== 0) return null;
+  const before = tags
+    .map((tag) => parseReleaseVersion(tag))
+    .filter((v): v is ReleaseSemver => v !== null)
+    .filter((v) => v.major < opening.major || (v.major === opening.major && v.minor < opening.minor))
+    .sort(compareReleaseVersion);
+  const last = before[before.length - 1];
+  if (!last) return null;
+  return { major: last.major, minor: last.minor, lineLabel: `${last.major}.${last.minor}` };
+}
+
+/**
+ * True when at least two newer minor lines already have tags — i.e. the line is
+ * historical. Closing an old milestone must not email subscribers about stale releases.
+ * The most recently completed line (exactly one newer line exists) is still allowed.
+ */
+export function isStaleProductLine(
+  tags: readonly string[],
+  major: number,
+  minor: number
+): boolean {
+  const newerLines = new Set<string>();
+  for (const tag of tags) {
+    const v = parseReleaseVersion(tag);
+    if (!v) continue;
+    if (v.major > major || (v.major === major && v.minor > minor)) {
+      newerLines.add(`${v.major}.${v.minor}`);
+    }
+  }
+  return newerLines.size >= 2;
+}

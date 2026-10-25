@@ -1,3 +1,5 @@
+import { originalPositionFor, TraceMap } from "@jridgewell/trace-mapping";
+import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import { MAX_SOURCE_MAP_BUNDLES_PER_RELEASE } from "./source-map-artifact.js";
 import {
@@ -268,5 +270,76 @@ describe("findMatchingArtifact", () => {
       { bundle_url: "https://cdn.example.com/b.js", content: minimalMap },
     ];
     expect(findMatchingArtifact("b.js", artifacts)?.bundle_url).toContain("/b.js");
+  });
+});
+
+describe("real Hermes bytecode regression", () => {
+  const fixture = (name: string) => readFileSync(new URL(`./fixtures/hermes/${name}`, import.meta.url), "utf8");
+  const stack = fixture("stack-android.txt");
+  const content = fixture("index.android.bundle.map");
+  it.each([
+    "index.android.bundle", "https://example.com/index.android.bundle",
+    "assets://index.android.bundle", "file:///data/index.android.bundle", "app:///index.android.bundle",
+  ])("resolves throw and call sites with bundle_url %s", (bundle_url) => {
+    const result = symbolicateStackTrace(stack, [{ bundle_url, content }]);
+    expect(result).toContain("../src/checkout.js:7:14");
+    expect(result).toContain("../src/index.js:3:9");
+    expect(result).toContain("../src/index.js:6:2");
+    expect(result).toContain("../src/index.js:9:0");
+    expect(result).not.toContain("address at ");
+  });
+  it.each(["assets://index.android.bundle", "file:///data/index.android.bundle", "app:///index.android.bundle"])("accepts native frame scheme %s", (file) => {
+    expect(symbolicateStackTrace(stack.replaceAll("index.android.bundle", file), [{ bundle_url: "index.android.bundle", content }])).toContain("checkout.js:7:14");
+  });
+  it("supports the newer composed map with its own bytecode layout", () => {
+    const result = symbolicateStackTrace("    at r (address at index.android.bundle:1:131)", [
+      { bundle_url: "index.android.bundle", content: fixture("new.composed.map") },
+    ]);
+    expect(result).toContain("../src/checkout.js:7:14");
+  });
+  it("shows why a mapping name alone cannot identify the enclosing function", () => {
+    // The original enclosing function is onPressPay; the mapped token is its callee.
+    const map = new TraceMap(JSON.parse(content));
+    expect(originalPositionFor(map, { line: 1, column: 202 }).name).toBe("computeTotal");
+    expect(fixture("src/index.js")).toContain("function onPressPay");
+  });
+  it("accepts iOS absolute main.jsbundle paths", () => {
+    expect(symbolicateStackTrace(stack.replaceAll("index.android.bundle", "/private/App.app/main.jsbundle"), [{ bundle_url: "main.jsbundle", content }])).toContain("checkout.js:7:14");
+  });
+  it("does not guess an OTA hashed path", () => {
+    const ota = stack.replaceAll("index.android.bundle", "/data/files/.expo-internal/abc123");
+    expect(symbolicateStackTrace(ota, [{ bundle_url: "index.android.bundle", content }])).toBe(ota);
+    expect(symbolicateStackTrace(ota, [{ bundle_url: "abc123", content }])).toContain("checkout.js:7:14");
+  });
+  it("rejects ambiguous basename matches", async () => {
+    const artifacts = ["https://cdn/a/index.android.bundle", "https://cdn/b/index.android.bundle"].map((bundle_url) => ({ bundle_url, content }));
+    expect(symbolicateStackTrace(stack, artifacts)).toBe(stack);
+    const findUnique = vi.fn();
+    const prisma = { sourceMapArtifact: { findMany: vi.fn(async () => artifacts.map((a, i) => ({ id: String(i), bundle_url: a.bundle_url }))), findUnique } };
+    const result = await enrichErrorGroupWithSymbolicatedStacks(prisma as never, "project", { app: "mobile", release: "update-a", occurrences_list: [{ stack, symbolication_status: undefined as import("./stack-symbolicate.js").SymbolicationStatus | undefined }] });
+    expect(result.occurrences_list[0].symbolication_status).toBe("no_match");
+    expect(findUnique).not.toHaveBeenCalled();
+    expect(prisma.sourceMapArtifact.findMany.mock.calls[0]).toBeDefined();
+  });
+  it("refuses matching when the metadata limit hides possible collisions", async () => {
+    const findUnique = vi.fn();
+    const prisma = { sourceMapArtifact: {
+      findMany: vi.fn(async () => Array.from({ length: MAX_SOURCE_MAP_BUNDLES_PER_RELEASE }, (_, i) => ({ id: String(i), bundle_url: i === 0 ? "index.android.bundle" : `other-${i}.js` }))),
+      findUnique,
+    } };
+    const result = await enrichErrorGroupWithSymbolicatedStacks(prisma as never, "project", { app: "mobile", release: "update-a", occurrences_list: [{ stack, symbolication_status: undefined as import("./stack-symbolicate.js").SymbolicationStatus | undefined }] });
+    expect(result.occurrences_list[0].symbolication_status).toBe("no_match");
+    expect(findUnique).not.toHaveBeenCalled();
+  });
+  it("retains V8 and Firefox behavior with the original web packager map", () => {
+    const artifact = { bundle_url: "https://example.com/app.js", content: fixture("index.android.bundle.packager.map") };
+    expect(symbolicateStackTrace("    at c (https://example.com/app.js:1:145)", [artifact])).toContain("../src/index.js:3:9");
+    expect(symbolicateStackTrace("c@https://example.com/app.js:1:145", [artifact])).toContain("../src/index.js:3:9");
+    // Both formats expose the call token's name, not the enclosing onPressPay.
+    expect(originalPositionFor(new TraceMap(JSON.parse(artifact.content)), { line: 1, column: 145 }).name).toBe("computeTotal");
+  });
+  it("strips the Hermes marker with and without a function name", () => {
+    expect(parseStackFrame("    at address at index.android.bundle:1:165").file).toBe("index.android.bundle");
+    expect(parseStackFrame(stack.split("\n")[1]).file).toBe("index.android.bundle");
   });
 });

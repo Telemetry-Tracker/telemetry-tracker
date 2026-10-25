@@ -1,8 +1,17 @@
 import Link from "next/link";
+import { getBuildPlatformVersion } from "@/lib/platform-version";
 import { Logo } from "./logo";
 import { MarketingSubscribeForm } from "./MarketingSubscribeForm";
+import { AFFILIATE_COMMISSION_PERCENT, isAffiliateProgramEnabled } from "@/lib/affiliate-program";
 
-const cols: { heading: string; links: { label: string; href: string }[] }[] = [
+type FooterColumn = { heading: string; links: { label: string; href: string }[] };
+
+export const AFFILIATE_FOOTER_LINK = {
+  label: `Affiliate Program — Earn ${AFFILIATE_COMMISSION_PERCENT}%`,
+  href: "/affiliates",
+} as const;
+
+const cols: FooterColumn[] = [
   {
     heading: "Product",
     links: [
@@ -22,6 +31,7 @@ const cols: { heading: string; links: { label: string; href: string }[] }[] = [
       { label: "React", href: "/error-tracking/react" },
       { label: "Node.js", href: "/error-tracking/nodejs" },
       { label: "React Native", href: "/error-tracking/react-native" },
+      { label: "Expo source maps", href: "/error-tracking/react-native/expo-source-maps" },
     ],
   },
   {
@@ -46,7 +56,19 @@ const cols: { heading: string; links: { label: string; href: string }[] }[] = [
   },
 ];
 
+/** Footer columns; the affiliate link only appears when the program flag is on. */
+export function footerColumns(affiliatesEnabled = isAffiliateProgramEnabled()): FooterColumn[] {
+  if (!affiliatesEnabled) return cols;
+  return cols.map((c) =>
+    c.heading === "Company"
+      ? { ...c, links: [c.links[0]!, AFFILIATE_FOOTER_LINK, ...c.links.slice(1)] }
+      : c
+  );
+}
+
 export function Footer() {
+  const columns = footerColumns();
+  const version = getBuildPlatformVersion();
   return (
     <footer className="border-t border-border">
       <div className="mx-auto max-w-6xl px-6 py-16">
@@ -68,7 +90,7 @@ export function Footer() {
               <MarketingSubscribeForm compact idPrefix="footer" />
             </div>
           </div>
-          {cols.map((c) => (
+          {columns.map((c) => (
             <div key={c.heading}>
               <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
                 {c.heading}
@@ -100,7 +122,10 @@ export function Footer() {
 
         <div className="mt-14 flex flex-col items-start justify-between gap-4 border-t border-border pt-8 text-xs text-muted-foreground sm:flex-row sm:items-center">
           <p>© {new Date().getFullYear()} Telemetry Tracker. Built by engineers, for engineers.</p>
-          <p className="font-mono">v1.2.0 · {new Date().toISOString().slice(0, 10)}</p>
+          <p className="font-mono">
+            {version ? `v${version} · ` : ""}
+            {new Date().toISOString().slice(0, 10)}
+          </p>
         </div>
       </div>
     </footer>

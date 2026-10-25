@@ -1,9 +1,11 @@
 "use server";
 
+import { apiFetch } from "@/lib/api-fetch";
+import { sanitizeSignupAttribution, type SignupAttribution } from "@/lib/signup-attribution";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { API_BASE_URL } from "@/lib/api-url";
-import { applyCookieConsentFromForm } from "@/lib/cookie-consent-server";
+import { getCookieConsentChoiceFromCookies, applyCookieConsentFromForm } from "@/lib/cookie-consent-server";
 import { TELEMETRY_ORG_COOKIE } from "@/lib/dashboard-org";
 import {
   TELEMETRY_PROJECT_COOKIE,
@@ -18,7 +20,7 @@ async function fetchFirstProjectAndOrg(sessionId: string): Promise<{
   projectId?: string;
   organizationId?: string;
 }> {
-  const res = await fetch(`${API_BASE_URL}/api/meta/projects`, {
+  const res = await apiFetch(`${API_BASE_URL}/api/meta/projects`, {
     cache: "no-store",
     headers: { Authorization: `Bearer ${sessionId}` },
   });
@@ -36,7 +38,7 @@ async function fetchFirstProjectAndOrg(sessionId: string): Promise<{
 
 /** First org the user belongs to (matches `GET /api/meta/organizations` order) — use when there are no projects yet. */
 async function fetchFirstOrganizationId(sessionId: string): Promise<string | undefined> {
-  const res = await fetch(`${API_BASE_URL}/api/meta/organizations`, {
+  const res = await apiFetch(`${API_BASE_URL}/api/meta/organizations`, {
     cache: "no-store",
     headers: { Authorization: `Bearer ${sessionId}` },
   });
@@ -101,7 +103,7 @@ export async function login(
     return { ok: false, error: "Email and password are required" };
   }
   await applyCookieConsentFromForm(formData);
-  const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
+  const res = await apiFetch(`${API_BASE_URL}/api/auth/login`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -161,7 +163,17 @@ export async function register(
     return { ok: false, error: "Email and password are required" };
   }
   await applyCookieConsentFromForm(formData);
-  const res = await fetch(`${API_BASE_URL}/api/auth/register`, {
+  let signupAttribution: SignupAttribution | undefined;
+  if ((await getCookieConsentChoiceFromCookies()) === "accepted") {
+    try {
+      signupAttribution = sanitizeSignupAttribution(
+        JSON.parse(String(formData.get("signupAttribution") ?? "null"))
+      );
+    } catch {
+      // Malformed optional attribution must never block registration.
+    }
+  }
+  const res = await apiFetch(`${API_BASE_URL}/api/auth/register`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -172,6 +184,7 @@ export async function register(
       password,
       displayName,
       marketingOptIn,
+      signupAttribution,
       ...(inviteToken ? { inviteToken } : {}),
       ...(process.env.NEXT_PUBLIC_AFFILIATES_ENABLED === "true" && referralCode
         ? {
@@ -223,7 +236,7 @@ export async function logout(): Promise<void> {
   const sid = await getDashboardSessionId();
   if (sid) {
     try {
-      await fetch(`${API_BASE_URL}/api/auth/logout`, {
+      await apiFetch(`${API_BASE_URL}/api/auth/logout`, {
         method: "POST",
         headers: { Authorization: `Bearer ${sid}` },
       });
@@ -252,7 +265,7 @@ export async function requestPasswordReset(
   if (!email.includes("@")) {
     return { ok: false, error: "Valid email is required" };
   }
-  const res = await fetch(`${API_BASE_URL}/api/auth/forgot-password`, {
+  const res = await apiFetch(`${API_BASE_URL}/api/auth/forgot-password`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email }),
@@ -283,7 +296,7 @@ export async function resetPassword(
   if (password.length < 8) {
     return { ok: false, error: "Password must be at least 8 characters" };
   }
-  const res = await fetch(`${API_BASE_URL}/api/auth/reset-password`, {
+  const res = await apiFetch(`${API_BASE_URL}/api/auth/reset-password`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ token, password }),

@@ -34,6 +34,7 @@ export const docsNavSections: DocsNavSection[] = [
       { id: "nuxt", label: "Nuxt", href: "/docs/nuxt" },
       { id: "vue", label: "Vue", href: "/docs/vue" },
       { id: "react-native", label: "React Native", href: "/docs/react-native" },
+      { id: "sdk-privacy", label: "SDK data & privacy labels", href: "/docs/sdk-privacy" },
     ],
   },
   {
@@ -44,8 +45,11 @@ export const docsNavSections: DocsNavSection[] = [
       { id: "events", label: "Event tracking", href: "/docs#events" },
       { id: "sessions", label: "Sessions", href: "/docs#sessions" },
       { id: "dashboard", label: "Using the dashboard", href: "/docs/dashboard" },
+      { id: "checkins", label: "Check-ins", href: "/docs/checkins" },
       { id: "alerts", label: "Alerts", href: "/docs/alerts" },
+      { id: "mcp", label: "Agent access (MCP)", href: "/docs/mcp" },
       { id: "source-maps", label: "Source maps", href: "/docs/source-maps" },
+      { id: "ingest-proxy", label: "Ingest proxy (ad-blockers)", href: "/docs/ingest-proxy" },
     ],
   },
   {

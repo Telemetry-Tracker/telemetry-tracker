@@ -1,3 +1,4 @@
+import { recordFirstTelemetry } from "../lib/signup-funnel.js";
 import type {
   FastifyInstance,
   FastifyPluginOptions,
@@ -175,6 +176,7 @@ export async function ingestRoutes(
         properties: (body.properties ?? undefined) as Prisma.InputJsonValue | undefined,
       },
     });
+    await recordFirstTelemetry(prisma, projectId);
     await addIngestUnits(prisma, projectId, 1);
     void maybeNotifyQuotaAlerts(prisma, projectId).catch(() => {});
     return reply.status(204).send();
@@ -241,6 +243,7 @@ export async function ingestRoutes(
         },
       });
     }
+    await recordFirstTelemetry(prisma, projectId);
     await addIngestUnits(prisma, projectId, 1);
     void maybeNotifyQuotaAlerts(prisma, projectId).catch(() => {});
     return reply.status(204).send();
@@ -278,6 +281,7 @@ export async function ingestRoutes(
         },
       });
     }
+    if (n > 0) await recordFirstTelemetry(prisma, projectId);
     await addIngestUnits(prisma, projectId, n);
     void maybeNotifyQuotaAlerts(prisma, projectId).catch(() => {});
     return reply.status(204).send();
@@ -323,6 +327,7 @@ export async function ingestRoutes(
         sdk_version: body.sdk_version ?? null,
       },
     });
+    await recordFirstTelemetry(prisma, projectId);
     await addIngestUnits(prisma, projectId, 1);
     if (isNew) {
       void notifyNewErrorGroupEmail(prisma, projectId, errorGroup);

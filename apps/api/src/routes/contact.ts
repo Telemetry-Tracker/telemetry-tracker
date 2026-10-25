@@ -5,7 +5,7 @@ import {
 } from "../lib/email.js";
 
 const CONTACT_INBOX =
-  process.env.CONTACT_INBOX_EMAIL?.trim() || "info@tacko.io";
+  process.env.CONTACT_INBOX_EMAIL?.trim() || "info@telemetry-tracker.com";
 
 const TOPICS = new Set(["general", "support", "security", "business", "other"]);
 
@@ -80,8 +80,8 @@ function contactDeliveryError(result: { status?: number; error?: string }): stri
     resendMessage.includes("resend.dev")
   ) {
     return (
-      `Email delivery is blocked by Resend: verify tacko.io (or your sending domain) in the Resend dashboard ` +
-      `and set TELEMETRY_EMAIL_FROM to an address on that domain (e.g. Telemetry <noreply@tacko.io>). ` +
+      `Email delivery is blocked by Resend: verify telemetry-tracker.com (or your sending domain) in the Resend dashboard ` +
+      `and set TELEMETRY_EMAIL_FROM to an address on that domain (e.g. Telemetry <info@telemetry-tracker.com>). ` +
       `Until then, email ${CONTACT_INBOX} directly.`
     );
   }

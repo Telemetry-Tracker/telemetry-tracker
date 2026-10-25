@@ -11,7 +11,7 @@ Without email configured, admins must share invite or reset links manually. In p
 | Variable | Description |
 |----------|-------------|
 | `RESEND_API_KEY` | API key from [Resend](https://resend.com) |
-| `TELEMETRY_EMAIL_FROM` | Sender address, e.g. `Telemetry Tracker <noreply@tacko.io>` |
+| `TELEMETRY_EMAIL_FROM` | Sender address, e.g. `Telemetry Tracker <info@telemetry-tracker.com>` |
 
 Both are required for outbound email. Verify your sending domain in Resend for production.
 
@@ -19,7 +19,8 @@ Optional for the marketing contact form (`POST /api/contact`):
 
 | Variable | Description |
 |----------|-------------|
-| `CONTACT_INBOX_EMAIL` | Inbox for form submissions (default `info@tacko.io`) |
+| `TELEMETRY_EMAIL_REPLY_TO` | Optional Reply-To for all outgoing mail (`none` to omit). Defaults to `info@telemetry-tracker.com` when `TELEMETRY_DASHBOARD_ORIGIN` is on telemetry-tracker.com, otherwise unset. The contact form always replies to the submitter. |
+| `CONTACT_INBOX_EMAIL` | Inbox for form submissions (default `info@telemetry-tracker.com`) |
 
 The contact form uses the same Resend credentials as password reset. Resend will reject sends when:
 
@@ -50,17 +51,17 @@ Use this checklist for **telemetry-tracker.com** on Railway (API service only �
 
 #### 2. Verify sending domain
 
-The hosted cloud sends from **tacko.io** (operator domain). `telemetry-tracker.com` is the app URL, not the mail-from domain.
+The hosted cloud sends from **telemetry-tracker.com** (`info@telemetry-tracker.com`), verified in Resend (region `eu-west-1`).
 
-1. **Domains** → **Add domain** → `tacko.io`.
-2. Add the DNS records Resend shows (typically **SPF**, **DKIM**, and optionally **DMARC**) at your DNS host for `tacko.io`.
+1. **Domains** → **Add domain** → `telemetry-tracker.com` (region `eu-west-1`).
+2. Add the DNS records Resend shows (typically **SPF**, **DKIM**, and optionally **DMARC**) at your DNS host for `telemetry-tracker.com`.
 3. Wait until Resend shows the domain as **Verified**.
 
 Recommended sender:
 
 ```env
-TELEMETRY_EMAIL_FROM=Telemetry Tracker <noreply@tacko.io>
-CONTACT_INBOX_EMAIL=info@tacko.io
+TELEMETRY_EMAIL_FROM=Telemetry Tracker <info@telemetry-tracker.com>
+CONTACT_INBOX_EMAIL=info@telemetry-tracker.com
 ```
 
 You can use another verified domain if you prefer; `TELEMETRY_EMAIL_FROM` must match it exactly.
@@ -72,8 +73,8 @@ On the **API** Railway service (not dashboard), set:
 | Variable | Example |
 |----------|---------|
 | `RESEND_API_KEY` | `re_…` |
-| `TELEMETRY_EMAIL_FROM` | `Telemetry Tracker <noreply@tacko.io>` |
-| `CONTACT_INBOX_EMAIL` | `info@tacko.io` |
+| `TELEMETRY_EMAIL_FROM` | `Telemetry Tracker <info@telemetry-tracker.com>` |
+| `CONTACT_INBOX_EMAIL` | `info@telemetry-tracker.com` |
 | `TELEMETRY_DASHBOARD_ORIGIN` | `https://telemetry-tracker.com` |
 
 Redeploy the API after saving variables.
@@ -134,7 +135,7 @@ Test with Stripe CLI or Dashboard **Send test webhook** after deploy.
 
 ## Production checklist
 
-- [ ] Resend domain verified (`tacko.io` or your sending domain) — see [Resend production setup](./BILLING.md#production-setup-hosted-cloud)
+- [ ] Resend domain verified (`telemetry-tracker.com` or your sending domain) — see [Resend production setup](./BILLING.md#production-setup-hosted-cloud)
 - [ ] `RESEND_API_KEY` and `TELEMETRY_EMAIL_FROM` set on Railway API; `/health` shows `"email":"configured"`
 - [ ] Test invite, password reset, and contact form delivery
 - [ ] Stripe webhook URL reachable from the internet

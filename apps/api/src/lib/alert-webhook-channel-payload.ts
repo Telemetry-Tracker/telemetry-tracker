@@ -21,6 +21,8 @@ export type TelegramWebhookConfig = {
 };
 
 const RULE_LABEL: Record<AlertRuleType, string> = {
+  CHECKIN_DOWN: "Check-in down",
+  CHECKIN_RECOVERED: "Check-in recovered",
   ERROR_SPIKE: "Error spike",
   QUOTA_NEAR: "Quota near limit",
   QUOTA_EXCEEDED: "Quota exceeded",

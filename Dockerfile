@@ -35,6 +35,7 @@ COPY eslint.config.mjs ./eslint.config.mjs
 # browser-exposed by design: never add secrets here (no SENTRY_AUTH_TOKEN, R2_*, etc.).
 # Changing any of them requires a rebuild, not a cached-image redeploy.
 ARG NEXT_PUBLIC_AFFILIATES_ENABLED
+ARG NEXT_PUBLIC_AFFILIATE_PROGRAM_PUBLIC
 ARG NEXT_PUBLIC_DASHBOARD_DEBUG
 ARG NEXT_PUBLIC_GA_MEASUREMENT_ID
 ARG NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION
@@ -45,6 +46,7 @@ ARG NEXT_PUBLIC_TELEMETRY_APP
 ARG NEXT_PUBLIC_TELEMETRY_INGEST_URL
 ARG NEXT_PUBLIC_TELEMETRY_PUBLIC_DASHBOARD
 ENV NEXT_PUBLIC_AFFILIATES_ENABLED=$NEXT_PUBLIC_AFFILIATES_ENABLED \
+    NEXT_PUBLIC_AFFILIATE_PROGRAM_PUBLIC=$NEXT_PUBLIC_AFFILIATE_PROGRAM_PUBLIC \
     NEXT_PUBLIC_DASHBOARD_DEBUG=$NEXT_PUBLIC_DASHBOARD_DEBUG \
     NEXT_PUBLIC_GA_MEASUREMENT_ID=$NEXT_PUBLIC_GA_MEASUREMENT_ID \
     NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION=$NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION \
@@ -56,9 +58,12 @@ ENV NEXT_PUBLIC_AFFILIATES_ENABLED=$NEXT_PUBLIC_AFFILIATES_ENABLED \
     NEXT_PUBLIC_TELEMETRY_PUBLIC_DASHBOARD=$NEXT_PUBLIC_TELEMETRY_PUBLIC_DASHBOARD
 
 # Rebuild workspace packages so dashboard never relies on incomplete committed dist.
+# `.next/cache` is the build-time webpack cache (~1.2 GB measured on v1.22.6); `next start`
+# does not read it, and recreates the directory for runtime caches when needed.
 RUN pnpm --filter @telemetry-tracker/core build && \
     pnpm --filter @telemetry-tracker/next build && \
-    pnpm --filter dashboard build
+    pnpm --filter dashboard build && \
+    rm -rf apps/dashboard/.next/cache
 
 FROM base AS runner
 

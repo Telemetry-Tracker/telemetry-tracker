@@ -23,13 +23,14 @@ Call **`init(config)`** once at app startup (e.g. in your root component or entr
 Calling `init()` on native enables `screen()`, `endSession()`, and all other APIs; you do not need to guard `init()` for web only.
 
 ```tsx
+import { Platform } from "react-native";
 import { init } from "@telemetry-tracker/react-native";
 
 init({
   ingestUrl: "https://your-api.example.com",
   app: "my-mobile-app",
   apiKey: "tt_live_<publicId>_<secret>",
-  platform: "react-native",  // or "ios" / "android"
+  platform: Platform.OS === "ios" ? "ios" : Platform.OS === "android" ? "android" : "web",
 });
 ```
 
@@ -46,7 +47,7 @@ init({
 | `getSessionId()` | Current session id (or null). |
 | `endSession()` | End the current session (sends session with `ended_at`) and clear session id. |
 
-Config extends [telemetry-core](sdk-core.md#initconfig) and requires `app`; `platform` defaults to `"react-native"`.
+Config extends [telemetry-core](sdk-core.md#initconfig) and requires `app`. There is no `platform` default: set `platform` to `"ios"` or `"android"` (or `"web"` for React Native web), for example from `Platform.OS`.
 
 ## Screen tracking with React Navigation
 
@@ -86,6 +87,10 @@ Call `useTelemetryScreenTracking()` inside a component that’s mounted when the
 If React Native’s `ErrorUtils.setGlobalHandler` is available, `init()` replaces it with a handler that:
 
 1. Reports the error via `trackError(error, { source: "globalHandler" })`.
-2. Does not re-invoke the previous handler (to avoid duplicate reports from this SDK).
+2. Calls the previous handler, preserving React Native’s error UI/crash behavior. Fatal errors attempt delivery for at most one second first. Core deduplicates reports of the same Error object; repeated init does not install another wrapper.
 
 Use `trackError` in your own try/catch or error boundaries for additional context.
+
+## Hermes and Expo/EAS
+
+See the [Expo/EAS + Hermes source-map guide](expo-hermes-source-maps.md) for bundle-specific releases, map generation, upload and unverified device QA. `buildBundleRelease(nativeVersion, bundleId)` requires a unique JS bundle identity; native version alone is insufficient for OTA updates.

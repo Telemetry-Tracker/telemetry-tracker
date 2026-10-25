@@ -6,7 +6,7 @@
  * The walk is in-place and cycle-safe. It does not use structuredClone.
  */
 
-const TT_LIVE_API_KEY = /tt_live_[A-Za-z0-9_]+/g;
+const TT_API_KEY = /tt_(?:live|read)_[A-Za-z0-9_]+/g;
 
 /**
  * Normal Sentry events are shallow (exception, request, breadcrumbs, a few
@@ -19,6 +19,7 @@ export const SENTRY_EVENT_SANITIZE_MAX_NODES = 4000;
 /** Header names removed entirely, compared case-insensitively. */
 const SENSITIVE_HEADER_NAMES = new Set([
   "authorization",
+  "x-tt-checkin-token",
   "proxy-authorization",
   "www-authenticate",
   "authentication",
@@ -52,7 +53,7 @@ type Budget = {
 
 function isSensitiveHeaderName(name: string): boolean {
   const normalized = name.toLowerCase();
-  if (SENSITIVE_HEADER_NAMES.has(normalized)) return true;
+  if (normalized === "x-tt-client-ip-secret" || SENSITIVE_HEADER_NAMES.has(normalized)) return true;
   return (
     normalized.includes("authorization") ||
     normalized.includes("cookie") ||
@@ -65,7 +66,7 @@ function isSensitiveHeaderName(name: string): boolean {
 }
 
 function redactTelemetryTrackerApiKeys(value: string): string {
-  return value.replace(TT_LIVE_API_KEY, "[redacted]");
+  return value.replace(TT_API_KEY, "[redacted]");
 }
 
 /** Drop the query string. The path, host, and scheme stay. */
@@ -91,7 +92,7 @@ function isRequestLike(value: JsonObject): boolean {
 }
 
 function isUrlField(key: string): boolean {
-  return key === "url" || key === "url.full";
+  return key === "url" || key === "url.full" || key === "to" || key === "from";
 }
 
 function isQueryField(key: string): boolean {
@@ -130,6 +131,11 @@ function dropUnscannedEntries(record: JsonObject, keys: string[], from: number):
   }
 }
 
+function redactCheckInSecrets(value: string): string {
+  return value.replace(/ttc_[a-zA-Z0-9_%.-]+/g, "[redacted]")
+    .replace(/(\/checkin\/)[^\s/?#"<>]+/gi, "$1[redacted]");
+}
+
 function sanitizeHeaders(headers: JsonObject, depth: number, budget: Budget): void {
   if (budget.seen.has(headers)) return;
   budget.seen.add(headers);
@@ -146,7 +152,7 @@ function sanitizeHeaders(headers: JsonObject, depth: number, budget: Budget): vo
     }
     const value = headers[name];
     if (typeof value === "string") {
-      headers[name] = redactTelemetryTrackerApiKeys(value);
+      headers[name] = redactCheckInSecrets(redactTelemetryTrackerApiKeys(value));
       continue;
     }
     if (value !== null && typeof value === "object") {
@@ -170,6 +176,22 @@ function sanitizeObject(record: JsonObject, depth: number, budget: Budget): void
     if (
       SENSITIVE_HEADER_NAMES.has(key.toLowerCase()) ||
       key === "cookies" ||
+      key === "user" ||
+      key === "ip_address" ||
+      key === "REMOTE_ADDR" ||
+      key === "body" ||
+      key === "vars" ||
+      key === "response" ||
+      key === "db" ||
+      key === "database" ||
+      key === "ai" ||
+      key === "gen_ai" ||
+      key === "graphql" ||
+      key.startsWith("db.") ||
+      key.startsWith("gen_ai.") ||
+      key.startsWith("graphql.") ||
+      key.startsWith("http.request.body") ||
+      key.startsWith("http.response.body") ||
       isQueryField(key)
     ) {
       delete record[key];
@@ -201,7 +223,7 @@ function sanitizeObject(record: JsonObject, depth: number, budget: Budget): void
         dropUnscannedEntries(record, keys, index + 1);
         return;
       }
-      record[key] = redactTelemetryTrackerApiKeys(stripUrlQuery(child));
+      record[key] = redactCheckInSecrets(redactTelemetryTrackerApiKeys(stripUrlQuery(child)));
       continue;
     }
     if (typeof child === "string") {
@@ -210,7 +232,7 @@ function sanitizeObject(record: JsonObject, depth: number, budget: Budget): void
         dropUnscannedEntries(record, keys, index + 1);
         return;
       }
-      record[key] = redactTelemetryTrackerApiKeys(child);
+      record[key] = redactCheckInSecrets(redactTelemetryTrackerApiKeys(child));
       continue;
     }
     if (child !== null && typeof child === "object") {
@@ -243,7 +265,7 @@ function sanitizeArray(values: unknown[], depth: number, budget: Budget): void {
         values.length = index;
         return;
       }
-      values[index] = redactTelemetryTrackerApiKeys(child);
+      values[index] = redactCheckInSecrets(redactTelemetryTrackerApiKeys(child));
       continue;
     }
     if (child !== null && typeof child === "object") {
@@ -283,6 +305,10 @@ export function sanitizeSentryEvent<T>(event: T, limits?: SentrySanitizeLimits):
     seen: new WeakSet(),
   };
   delete event.user;
+  if (isPlainObject(event.request)) {
+    delete event.request.data;
+    delete event.request.body;
+  }
   sanitizeObject(event, 0, budget);
   return event;
 }
@@ -305,6 +331,18 @@ export function safeSanitizeSentryEvent<T>(event: T, limits?: SentrySanitizeLimi
 function failClosedSentryEvent(event: unknown): void {
   if (!event || typeof event !== "object") return;
   const record = event as Record<string, unknown>;
+  for (const key of ["headers", "contexts", "extra", "breadcrumbs", "response"] as const) {
+    try { delete record[key]; } catch { /* ignore */ }
+  }
+  // A hostile root getter/Proxy can stop the regular walk before exception
+  // text is visited. Sanitize these reporting fields independently.
+  for (const key of ["message", "exception", "logentry", "transaction", "tags"] as const) {
+    try {
+      const value = record[key];
+      if (typeof value === "string") record[key] = redactCheckInSecrets(redactTelemetryTrackerApiKeys(value));
+      else if (value && typeof value === "object") sanitizeSentryEvent(value);
+    } catch { try { delete record[key]; } catch { /* ignore */ } }
+  }
   try {
     delete record.user;
   } catch {
@@ -314,7 +352,7 @@ function failClosedSentryEvent(event: unknown): void {
     const request = record.request;
     if (!request || typeof request !== "object" || Array.isArray(request)) return;
     const req = request as Record<string, unknown>;
-    for (const key of ["data", "body", "cookies", "query_string", "query"] as const) {
+    for (const key of ["data", "body", "cookies", "query_string", "query", "headers", "env"] as const) {
       try {
         delete req[key];
       } catch {
@@ -323,9 +361,11 @@ function failClosedSentryEvent(event: unknown): void {
     }
     try {
       if (typeof req.url === "string") {
-        const queryIndex = req.url.indexOf("?");
+        const sanitizedUrl = redactCheckInSecrets(redactTelemetryTrackerApiKeys(req.url));
+        req.url = sanitizedUrl;
+        const queryIndex = sanitizedUrl.indexOf("?");
         if (queryIndex !== -1) {
-          req.url = req.url.slice(0, queryIndex);
+          req.url = sanitizedUrl.slice(0, queryIndex);
         }
       }
     } catch {
@@ -334,4 +374,10 @@ function failClosedSentryEvent(event: unknown): void {
   } catch {
     /* ignore */
   }
+}
+
+/** Console/DB/AI breadcrumbs can contain unstructured customer payloads. */
+export function sanitizeSentryBreadcrumb<T extends { category?: string }>(breadcrumb: T): T | null {
+  if (/^(console|db|query|ai|gen_ai|graphql)(\.|$)/i.test(breadcrumb.category ?? "")) return null;
+  return safeSanitizeSentryEvent(breadcrumb);
 }
