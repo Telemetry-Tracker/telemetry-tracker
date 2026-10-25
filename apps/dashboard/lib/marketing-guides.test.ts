@@ -18,6 +18,7 @@ const pageFiles: Record<(typeof MARKETING_GUIDE_PATHS)[number], string> = {
   "/error-tracking/react-native/expo-source-maps":
     "error-tracking/react-native/expo-source-maps/page.tsx",
   "/features/missing-event-alerts": "features/missing-event-alerts/page.tsx",
+  "/monitoring/nextjs": "monitoring/nextjs/page.tsx",
 };
 
 describe("marketing guide pages", () => {
