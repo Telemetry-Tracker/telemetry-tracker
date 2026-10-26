@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { DocsArticle } from "@/app/components/docs/DocsArticle";
 export const metadata: Metadata = { title: "Cron check-ins", description: "Monitor scheduled jobs with secret URLs, cron time zones and runtime deadlines." };
 export default function CheckInsDocsPage() {
@@ -13,7 +14,7 @@ export default function CheckInsDocsPage() {
     <h2>Node and Vercel Cron</h2><pre><code>{`import { withCheckIn } from '@telemetry-tracker/node';
 await withCheckIn(process.env.TT_CHECKIN_URL!, () => backup(), {
   monitorName: 'Nightly backup',
-});`}</code></pre><p>The helper sends start/ok/fail, preserves job results and reports thrown errors with monitor context when the SDK is initialized. Check-in network failures do not fail the job. For Vercel, protect your cron route with CRON_SECRET before invoking the helper; store TT_CHECKIN_URL in environment secrets and use UTC for the monitor.</p>
+});`}</code></pre><p>The helper sends start/ok/fail, preserves job results and reports thrown errors with monitor context when the SDK is initialized. Check-in network failures do not fail the job. For Vercel, protect your cron route with CRON_SECRET before invoking the helper; store TT_CHECKIN_URL in environment secrets and use UTC for the monitor. See the <Link href="/monitoring/nextjs/vercel-cron-jobs" className="text-brand hover:underline">full Vercel guide</Link> for complete Next.js setup, serverless-safe patterns, grace settings and troubleshooting.</p>
     <h2>GitHub Actions</h2><p>Use a repository or environment secret and a UTC schedule. A final step with if: always() can send /0 on success or /fail otherwise; use the same UUID in start and finish.</p>
     <pre><code>{`env:
   TT_CHECKIN_URL: \${{ secrets.TT_CHECKIN_URL }}

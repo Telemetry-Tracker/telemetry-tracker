@@ -38,6 +38,7 @@ export const PUBLIC_SEO_PATHS = [
   "/error-tracking/react-native/expo-source-maps",
   "/features/missing-event-alerts",
   "/monitoring/nextjs",
+  "/monitoring/nextjs/vercel-cron-jobs",
 ] as const;
 
 /** Affiliate program pages: indexable, but only listed when NEXT_PUBLIC_AFFILIATES_ENABLED=true. */
@@ -63,6 +64,7 @@ export const MARKETING_GUIDE_PATHS = [
   "/error-tracking/react-native/expo-source-maps",
   "/features/missing-event-alerts",
   "/monitoring/nextjs",
+  "/monitoring/nextjs/vercel-cron-jobs",
 ] as const;
 
 /** Content date for sitemap lastmod. Bump when public pages change. */
