@@ -17,6 +17,14 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ---
 
+## [1.22.14] - 2026-10-25
+
+### Added
+
+- **Next.js monitoring page** — new marketing page at `/monitoring/nextjs` covering errors, Web Vitals, releases, alerts, and self-hosting for Next.js apps; added to the sitemap, `llms.txt`, and linked from `/error-tracking/nextjs` and `/docs/nextjs` ([#765](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/765), [#867](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/867))
+
+---
+
 ## [1.22.13] - 2026-10-23
 
 ### Added
