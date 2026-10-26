@@ -43,6 +43,7 @@ export function GET() {
 - ${origin}/docs/hosted-cloud
 - ${origin}/error-tracking/react-native/expo-source-maps
 - ${origin}/monitoring/nextjs
+- ${origin}/monitoring/nextjs/vercel-cron-jobs
 - ${origin}/sentry-alternative
 - ${origin}/features/missing-event-alerts
 

@@ -78,6 +78,9 @@ export default function NextJsMonitoringPage() {
         <p>The free hosted plan is €0 with no credit card: 250K ingest units per month, 14-day retention, one project and two API keys. An ingest unit is one accepted event, one batch item, one error or one session. At the monthly cap, ingest returns HTTP 429; stored data remains and there is no overage bill. See <Link href="/pricing" className="text-brand hover:underline">pricing and plan limits</Link>.</p>
         <p>You can self-host the MIT-licensed Fastify API, Next.js dashboard and PostgreSQL database. You operate the deployment, retention jobs and alert workers yourself; see <Link href="/docs/self-hosting" className="text-brand hover:underline">self-hosting documentation</Link>.</p>
 
+        <h2>Vercel cron jobs</h2>
+        <p>See our <Link href="/monitoring/nextjs/vercel-cron-jobs" className="text-brand hover:underline">full Vercel cron jobs guide</Link> for monitoring cron failures, timeouts and missed runs with check-ins and error tracking.</p>
+
         <h2>What this monitoring does not include</h2>
         <p>These SDK integrations support JavaScript and TypeScript. Telemetry Tracker does not provide distributed tracing, log collection, session replay or profiling. Request latency is basic timing, not full APM; it does not break down database or external-service calls.</p>
 

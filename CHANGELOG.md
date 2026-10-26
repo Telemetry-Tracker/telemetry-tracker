@@ -11,6 +11,10 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ## [Unreleased]
 
+### Added
+
+- **Vercel cron jobs guide** — new marketing page at `/monitoring/nextjs/vercel-cron-jobs` describing how to monitor Next.js cron jobs on Vercel with check-ins and error tracking, including serverless-safe patterns (`withCheckIn`, `flush()` in `finally`), grace period guidance for Hobby vs Pro, the status-blind trap, and timeout detection with max runtime; added to the sitemap and `llms.txt`, with links from `/monitoring/nextjs` and `/docs/checkins`
+
 ---
 
 ## [1.22.13] - 2026-10-23
