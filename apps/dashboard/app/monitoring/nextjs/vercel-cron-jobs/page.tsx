@@ -14,9 +14,9 @@ const FAQ = [
   { question: "Does Vercel alert me when a cron job fails?", answer: "No. Vercel does not send alerts or retry failed cron invocations. You need to add your own monitoring." },
   { question: "Why are there no logs for my cron run?", answer: "Vercel cron invocations can be dropped (best-effort delivery), redirected by middleware or trailingSlash config, or served from cache. Hobby runtime logs are kept for only 1 hour; Pro keeps them for 1 day." },
   { question: "What grace period should I use on Hobby?", answer: "Hobby crons fire anywhere in the scheduled hour (±59 minutes). For a daily cron, use at least 60 minutes plus worst-case runtime. For example, 70 minutes if your job usually finishes in under 10 minutes." },
-  { question: "Can I monitor a cron that runs every minute?", answer: "Not one-to-one with Telemetry Tracker. Check-in schedules must have occurrences at least 5 minutes apart. Vercel Pro supports per-minute crons, but you cannot create a separate TT monitor for each run." },
+  { question: "Can I monitor a cron that runs every minute?", answer: "Not one-to-one with Telemetry Tracker. A TT monitor needs at least 5 minutes between occurrences, so a per-minute cron cannot map one-to-one to a monitor." },
   { question: "Will local runs trigger my production monitor?", answer: "No, if you leave TT_CHECKIN_URL unset in development and preview environments. Vercel crons only run on production deployments, and withCheckIn skips pings when the URL is not set." },
-  { question: "Is this real-time?", answer: "No. Detection happens after the grace period for missed runs, or after max runtime plus up to one evaluator period (about 5 minutes) for timeouts. Explicit failures alert within seconds." },
+  { question: "Is this real-time?", answer: "No. Missed runs are detected after the grace period plus up to one evaluator period (about 5 minutes). Timeouts are detected after max runtime plus up to one evaluator period. Explicit failures alert within seconds." },
 ];
 
 export function generateMetadata() {
@@ -92,7 +92,9 @@ export default function VercelCronJobsPage() {
 
         <h2>Set it up in Next.js (App Router)</h2>
         <p>Install the Node SDK (version 1.4.2 or later), which includes <code>withCheckIn</code> and <code>flush</code>:</p>
-        <CodeBlock code="pnpm add @telemetry-tracker/node\n# or\nnpm install @telemetry-tracker/node" lang="bash" caption="Install the Node SDK" />
+        <CodeBlock code={`pnpm add @telemetry-tracker/node
+# or
+npm install @telemetry-tracker/node`} lang="bash" caption="Install the Node SDK" />
 
         <h3>Create one monitor per vercel.json entry</h3>
         <p>In Telemetry Tracker, open your project and go to <strong>Check-ins</strong>. Click <strong>Create monitor</strong> and fill in:</p>
@@ -210,7 +212,7 @@ export async function GET(request: Request) {
 async function syncInvoices() {
   const res = await fetch("https://api.example.com/invoices", { signal: AbortSignal.timeout(20_000) });
   if (!res.ok) throw new Error(\`Invoice API returned \${res.status}\`);
-  // ... do the work; throw on anything that means &quot;this run didn&apos;t do its job&quot;
+  // ... do the work; throw on anything that means "this run didn't do its job"
 }`} lang="ts" caption="Status-aware job that throws on failure" />
 
         <h2>Catch timeouts with max runtime</h2>
@@ -245,17 +247,17 @@ await withCheckIn(url, () => sendReminders(), { monitorName: "reminders" });`} l
 
         <h2>What you see when a run fails</h2>
         <p>When a cron job fails, you receive an alert email within seconds. When it times out, the alert arrives after max runtime plus up to one evaluator period (about 5 minutes). Recovery alerts are sent when the job succeeds again.</p>
-        <figure className="overflow-hidden rounded-lg border border-border"><Image src="/marketing/vercel-cron-email-down-failure.png" width={1200} height={600} sizes="(max-width: 768px) 100vw, 768px" className="h-auto w-full" alt="Alert email showing sync-invoices monitor is down with the reason Job reported failure" /><figcaption className="border-t border-border px-4 py-2 text-xs text-muted-foreground">Down alert for an explicit failure. Screenshot from a test project, not customer data.</figcaption></figure>
-        <figure className="overflow-hidden rounded-lg border border-border"><Image src="/marketing/vercel-cron-email-down-timeout.png" width={1200} height={600} sizes="(max-width: 768px) 100vw, 768px" className="h-auto w-full" alt="Alert email showing sync-invoices monitor is down with the reason Job exceeded its maximum runtime" /><figcaption className="border-t border-border px-4 py-2 text-xs text-muted-foreground">Down alert for a timeout. Screenshot from a test project, not customer data.</figcaption></figure>
-        <figure className="overflow-hidden rounded-lg border border-border"><Image src="/marketing/vercel-cron-email-recovered.png" width={1200} height={600} sizes="(max-width: 768px) 100vw, 768px" className="h-auto w-full" alt="Alert email showing sync-invoices monitor has recovered with the reason Job reported success" /><figcaption className="border-t border-border px-4 py-2 text-xs text-muted-foreground">Recovery alert. Screenshot from a test project, not customer data.</figcaption></figure>
+        <figure className="overflow-hidden rounded-lg border border-border"><Image src="/marketing/vercel-cron-email-down-failure.png" width={900} height={340} sizes="(max-width: 768px) 100vw, 768px" className="h-auto w-full" alt="Alert email showing sync-invoices monitor is down with the reason Job reported failure" /><figcaption className="border-t border-border px-4 py-2 text-xs text-muted-foreground">Down alert for an explicit failure. Screenshot from a test project, not customer data.</figcaption></figure>
+        <figure className="overflow-hidden rounded-lg border border-border"><Image src="/marketing/vercel-cron-email-down-timeout.png" width={900} height={340} sizes="(max-width: 768px) 100vw, 768px" className="h-auto w-full" alt="Alert email showing sync-invoices monitor is down with the reason Job exceeded its maximum runtime" /><figcaption className="border-t border-border px-4 py-2 text-xs text-muted-foreground">Down alert for a timeout. Screenshot from a test project, not customer data.</figcaption></figure>
+        <figure className="overflow-hidden rounded-lg border border-border"><Image src="/marketing/vercel-cron-email-recovered.png" width={900} height={340} sizes="(max-width: 768px) 100vw, 768px" className="h-auto w-full" alt="Alert email showing sync-invoices monitor has recovered with the reason Job reported success" /><figcaption className="border-t border-border px-4 py-2 text-xs text-muted-foreground">Recovery alert. Screenshot from a test project, not customer data.</figcaption></figure>
         <p>The check-in history shows each run&apos;s status:</p>
-        <figure className="overflow-hidden rounded-lg border border-border"><Image src="/marketing/vercel-cron-checkins-history.png" width={2400} height={1200} sizes="(max-width: 768px) 100vw, 768px" className="h-auto w-full" alt="Check-ins page showing sync-invoices monitor with a history of OK, TIMEOUT, START, OK, FAIL, START, OK check-ins" /><figcaption className="border-t border-border px-4 py-2 text-xs text-muted-foreground">Check-in history for a test monitor. Screenshot from a test project, not customer data.</figcaption></figure>
-        <p>When a run fails with a thrown error, the error is reported to <strong>Issues</strong> with the monitor name and run id in the context. The alert email links to the check-in history; from there, open Issues and filter by the monitor name:</p>
-        <figure className="overflow-hidden rounded-lg border border-border"><Image src="/marketing/vercel-cron-error-issue-context.png" width={2400} height={1200} sizes="(max-width: 768px) 100vw, 768px" className="h-auto w-full" alt="Error issue page showing Invoice API returned 401 error with context checkin sync-invoices and checkin_run_id" /><figcaption className="border-t border-border px-4 py-2 text-xs text-muted-foreground">Error issue with check-in context. Server stack frames may point at compiled .next/server chunks; the message and context are reliable. Screenshot from a test project, not customer data.</figcaption></figure>
+        <figure className="overflow-hidden rounded-lg border border-border"><Image src="/marketing/vercel-cron-checkins-history.png" width={2560} height={1720} sizes="(max-width: 768px) 100vw, 768px" className="h-auto w-full" alt="Check-ins page showing sync-invoices monitor with a history of OK, TIMEOUT, START, OK, FAIL, START, OK check-ins" /><figcaption className="border-t border-border px-4 py-2 text-xs text-muted-foreground">Check-in history for a test monitor. Screenshot from a test project, not customer data.</figcaption></figure>
+        <p>When a run fails with a thrown error, the error is reported to <strong>Issues</strong> under its message. The occurrence shows a Context block with <code>checkin</code> and <code>checkin_run_id</code>:</p>
+        <figure className="overflow-hidden rounded-lg border border-border"><Image src="/marketing/vercel-cron-error-issue-context.png" width={2560} height={2636} sizes="(max-width: 768px) 100vw, 768px" className="h-auto w-full" alt="Error issue page showing Invoice API returned 401 error with context checkin sync-invoices and checkin_run_id" /><figcaption className="border-t border-border px-4 py-2 text-xs text-muted-foreground">Error issue with check-in context. Server stack frames may point at compiled .next/server chunks; the message and context are reliable. Screenshot from a test project, not customer data.</figcaption></figure>
         <p>Note that server stack frames may point at compiled <code>.next/server</code> chunks rather than source files. The error message and the context (monitor name and run id) are the reliable parts. Timeouts produce no error report because the function is killed before it can send one.</p>
 
         <h2>Telemetry Tracker vs Sentry Crons vs a heartbeat service</h2>
-        <p>We built Telemetry Tracker to monitor our own side projects. This comparison is transparent: we&apos;re comparing our tool with alternatives.</p>
+        <p>This is our product, and the comparison is ours.</p>
         <div className="overflow-x-auto">
           <table className="min-w-full border-collapse border border-border">
             <thead>
@@ -292,8 +294,8 @@ await withCheckIn(url, () => sendReminders(), { monitorName: "reminders" });`} l
                 <td className="border border-border px-4 py-2">Varies</td>
               </tr>
               <tr>
-                <td className="border border-border px-4 py-2">Open source / self-host</td>
-                <td className="border border-border px-4 py-2">Yes</td>
+                <td className="border border-border px-4 py-2">Self-hostable</td>
+                <td className="border border-border px-4 py-2">Yes (self-hosted Sentry)</td>
                 <td className="border border-border px-4 py-2">Yes (MIT)</td>
                 <td className="border border-border px-4 py-2">Varies</td>
               </tr>
