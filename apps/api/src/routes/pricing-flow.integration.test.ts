@@ -398,7 +398,7 @@ testSuite("Pricing Flow Integration Tests", () => {
       });
 
       // Create session for member
-      const memberSession = await prisma.session.create({
+      const memberSession = await prisma.userSession.create({
         data: {
           user_id: memberUser.id,
           expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000),
