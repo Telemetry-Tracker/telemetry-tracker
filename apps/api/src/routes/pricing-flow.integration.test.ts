@@ -296,6 +296,10 @@ testSuite("Pricing Flow Integration Tests", () => {
           inviteToken,
         },
       });
+      
+      if (inviteeReg.statusCode !== 201) {
+        console.error("Invite registration failed:", inviteeReg.statusCode, inviteeReg.body);
+      }
       expect(inviteeReg.statusCode).toBe(201);
       const regBody = JSON.parse(inviteeReg.body);
       expect(regBody.user).toBeDefined();
@@ -307,6 +311,11 @@ testSuite("Pricing Flow Integration Tests", () => {
       const memberships = await prisma.organizationMembership.findMany({
         where: { user_id: invitee.id },
       });
+      if (memberships.length === 0) {
+        // Debug: check if user was created
+        const userExists = await prisma.user.findUnique({ where: { id: invitee.id } });
+        console.error("User created:", !!userExists, "but no membership found for user", invitee.id);
+      }
       expect(memberships).toHaveLength(1);
       expect(memberships[0].organization_id).toBe(orgId);
       expect(checkoutCallCount).toBe(0);
