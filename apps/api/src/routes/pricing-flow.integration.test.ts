@@ -250,12 +250,9 @@ testSuite("Pricing Flow Integration Tests", () => {
     });
   });
 
-  describe.skip("Invite precedence", () => {
-    // TODO: This test requires POST /api/meta/organizations/:id/invites endpoint which is not implemented yet.
-    // Only GET and DELETE endpoints exist in project-dashboard.ts.
-    // Issue tracked: test was failing since it was introduced in commit 8ccf0e83
+  describe("Invite precedence", () => {
     it("register with invite + plan → invite wins, no checkout", async () => {
-      // Create existing org with owner for invite
+      // Create owner and org
       const ownerReg = await app.inject({
         method: "POST",
         url: "/api/auth/register",
@@ -276,30 +273,19 @@ testSuite("Pricing Flow Integration Tests", () => {
       const { id: orgId } = JSON.parse(orgResp.body);
       testOrgIds.push(orgId);
 
-      // Verify org was created
-      const orgExists = await prisma.organization.findUnique({ where: { id: orgId } });
-      expect(orgExists).toBeDefined();
-      console.log("Created org:", orgId, "exists:", !!orgExists);
-
-      // Create invite
+      // Create invite directly via Prisma (POST endpoint doesn't exist yet)
       const inviteEmail = `invited-${Date.now()}@example.com`;
-      const inviteResp = await app.inject({
-        method: "POST",
-        url: `/api/meta/organizations/${orgId}/invites`,
-        headers: { cookie: `telemetry_session=${ownerSession}` },
-        payload: {
+      const inviteToken = `invite_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+      await prisma.organizationInvite.create({
+        data: {
+          organization_id: orgId,
           email: inviteEmail,
           role: "MEMBER",
+          token: inviteToken,
+          expires_at: expiresAt,
         },
       });
-      if (inviteResp.statusCode !== 201) {
-        console.error("Invite creation failed with status:", inviteResp.statusCode, "body:", inviteResp.body);
-      }
-      expect(inviteResp.statusCode).toBe(201);
-      const inviteBody = JSON.parse(inviteResp.body);
-      expect(inviteBody.token).toBeDefined();
-      const inviteToken = inviteBody.token;
-      console.log("Created invite with token:", inviteToken, "for email:", inviteEmail);
 
       // Register with invite (plan param would be in URL but ignored by server)
       const inviteeReg = await app.inject({
@@ -312,24 +298,9 @@ testSuite("Pricing Flow Integration Tests", () => {
         },
       });
       
-      if (inviteeReg.statusCode !== 201) {
-        console.error("Invite registration failed:", inviteeReg.statusCode, inviteeReg.body);
-      }
       expect(inviteeReg.statusCode).toBe(201);
       const regBody = JSON.parse(inviteeReg.body);
       expect(regBody.user).toBeDefined();
-      
-      // Debug: print full response if organizationId is missing
-      if (!regBody.organizationId) {
-        console.error("Registration succeeded but organizationId is null. Full response:", regBody);
-        console.error("Invite token used:", inviteToken);
-        // Check if invite still exists
-        const invite = await prisma.organizationInvite.findUnique({
-          where: { token: inviteToken },
-        });
-        console.error("Invite in DB:", invite);
-      }
-      
       expect(regBody.organizationId).toBe(orgId);
       const invitee = regBody.user;
       testUserIds.push(invitee.id);
@@ -338,14 +309,12 @@ testSuite("Pricing Flow Integration Tests", () => {
       const memberships = await prisma.organizationMembership.findMany({
         where: { user_id: invitee.id },
       });
-      if (memberships.length === 0) {
-        // Debug: check if user was created
-        const userExists = await prisma.user.findUnique({ where: { id: invitee.id } });
-        console.error("User created:", !!userExists, "but no membership found for user", invitee.id);
-      }
       expect(memberships).toHaveLength(1);
       expect(memberships[0].organization_id).toBe(orgId);
+      expect(memberships[0].role).toBe("MEMBER");
       expect(checkoutCallCount).toBe(0);
+
+      console.log("✓ Invite precedence: invite wins over plan intent, no checkout created");
     });
   });
 
@@ -408,41 +377,46 @@ testSuite("Pricing Flow Integration Tests", () => {
       const { id: orgId } = JSON.parse(orgResp.body);
       testOrgIds.push(orgId);
 
-      // Invite member
+      // Create member user and add MEMBER membership directly via Prisma
       const memberEmail = `member-${Date.now()}@example.com`;
-      const inviteResp = await app.inject({
-        method: "POST",
-        url: `/api/meta/organizations/${orgId}/invites`,
-        headers: { cookie: `telemetry_session=${ownerSession}` },
-        payload: {
+      const memberUser = await prisma.user.create({
+        data: {
           email: memberEmail,
+          password_hash: "$2b$10$dummyhash", // Not used for auth in this test
+          display_name: "Test Member",
+        },
+      });
+      testUserIds.push(memberUser.id);
+
+      await prisma.organizationMembership.create({
+        data: {
+          user_id: memberUser.id,
+          organization_id: orgId,
           role: "MEMBER",
         },
       });
-      const { token } = JSON.parse(inviteResp.body);
 
-      const memberReg = await app.inject({
-        method: "POST",
-        url: "/api/auth/register",
-        payload: {
-          email: memberEmail,
-          password: "Password123!",
-          inviteToken: token,
+      // Create session for member
+      const memberSession = await prisma.session.create({
+        data: {
+          user_id: memberUser.id,
+          expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000),
         },
       });
-      const { user: member, sessionId: memberSession } = JSON.parse(memberReg.body);
-      testUserIds.push(member.id);
 
-      // Member tries to create checkout - should fail
+      // Member tries to create checkout - should fail with 403 (role check)
       const checkoutResponse = await app.inject({
         method: "POST",
         url: `/api/meta/organizations/${orgId}/billing/checkout`,
-        headers: { cookie: `telemetry_session=${memberSession}` },
+        headers: { cookie: `telemetry_session=${memberSession.id}` },
         payload: { planTier: "PRO" },
       });
 
       expect(checkoutResponse.statusCode).toBe(403);
+      expect(JSON.parse(checkoutResponse.body).error).toContain("Forbidden");
       expect(checkoutCallCount).toBe(0);
+
+      console.log("✓ Non-owner MEMBER role correctly blocked from creating checkout");
     });
   });
 
@@ -497,6 +471,54 @@ testSuite("Pricing Flow Integration Tests", () => {
       expect(checkoutResponse.statusCode).toBe(200);
       expect(checkoutCallCount).toBe(1);
       expect(capturedCheckoutArgs?.metadata?.plan_tier).toBe("PRO");
+    });
+
+    it("FREE org with abandoned checkout (customer but no subscription) → still uses Checkout", async () => {
+      // Create user + org
+      const email = `abandoned-${Date.now()}@example.com`;
+      const regResponse = await app.inject({
+        method: "POST",
+        url: "/api/auth/register",
+        payload: {
+          email,
+          password: "Password123!",
+        },
+      });
+      const { user, sessionId } = JSON.parse(regResponse.body);
+      testUserIds.push(user.id);
+
+      const orgResponse = await app.inject({
+        method: "POST",
+        url: "/api/meta/organizations",
+        headers: { cookie: `telemetry_session=${sessionId}` },
+        payload: { name: "Abandoned Checkout Org" },
+      });
+      const { id: orgId } = JSON.parse(orgResponse.body);
+      testOrgIds.push(orgId);
+
+      // Simulate abandoned checkout: org has stripe_customer_id but NO subscription
+      await prisma.organization.update({
+        where: { id: orgId },
+        data: {
+          stripe_customer_id: `cus_abandoned_${Date.now()}`,
+          stripe_subscription_id: null,
+          stripe_subscription_status: null,
+        },
+      });
+
+      // Attempt checkout - should succeed (customer without subscription goes to Checkout)
+      const checkoutResponse = await app.inject({
+        method: "POST",
+        url: `/api/meta/organizations/${orgId}/billing/checkout`,
+        headers: { cookie: `telemetry_session=${sessionId}` },
+        payload: { planTier: "PRO" },
+      });
+
+      expect(checkoutResponse.statusCode).toBe(200);
+      expect(checkoutCallCount).toBe(1);
+      expect(capturedCheckoutArgs?.metadata?.plan_tier).toBe("PRO");
+
+      console.log("✓ Abandoned checkout (customer but no sub): correctly uses Checkout, not portal");
     });
   });
 });
