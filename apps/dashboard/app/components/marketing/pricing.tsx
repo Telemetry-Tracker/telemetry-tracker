@@ -9,8 +9,6 @@ const tiers = [
     price: formatPlanPriceEur(PLAN_LIST_PRICES_EUR.FREE),
     cadence: "forever",
     desc: "For solo developers and side projects.",
-    cta: "Start free",
-    signup: true,
     features: [
       "250K ingest units / month",
       "14-day retention",
@@ -23,8 +21,6 @@ const tiers = [
     price: formatPlanPriceEur(PLAN_LIST_PRICES_EUR.PRO),
     cadence: "per org / month",
     desc: "For shipping teams that need reliable signal.",
-    cta: "Start free, upgrade later",
-    signup: true,
     highlight: true,
     features: [
       "5M ingest units / month",
@@ -39,8 +35,6 @@ const tiers = [
     price: formatPlanPriceEur(PLAN_LIST_PRICES_EUR.BUSINESS),
     cadence: "per org / month",
     desc: "For organizations with higher volume and longer retention.",
-    cta: "Start free, upgrade later",
-    signup: true,
     features: [
       "50M ingest units / month",
       "365-day retention",
@@ -54,8 +48,6 @@ const tiers = [
     price: "Let's talk",
     cadence: "annual or bespoke",
     desc: "Enterprise volume, compliance, or on-prem requirements.",
-    cta: "Contact us",
-    href: "/contact",
     features: [
       "Custom ingest & retention",
       "Multiple organizations",
@@ -65,6 +57,43 @@ const tiers = [
     ],
   },
 ];
+
+type PricingCtaConfig = {
+  label: string;
+  href: string;
+};
+
+function getPricingCta(
+  tierName: string,
+  isAuthenticated: boolean
+): PricingCtaConfig {
+  if (tierName === "Free") {
+    return {
+      label: isAuthenticated ? "Open dashboard" : "Start free",
+      href: isAuthenticated ? "/dashboard/overview" : "/register",
+    };
+  }
+  if (tierName === "Pro") {
+    return {
+      label: isAuthenticated ? "Upgrade to Pro" : "Start with Pro",
+      href: isAuthenticated
+        ? "/dashboard/settings/billing?plan=pro"
+        : "/register?plan=pro",
+    };
+  }
+  if (tierName === "Business") {
+    return {
+      label: isAuthenticated ? "Upgrade to Business" : "Start with Business",
+      href: isAuthenticated
+        ? "/dashboard/settings/billing?plan=business"
+        : "/register?plan=business",
+    };
+  }
+  return {
+    label: "Contact us",
+    href: "/contact",
+  };
+}
 
 export function Pricing({
   isAuthenticated = false,
@@ -96,6 +125,7 @@ export function Pricing({
 
         <div className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {tiers.map((t) => {
+            const cta = getPricingCta(t.name, isAuthenticated);
             const ctaClassName = `mt-6 inline-flex items-center justify-center rounded-full px-4 py-2 text-sm font-medium transition-transform hover:scale-[1.01] ${
               t.highlight
                 ? "bg-primary text-primary-foreground"
@@ -126,18 +156,9 @@ export function Pricing({
                 </div>
                 <p className="mt-2 text-sm text-muted-foreground">{t.desc}</p>
 
-                {t.signup ? (
-                  <Link
-                    href={isAuthenticated ? "/dashboard/overview" : "/register"}
-                    className={ctaClassName}
-                  >
-                    {isAuthenticated ? "Open dashboard" : t.cta}
-                  </Link>
-                ) : (
-                  <Link href={t.href!} className={ctaClassName}>
-                    {t.cta}
-                  </Link>
-                )}
+                <Link href={cta.href} className={ctaClassName}>
+                  {cta.label}
+                </Link>
 
                 <ul className="mt-7 space-y-2.5 text-sm">
                   {t.features.map((f) => (

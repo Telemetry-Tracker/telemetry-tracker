@@ -28,6 +28,7 @@ import {
   rememberAffiliateReferral,
   resolveReferralFromParams,
 } from "@/lib/affiliate-referral";
+import { parsePaidPlanQueryParam } from "@/lib/plan-pricing";
 
 type RegisterPageFormProps = {
   serverChoice: CookieConsentChoice | null;
@@ -94,9 +95,16 @@ export function RegisterPageForm({ serverChoice }: RegisterPageFormProps) {
         return;
       }
       trackSignup();
-      router.push(
-        inviteToken ? "/dashboard/overview" : "/dashboard/settings/organization",
-      );
+      
+      // Preserve paid plan intent: redirect to billing with plan query when set
+      const paidPlan = parsePaidPlanQueryParam(searchParams.get("plan"));
+      if (inviteToken) {
+        router.push("/dashboard/overview");
+      } else if (paidPlan) {
+        router.push(`/dashboard/settings/billing?plan=${paidPlan}`);
+      } else {
+        router.push("/dashboard/settings/organization");
+      }
       router.refresh();
     });
   }
