@@ -125,7 +125,14 @@ export default async function OrganizationSettingsPage({
           usage={capabilities.usageQuota}
           organizationId={effectiveOrgId}
           canManageBilling={capabilities.canManageMembers}
-          hasStripeCustomer={capabilities.billingHealth?.hasStripeCustomer === true}
+          hasStripeCustomer={
+            Boolean(
+              capabilities.billingHealth?.stripeSubscriptionStatus &&
+              ["active", "trialing", "past_due", "incomplete", "unpaid"].includes(
+                capabilities.billingHealth.stripeSubscriptionStatus.toLowerCase()
+              )
+            )
+          }
         />
       ) : null}
 
