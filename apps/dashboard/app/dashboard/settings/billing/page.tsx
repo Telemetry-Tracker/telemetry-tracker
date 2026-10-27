@@ -23,18 +23,30 @@ import {
   PLAN_LIST_PRICES_EUR,
   resolveEffectivePlanTier,
   usageUnavailableMessage,
+  parsePaidPlanQueryParam,
 } from "@/lib/plan-pricing";
 import { BillingPortalButton } from "./BillingPortalButton";
 import { BillingPlanIntent } from "./BillingPlanIntent";
 
 export const dynamic = "force-dynamic";
 
-export default async function BillingSettingsPage() {
+export default async function BillingSettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const params = await searchParams;
+  const planParam = typeof params.plan === "string" ? params.plan : null;
+  const paidPlan = parsePaidPlanQueryParam(planParam);
+
   const workspace = await getDashboardWorkspaceForRequest();
   const { organizations, projects, resolvedOrgId, effectiveProjectId } = workspace;
   const hasProjects = projects.length > 0;
 
   if (resolvedOrgId === null) {
+    const orgSettingsHref = paidPlan
+      ? `/dashboard/settings/organization?plan=${paidPlan}`
+      : "/dashboard/settings/organization";
     return (
       <>
         <SettingsPageHeader
@@ -43,7 +55,7 @@ export default async function BillingSettingsPage() {
         />
         <ErrorState message="No organization selected. Create one under Organization settings first." />
         <p className="mt-4 text-sm">
-          <Link href="/dashboard/settings/organization" className="text-brand hover:underline">
+          <Link href={orgSettingsHref} className="text-brand hover:underline">
             Go to Organization settings →
           </Link>
         </p>

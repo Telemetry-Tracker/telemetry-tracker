@@ -5,7 +5,11 @@ import { useState, useTransition, type FormEvent } from "react";
 import { createOrganizationAction } from "@/app/dashboard/actions";
 import { SettingsBtn, SettingsInput } from "@/app/components/dashboard/settings/settings-ui";
 
-export function CreateOrganizationForm() {
+export function CreateOrganizationForm({
+  planIntent,
+}: {
+  planIntent?: "pro" | "business" | null;
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -20,7 +24,12 @@ export function CreateOrganizationForm() {
         setError(result.error);
         return;
       }
-      router.refresh();
+      // If plan intent exists, redirect to billing with plan to trigger Checkout
+      if (planIntent) {
+        router.push(`/dashboard/settings/billing?plan=${planIntent}`);
+      } else {
+        router.refresh();
+      }
     });
   }
 
