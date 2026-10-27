@@ -22,16 +22,16 @@ vi.mock("sonner", () => ({
 describe("OrganizationBillingActions - Abandoned Checkout Regression (TT-030)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    (dashboardActions.createBillingCheckoutAction as any).mockResolvedValue({
+    (dashboardActions.createBillingCheckoutAction as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
       url: "https://checkout.stripe.com/test",
     });
-    (dashboardActions.createBillingPortalAction as any).mockResolvedValue({
+    (dashboardActions.createBillingPortalAction as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
       url: "https://billing.stripe.com/portal",
     });
-    delete (window as any).location;
-    (window as any).location = { href: "" };
+    delete (window as { location?: unknown }).location;
+    (window as { location: { href: string } }).location = { href: "" };
   });
 
   it("FREE org with NO subscription (hasStripeCustomer=false) shows 'Upgrade to' and uses Checkout", async () => {
