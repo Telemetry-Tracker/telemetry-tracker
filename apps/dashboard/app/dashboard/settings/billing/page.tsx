@@ -109,6 +109,7 @@ export default async function BillingSettingsPage({
           organizationId={resolvedOrgId}
           canManageBilling={canManageBilling}
           effectivePlanTier={effectivePlanTier}
+          hasStripeSubscription={hasStripeCustomer}
         />
         {capabilities === null ? (
           <p

@@ -1,7 +1,7 @@
 /**
  * BillingPlanIntent component fires checkout once for eligible upgrades.
  */
-import { render, waitFor, cleanup } from "@testing-library/react";
+import { render, waitFor, cleanup, screen } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach, afterEach, type Mock } from "vitest";
 import { BillingPlanIntent } from "@/app/dashboard/settings/billing/BillingPlanIntent";
 import { useSearchParams } from "next/navigation";
@@ -13,6 +13,7 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/app/dashboard/actions", () => ({
   createBillingCheckoutAction: vi.fn(),
+  createBillingPortalAction: vi.fn(),
 }));
 
 vi.mock("sonner", () => ({
@@ -35,6 +36,10 @@ describe("BillingPlanIntent", () => {
       ok: true,
       url: "https://checkout.stripe.com/test-session",
     });
+    (dashboardActions.createBillingPortalAction as Mock).mockResolvedValue({
+      ok: true,
+      url: "https://billing.stripe.com/portal",
+    });
   });
 
   afterEach(() => {
@@ -51,6 +56,7 @@ describe("BillingPlanIntent", () => {
         organizationId="org123"
         canManageBilling={true}
         effectivePlanTier="FREE"
+        hasStripeSubscription={false}
       />
     );
 
@@ -70,6 +76,7 @@ describe("BillingPlanIntent", () => {
         organizationId="org123"
         canManageBilling={true}
         effectivePlanTier="FREE"
+        hasStripeSubscription={false}
       />
     );
 
@@ -79,7 +86,7 @@ describe("BillingPlanIntent", () => {
     });
   });
 
-  it("fires checkout for PRO→BUSINESS upgrade when plan=business", async () => {
+  it("fires checkout for PRO→BUSINESS upgrade when no existing subscription", async () => {
     mockSearchParams = new URLSearchParams("plan=business");
     (useSearchParams as Mock).mockReturnValue(mockSearchParams);
 
@@ -88,6 +95,7 @@ describe("BillingPlanIntent", () => {
         organizationId="org123"
         canManageBilling={true}
         effectivePlanTier="PRO"
+        hasStripeSubscription={false}
       />
     );
 
@@ -106,6 +114,7 @@ describe("BillingPlanIntent", () => {
         organizationId="org123"
         canManageBilling={true}
         effectivePlanTier="PRO"
+        hasStripeSubscription={false}
       />
     );
 
@@ -123,6 +132,7 @@ describe("BillingPlanIntent", () => {
         organizationId="org123"
         canManageBilling={true}
         effectivePlanTier="BUSINESS"
+        hasStripeSubscription={false}
       />
     );
 
@@ -139,6 +149,7 @@ describe("BillingPlanIntent", () => {
         organizationId="org123"
         canManageBilling={false}
         effectivePlanTier="FREE"
+        hasStripeSubscription={false}
       />
     );
 
@@ -155,6 +166,7 @@ describe("BillingPlanIntent", () => {
         organizationId="org123"
         canManageBilling={true}
         effectivePlanTier="FREE"
+        hasStripeSubscription={false}
       />
     );
 
@@ -171,6 +183,7 @@ describe("BillingPlanIntent", () => {
         organizationId="org123"
         canManageBilling={true}
         effectivePlanTier="FREE"
+        hasStripeSubscription={false}
       />
     );
 
@@ -191,6 +204,7 @@ describe("BillingPlanIntent", () => {
         organizationId="org123"
         canManageBilling={true}
         effectivePlanTier="FREE"
+        hasStripeSubscription={false}
       />
     );
 
@@ -198,5 +212,45 @@ describe("BillingPlanIntent", () => {
       expect(dashboardActions.createBillingCheckoutAction).toHaveBeenCalledTimes(1);
     });
     expect(window.location.href).toBe("");
+  });
+
+  it("uses billing portal for existing subscribers upgrading to Business", async () => {
+    mockSearchParams = new URLSearchParams("plan=business");
+    (useSearchParams as Mock).mockReturnValue(mockSearchParams);
+
+    render(
+      <BillingPlanIntent
+        organizationId="org123"
+        canManageBilling={true}
+        effectivePlanTier="PRO"
+        hasStripeSubscription={true}
+      />
+    );
+
+    await waitFor(() => {
+      expect(dashboardActions.createBillingPortalAction).toHaveBeenCalledWith("org123");
+      expect(dashboardActions.createBillingPortalAction).toHaveBeenCalledTimes(1);
+      expect(dashboardActions.createBillingCheckoutAction).not.toHaveBeenCalled();
+    });
+  });
+
+  it("shows 'already on plan' status for same tier with existing subscription", async () => {
+    mockSearchParams = new URLSearchParams("plan=pro");
+    (useSearchParams as Mock).mockReturnValue(mockSearchParams);
+
+    render(
+      <BillingPlanIntent
+        organizationId="org123"
+        canManageBilling={true}
+        effectivePlanTier="PRO"
+        hasStripeSubscription={true}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("status").textContent).toBe("You're already on Pro.");
+    });
+    expect(dashboardActions.createBillingCheckoutAction).not.toHaveBeenCalled();
+    expect(dashboardActions.createBillingPortalAction).not.toHaveBeenCalled();
   });
 });

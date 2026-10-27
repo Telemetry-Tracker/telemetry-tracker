@@ -10,13 +10,11 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, vi, afterEach } 
 import { createApp } from "../app.js";
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../lib/db.js";
-import type Stripe from "stripe";
 
 const shouldRun = process.env.RUN_DB_INTEGRATION_TESTS === "true";
 const testSuite = shouldRun ? describe : describe.skip;
 
 // Mock Stripe
-let capturedCheckoutArgs: Stripe.Checkout.SessionCreateParams | null = null;
 let mockCheckoutSessionsCreate: ReturnType<typeof vi.fn>;
 let mockCustomersCreate: ReturnType<typeof vi.fn>;
 let mockCustomersRetrieve: ReturnType<typeof vi.fn>;
@@ -65,11 +63,9 @@ testSuite("Existing Paid User Subscription Tests", () => {
   });
 
   beforeEach(async () => {
-    capturedCheckoutArgs = null;
     checkoutCallCount = 0;
 
     mockCheckoutSessionsCreate = vi.fn().mockImplementation(async (params) => {
-      capturedCheckoutArgs = params;
       checkoutCallCount++;
       return {
         id: `cs_existing_${checkoutCallCount}`,
@@ -179,10 +175,9 @@ testSuite("Existing Paid User Subscription Tests", () => {
   }
 
   describe("PRO org selecting Pro again", () => {
-    it("should reject with 'already on this plan' error", async () => {
+    it("should reject with 'already on plan' error", async () => {
       const { orgId, sessionId } = await createPaidOrg("PRO");
 
-      // User on PRO tries to click "Upgrade to Pro" (blocked by UI, but could happen via direct URL)
       const checkoutResponse = await app.inject({
         method: "POST",
         url: `/api/meta/organizations/${orgId}/billing/checkout`,
@@ -190,20 +185,20 @@ testSuite("Existing Paid User Subscription Tests", () => {
         payload: { planTier: "PRO" },
       });
 
-      // NEW BEHAVIOR: API blocks duplicate subscription
       expect(checkoutResponse.statusCode).toBe(400);
-      expect(JSON.parse(checkoutResponse.body).error).toContain("already on the PRO plan");
+      const body = JSON.parse(checkoutResponse.body);
+      expect(body.error).toContain("already on the PRO plan");
+      expect(body.code).toBe("ALREADY_ON_PLAN");
       expect(checkoutCallCount).toBe(0);
 
-      console.log("✓ PRO→PRO: API blocks duplicate subscription");
+      console.log("✓ PRO→PRO: API blocks same-tier with ALREADY_ON_PLAN");
     });
   });
 
   describe("PRO org upgrading to Business", () => {
-    it("creates checkout for BUSINESS (allowed upgrade path)", async () => {
+    it("should block and direct to billing portal (prevents double-billing)", async () => {
       const { orgId, sessionId } = await createPaidOrg("PRO");
 
-      // User on PRO clicks "Upgrade to Business"
       const checkoutResponse = await app.inject({
         method: "POST",
         url: `/api/meta/organizations/${orgId}/billing/checkout`,
@@ -211,21 +206,23 @@ testSuite("Existing Paid User Subscription Tests", () => {
         payload: { planTier: "BUSINESS" },
       });
 
-      // This is expected behavior: upgrade from PRO to BUSINESS
-      expect(checkoutResponse.statusCode).toBe(200);
-      expect(checkoutCallCount).toBe(1);
-      expect(capturedCheckoutArgs?.metadata?.plan_tier).toBe("BUSINESS");
-      expect(capturedCheckoutArgs?.line_items?.[0]?.price).toBe("price_test_business");
+      // NEW BEHAVIOR: Block checkout, direct to portal
+      expect(checkoutResponse.statusCode).toBe(400);
+      const body = JSON.parse(checkoutResponse.body);
+      expect(body.error).toContain("billing portal");
+      expect(body.code).toBe("USE_BILLING_PORTAL");
+      expect(body.details?.currentPlan).toBe("PRO");
+      expect(body.details?.requestedPlan).toBe("BUSINESS");
+      expect(checkoutCallCount).toBe(0);
 
-      console.log("✓ PRO→BUSINESS: API creates checkout (expected upgrade path)");
+      console.log("✓ PRO→BUSINESS: API blocks checkout, directs to portal (no double-billing)");
     });
   });
 
   describe("BUSINESS org selecting Business again", () => {
-    it("should reject with 'already on this plan' error", async () => {
+    it("should reject with 'already on plan' error", async () => {
       const { orgId, sessionId } = await createPaidOrg("BUSINESS");
 
-      // User on BUSINESS tries to click "Upgrade to Business" (blocked by UI, but could happen via direct URL)
       const checkoutResponse = await app.inject({
         method: "POST",
         url: `/api/meta/organizations/${orgId}/billing/checkout`,
@@ -233,20 +230,20 @@ testSuite("Existing Paid User Subscription Tests", () => {
         payload: { planTier: "BUSINESS" },
       });
 
-      // NEW BEHAVIOR: API blocks duplicate subscription
       expect(checkoutResponse.statusCode).toBe(400);
-      expect(JSON.parse(checkoutResponse.body).error).toContain("already on the BUSINESS plan");
+      const body = JSON.parse(checkoutResponse.body);
+      expect(body.error).toContain("already on the BUSINESS plan");
+      expect(body.code).toBe("ALREADY_ON_PLAN");
       expect(checkoutCallCount).toBe(0);
 
-      console.log("✓ BUSINESS→BUSINESS: API blocks duplicate subscription");
+      console.log("✓ BUSINESS→BUSINESS: API blocks same-tier");
     });
   });
 
   describe("BUSINESS org selecting Pro", () => {
-    it("should reject downgrade with clear error message", async () => {
+    it("should block and direct to billing portal", async () => {
       const { orgId, sessionId } = await createPaidOrg("BUSINESS");
 
-      // User on BUSINESS tries to get PRO (downgrade - not supported)
       const checkoutResponse = await app.inject({
         method: "POST",
         url: `/api/meta/organizations/${orgId}/billing/checkout`,
@@ -254,12 +251,84 @@ testSuite("Existing Paid User Subscription Tests", () => {
         payload: { planTier: "PRO" },
       });
 
-      // NEW BEHAVIOR: API blocks downgrade
       expect(checkoutResponse.statusCode).toBe(400);
-      expect(JSON.parse(checkoutResponse.body).error).toContain("Downgrading");
+      const body = JSON.parse(checkoutResponse.body);
+      expect(body.error).toContain("billing portal");
+      expect(body.code).toBe("USE_BILLING_PORTAL");
+      expect(body.details?.currentPlan).toBe("BUSINESS");
+      expect(body.details?.requestedPlan).toBe("PRO");
       expect(checkoutCallCount).toBe(0);
 
-      console.log("✓ BUSINESS→PRO: API blocks downgrade with clear error");
+      console.log("✓ BUSINESS→PRO: API blocks, directs to portal");
+    });
+  });
+
+  describe("Past due and incomplete subscription states", () => {
+    it("blocks checkout for past_due subscription", async () => {
+      const { orgId, sessionId } = await createPaidOrg("PRO");
+      
+      // Update to past_due status
+      await prisma.organization.update({
+        where: { id: orgId },
+        data: { stripe_subscription_status: "past_due" },
+      });
+
+      const checkoutResponse = await app.inject({
+        method: "POST",
+        url: `/api/meta/organizations/${orgId}/billing/checkout`,
+        headers: { cookie: `telemetry_session=${sessionId}` },
+        payload: { planTier: "BUSINESS" },
+      });
+
+      expect(checkoutResponse.statusCode).toBe(400);
+      expect(JSON.parse(checkoutResponse.body).code).toBe("USE_BILLING_PORTAL");
+      expect(checkoutCallCount).toBe(0);
+
+      console.log("✓ past_due: API blocks checkout, directs to portal");
+    });
+
+    it("blocks checkout for incomplete subscription", async () => {
+      const { orgId, sessionId } = await createPaidOrg("PRO");
+      
+      await prisma.organization.update({
+        where: { id: orgId },
+        data: { stripe_subscription_status: "incomplete" },
+      });
+
+      const checkoutResponse = await app.inject({
+        method: "POST",
+        url: `/api/meta/organizations/${orgId}/billing/checkout`,
+        headers: { cookie: `telemetry_session=${sessionId}` },
+        payload: { planTier: "BUSINESS" },
+      });
+
+      expect(checkoutResponse.statusCode).toBe(400);
+      expect(JSON.parse(checkoutResponse.body).code).toBe("USE_BILLING_PORTAL");
+      expect(checkoutCallCount).toBe(0);
+
+      console.log("✓ incomplete: API blocks checkout, directs to portal");
+    });
+
+    it("blocks checkout for unpaid subscription", async () => {
+      const { orgId, sessionId } = await createPaidOrg("PRO");
+      
+      await prisma.organization.update({
+        where: { id: orgId },
+        data: { stripe_subscription_status: "unpaid" },
+      });
+
+      const checkoutResponse = await app.inject({
+        method: "POST",
+        url: `/api/meta/organizations/${orgId}/billing/checkout`,
+        headers: { cookie: `telemetry_session=${sessionId}` },
+        payload: { planTier: "BUSINESS" },
+      });
+
+      expect(checkoutResponse.statusCode).toBe(400);
+      expect(JSON.parse(checkoutResponse.body).code).toBe("USE_BILLING_PORTAL");
+      expect(checkoutCallCount).toBe(0);
+
+      console.log("✓ unpaid: API blocks checkout, directs to portal");
     });
   });
 });
