@@ -281,9 +281,10 @@ testSuite("Pricing Flow Integration Tests", () => {
         data: {
           organization_id: orgId,
           email: inviteEmail,
-          role: "MEMBER",
+          role: "EDITOR",
           token: inviteToken,
           expires_at: expiresAt,
+          invited_by_id: owner.id,
         },
       });
 
@@ -311,7 +312,7 @@ testSuite("Pricing Flow Integration Tests", () => {
       });
       expect(memberships).toHaveLength(1);
       expect(memberships[0].organization_id).toBe(orgId);
-      expect(memberships[0].role).toBe("MEMBER");
+      expect(memberships[0].role).toBe("EDITOR");
       expect(checkoutCallCount).toBe(0);
 
       console.log("✓ Invite precedence: invite wins over plan intent, no checkout created");
@@ -377,7 +378,7 @@ testSuite("Pricing Flow Integration Tests", () => {
       const { id: orgId } = JSON.parse(orgResp.body);
       testOrgIds.push(orgId);
 
-      // Create member user and add MEMBER membership directly via Prisma
+      // Create member user and add EDITOR membership directly via Prisma
       const memberEmail = `member-${Date.now()}@example.com`;
       const memberUser = await prisma.user.create({
         data: {
@@ -392,7 +393,7 @@ testSuite("Pricing Flow Integration Tests", () => {
         data: {
           user_id: memberUser.id,
           organization_id: orgId,
-          role: "MEMBER",
+          role: "EDITOR",
         },
       });
 
@@ -416,7 +417,7 @@ testSuite("Pricing Flow Integration Tests", () => {
       expect(JSON.parse(checkoutResponse.body).error).toContain("Forbidden");
       expect(checkoutCallCount).toBe(0);
 
-      console.log("✓ Non-owner MEMBER role correctly blocked from creating checkout");
+      console.log("✓ Non-OWNER (EDITOR) role correctly blocked from creating checkout");
     });
   });
 
