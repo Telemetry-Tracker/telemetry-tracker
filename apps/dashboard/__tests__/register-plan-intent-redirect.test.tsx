@@ -63,7 +63,7 @@ describe("RegisterPageForm - Plan Intent Redirect", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: /terms of service/i }));
   }
 
-  it("redirects to billing with plan=pro after successful registration", async () => {
+  it("redirects to organization with plan=pro after successful registration", async () => {
     mockSearchParams = new URLSearchParams("plan=pro");
     (useSearchParams as Mock).mockReturnValue(mockSearchParams);
 
@@ -72,11 +72,11 @@ describe("RegisterPageForm - Plan Intent Redirect", () => {
     fireEvent.click(screen.getByRole("button", { name: /create account/i }));
 
     await waitFor(() => {
-      expect(mockRouter.push).toHaveBeenCalledWith("/dashboard/settings/billing?plan=pro");
+      expect(mockRouter.push).toHaveBeenCalledWith("/dashboard/settings/organization?plan=pro");
     });
   });
 
-  it("redirects to billing with plan=business after successful registration", async () => {
+  it("redirects to organization with plan=business after successful registration", async () => {
     mockSearchParams = new URLSearchParams("plan=business");
     (useSearchParams as Mock).mockReturnValue(mockSearchParams);
 
@@ -85,7 +85,7 @@ describe("RegisterPageForm - Plan Intent Redirect", () => {
     fireEvent.click(screen.getByRole("button", { name: /create account/i }));
 
     await waitFor(() => {
-      expect(mockRouter.push).toHaveBeenCalledWith("/dashboard/settings/billing?plan=business");
+      expect(mockRouter.push).toHaveBeenCalledWith("/dashboard/settings/organization?plan=business");
     });
   });
 
