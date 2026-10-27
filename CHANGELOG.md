@@ -13,6 +13,14 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ---
 
+## [1.22.19] - 2026-10-27
+
+### Fixed
+
+- **Abandoned checkout upgrade CTAs (TT-030)** — Organization settings now treats only live/unpaid Stripe subscription statuses (`active`, `trialing`, `past_due`, `incomplete`, `unpaid`) as having a subscription, so FREE orgs that opened Checkout and left see "Upgrade to" and open Checkout again instead of an empty Customer Portal ([#883](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/883), Refs [#882](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/882))
+
+---
+
 ## [1.22.18] - 2026-10-27
 
 ### Fixed
