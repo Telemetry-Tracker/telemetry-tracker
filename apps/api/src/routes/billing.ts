@@ -110,6 +110,48 @@ export async function billingRoutes(
       if (!tier) {
         return reply.status(400).send({ error: "planTier must be PRO or BUSINESS" });
       }
+
+      // Check current subscription status - NEVER create checkout if subscription exists
+      const org = await prisma.organization.findFirst({
+        where: { id: orgId, deleted_at: null },
+        select: { 
+          plan_tier: true, 
+          stripe_subscription_id: true, 
+          stripe_subscription_status: true 
+        },
+      });
+      if (!org) {
+        return reply.status(404).send({ error: "Organization not found" });
+      }
+
+      const currentTier = org.plan_tier.toUpperCase();
+      const hasActiveSubscription = 
+        org.stripe_subscription_id && 
+        ["active", "trialing", "past_due", "incomplete", "unpaid"].includes(
+          org.stripe_subscription_status?.toLowerCase() ?? ""
+        );
+
+      // If org has ANY subscription, block checkout and direct to portal
+      if (hasActiveSubscription) {
+        if (currentTier === tier) {
+          // Same tier: clear status message
+          return reply.status(400).send({ 
+            error: `Organization is already on the ${tier} plan`,
+            code: "ALREADY_ON_PLAN",
+          });
+        }
+        // Different tier: must use portal to change subscription
+        return reply.status(400).send({ 
+          error: "Plan changes for existing subscriptions must be managed through the billing portal",
+          code: "USE_BILLING_PORTAL",
+          details: {
+            currentPlan: currentTier,
+            requestedPlan: tier,
+            action: "upgrade_or_downgrade",
+          },
+        });
+      }
+
       const priceId = stripePriceIdForTier(tier);
       if (!priceId) {
         return reply.status(503).send({ error: "Stripe price not configured for this tier" });

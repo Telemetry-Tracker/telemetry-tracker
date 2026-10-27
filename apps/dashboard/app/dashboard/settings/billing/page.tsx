@@ -82,6 +82,13 @@ export default async function BillingSettingsPage({
     sessionCanManageMembers: capabilities?.canManageMembers,
   });
   const hasStripeCustomer = billing?.hasStripeCustomer === true;
+  // hasStripeSubscription: true if org has a live/unpaid subscription (not just abandoned checkout customer)
+  const hasStripeSubscription = Boolean(
+    billing?.stripeSubscriptionStatus &&
+    ["active", "trialing", "past_due", "incomplete", "unpaid"].includes(
+      billing.stripeSubscriptionStatus.toLowerCase()
+    )
+  );
   const billingContextLoaded = capabilities !== null;
   const effectivePlanTier = resolveEffectivePlanTier(billing, usage);
   const showBillingActions = canManageBilling && billingContextLoaded;
@@ -109,6 +116,7 @@ export default async function BillingSettingsPage({
           organizationId={resolvedOrgId}
           canManageBilling={canManageBilling}
           effectivePlanTier={effectivePlanTier}
+          hasStripeSubscription={hasStripeSubscription}
         />
         {capabilities === null ? (
           <p
@@ -155,7 +163,7 @@ export default async function BillingSettingsPage({
             usage={usage}
             organizationId={resolvedOrgId}
             canManageBilling={canManageBilling}
-            hasStripeCustomer={hasStripeCustomer}
+            hasStripeCustomer={hasStripeSubscription}
           />
         ) : (
           <Section title="Usage">
@@ -198,7 +206,7 @@ export default async function BillingSettingsPage({
             <OrganizationBillingActions
               organizationId={resolvedOrgId}
               canManageBilling={canManageBilling}
-              hasStripeCustomer={hasStripeCustomer}
+              hasStripeCustomer={hasStripeSubscription}
               planTier={effectivePlanTier ?? "FREE"}
             />
           ) : null}
