@@ -5,6 +5,7 @@ import {
   postLoginRedirectParts,
 } from "@/lib/auth-href";
 import { dashboardRangeCanonicalHref } from "@/lib/dashboard-range-redirect";
+import { parsePaidPlanQueryParam } from "@/lib/plan-pricing";
 
 /** Keep in sync with `TELEMETRY_SESSION_COOKIE` in `lib/dashboard-project.ts`. */
 const SESSION_COOKIE = "telemetry_session";
@@ -61,6 +62,10 @@ function redirectLegacyAuthQueryParams(request: NextRequest) {
     const value = request.nextUrl.searchParams.get(key);
     if (value) url.searchParams.set(key, value);
   }
+  
+  // Keep valid paid plan intent across legacy redirects
+  const paidPlan = parsePaidPlanQueryParam(request.nextUrl.searchParams.get("plan"));
+  if (paidPlan) url.searchParams.set("plan", paidPlan);
 
   if (signUp) {
     url.pathname = "/register";
@@ -103,8 +108,15 @@ export function middleware(request: NextRequest) {
         url.pathname = destPath;
         url.search = destSearch;
       } else {
-        url.pathname = "/dashboard/overview";
-        url.search = "";
+        // Signed-in user on /register: redirect to billing if plan intent, else overview
+        const paidPlan = parsePaidPlanQueryParam(request.nextUrl.searchParams.get("plan"));
+        if (paidPlan) {
+          url.pathname = "/dashboard/settings/billing";
+          url.search = `?plan=${paidPlan}`;
+        } else {
+          url.pathname = "/dashboard/overview";
+          url.search = "";
+        }
       }
       return NextResponse.redirect(url);
     }
