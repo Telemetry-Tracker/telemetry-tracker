@@ -1,2 +1,2 @@
 /** Generated at build time from CHANGELOG (CHANGELOG.md). Do not edit manually. */
-export const API_VERSION = "1.22.17";
+export const API_VERSION = "1.22.18";
