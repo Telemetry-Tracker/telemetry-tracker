@@ -303,6 +303,18 @@ testSuite("Pricing Flow Integration Tests", () => {
       expect(inviteeReg.statusCode).toBe(201);
       const regBody = JSON.parse(inviteeReg.body);
       expect(regBody.user).toBeDefined();
+      
+      // Debug: print full response if organizationId is missing
+      if (!regBody.organizationId) {
+        console.error("Registration succeeded but organizationId is null. Full response:", regBody);
+        console.error("Invite token used:", inviteToken);
+        // Check if invite still exists
+        const invite = await prisma.organizationInvite.findUnique({
+          where: { token: inviteToken },
+        });
+        console.error("Invite in DB:", invite);
+      }
+      
       expect(regBody.organizationId).toBe(orgId);
       const invitee = regBody.user;
       testUserIds.push(invitee.id);
