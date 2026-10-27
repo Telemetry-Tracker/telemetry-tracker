@@ -166,7 +166,7 @@ testSuite("Existing Paid User Subscription Tests", () => {
       data: {
         plan_tier: planTier,
         stripe_customer_id: `cus_${planTier.toLowerCase()}_${Date.now()}`,
-        stripe_subscription_id: `sub_${planTier.toLowerCase()}_active`,
+        stripe_subscription_id: `sub_${planTier.toLowerCase()}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
         stripe_subscription_status: "active",
       },
     });
