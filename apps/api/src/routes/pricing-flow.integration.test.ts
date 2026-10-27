@@ -297,7 +297,10 @@ testSuite("Pricing Flow Integration Tests", () => {
         },
       });
       expect(inviteeReg.statusCode).toBe(201);
-      const { user: invitee } = JSON.parse(inviteeReg.body);
+      const regBody = JSON.parse(inviteeReg.body);
+      expect(regBody.user).toBeDefined();
+      expect(regBody.organizationId).toBe(orgId);
+      const invitee = regBody.user;
       testUserIds.push(invitee.id);
 
       // Verify: joined existing org, no new org created, no checkout
