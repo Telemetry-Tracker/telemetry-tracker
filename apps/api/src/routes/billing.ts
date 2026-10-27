@@ -110,6 +110,35 @@ export async function billingRoutes(
       if (!tier) {
         return reply.status(400).send({ error: "planTier must be PRO or BUSINESS" });
       }
+
+      // Check current subscription status to prevent duplicate subscriptions
+      const org = await prisma.organization.findFirst({
+        where: { id: orgId, deleted_at: null },
+        select: { plan_tier: true, stripe_subscription_id: true, stripe_subscription_status: true },
+      });
+      if (!org) {
+        return reply.status(404).send({ error: "Organization not found" });
+      }
+
+      const currentTier = org.plan_tier.toUpperCase();
+      const hasActiveSubscription = 
+        org.stripe_subscription_id && 
+        (org.stripe_subscription_status === "active" || org.stripe_subscription_status === "trialing");
+
+      // Prevent duplicate subscription for same tier
+      if (currentTier === tier && hasActiveSubscription) {
+        return reply.status(400).send({ 
+          error: `Organization is already on the ${tier} plan with an active subscription` 
+        });
+      }
+
+      // Prevent downgrade (BUSINESS → PRO)
+      if (currentTier === "BUSINESS" && tier === "PRO" && hasActiveSubscription) {
+        return reply.status(400).send({ 
+          error: "Downgrading from Business to Pro is not supported. Please contact support or cancel your current subscription via the billing portal." 
+        });
+      }
+
       const priceId = stripePriceIdForTier(tier);
       if (!priceId) {
         return reply.status(503).send({ error: "Stripe price not configured for this tier" });
