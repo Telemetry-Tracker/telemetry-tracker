@@ -13,6 +13,14 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ---
 
+## [1.22.18] - 2026-10-27
+
+### Fixed
+
+- **Duplicate subscription / plan-change guard** — Checkout is blocked when an org already has a live or unpaid Stripe subscription (`active`, `trialing`, `past_due`, `incomplete`, `unpaid`); same-tier returns `ALREADY_ON_PLAN`, other tiers return `USE_BILLING_PORTAL`. Billing UI routes existing subscribers to the Customer Portal (plan switches enabled for Pro ↔ Business) and keeps first-time Checkout (including abandoned-checkout customers without a subscription); invite precedence and non-owner permission coverage added in integration tests ([#879](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/879))
+
+---
+
 ## [1.22.17] - 2026-10-27
 
 ### Fixed
