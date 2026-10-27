@@ -273,6 +273,11 @@ testSuite("Pricing Flow Integration Tests", () => {
       const { id: orgId } = JSON.parse(orgResp.body);
       testOrgIds.push(orgId);
 
+      // Verify org was created
+      const orgExists = await prisma.organization.findUnique({ where: { id: orgId } });
+      expect(orgExists).toBeDefined();
+      console.log("Created org:", orgId, "exists:", !!orgExists);
+
       // Create invite
       const inviteEmail = `invited-${Date.now()}@example.com`;
       const inviteResp = await app.inject({
@@ -284,6 +289,9 @@ testSuite("Pricing Flow Integration Tests", () => {
           role: "MEMBER",
         },
       });
+      if (inviteResp.statusCode !== 201) {
+        console.error("Invite creation failed with status:", inviteResp.statusCode, "body:", inviteResp.body);
+      }
       expect(inviteResp.statusCode).toBe(201);
       const inviteBody = JSON.parse(inviteResp.body);
       expect(inviteBody.token).toBeDefined();
