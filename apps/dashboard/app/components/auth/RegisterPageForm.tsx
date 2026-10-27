@@ -96,12 +96,12 @@ export function RegisterPageForm({ serverChoice }: RegisterPageFormProps) {
       }
       trackSignup();
       
-      // Preserve paid plan intent: redirect to billing with plan query when set
+      // Preserve paid plan intent: redirect to org settings with plan (new users have no org yet)
       const paidPlan = parsePaidPlanQueryParam(searchParams.get("plan"));
       if (inviteToken) {
         router.push("/dashboard/overview");
       } else if (paidPlan) {
-        router.push(`/dashboard/settings/billing?plan=${paidPlan}`);
+        router.push(`/dashboard/settings/organization?plan=${paidPlan}`);
       } else {
         router.push("/dashboard/settings/organization");
       }

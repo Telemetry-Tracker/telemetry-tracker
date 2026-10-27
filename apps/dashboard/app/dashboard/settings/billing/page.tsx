@@ -53,7 +53,7 @@ export default async function BillingSettingsPage({
           title="Billing & usage"
           description="Create an organization to view plan limits and manage Stripe billing."
         />
-        <ErrorState message="No organization selected. Create one under Organization settings first." />
+        <ErrorState message="Create an organization to view billing and usage details." />
         <p className="mt-4 text-sm">
           <Link href={orgSettingsHref} className="text-brand hover:underline">
             Go to Organization settings →
