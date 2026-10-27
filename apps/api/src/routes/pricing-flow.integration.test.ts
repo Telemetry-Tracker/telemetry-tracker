@@ -284,7 +284,11 @@ testSuite("Pricing Flow Integration Tests", () => {
           role: "MEMBER",
         },
       });
-      const { token: inviteToken } = JSON.parse(inviteResp.body);
+      expect(inviteResp.statusCode).toBe(201);
+      const inviteBody = JSON.parse(inviteResp.body);
+      expect(inviteBody.token).toBeDefined();
+      const inviteToken = inviteBody.token;
+      console.log("Created invite with token:", inviteToken, "for email:", inviteEmail);
 
       // Register with invite (plan param would be in URL but ignored by server)
       const inviteeReg = await app.inject({
