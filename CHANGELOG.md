@@ -13,11 +13,21 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ---
 
+## [1.22.17] - 2026-10-27
+
+### Fixed
+
+- **Paid signup plan intent** — new users registering from Start with Pro/Business go to organization settings with `?plan=` preserved, then after creating an org to Billing Checkout; no-org billing copy and org-settings link no longer drop the plan ([#876](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/876), [#875](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/875))
+
+---
+
 ## [1.22.16] - 2026-10-27
 
 ### Changed
 
 - **Pricing CTAs** — Pro and Business buttons now say "Start with Pro" / "Start with Business" (or "Upgrade to …" when signed in) and carry a `?plan=` intent through register/login into the existing Stripe Checkout path on Billing; Free and Custom unchanged ([#872](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/872))
+
+---
 
 ## [1.22.15] - 2026-10-26
 

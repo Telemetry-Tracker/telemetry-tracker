@@ -17,6 +17,7 @@ import { OrganizationArchiveSection } from "@/app/dashboard/settings/organizatio
 import { OrganizationProjectsSection } from "@/app/dashboard/settings/organization/OrganizationProjectsSection";
 import { OrganizationRenameSection } from "@/app/dashboard/settings/organization/OrganizationRenameSection";
 import { OrganizationUsageCard } from "@/app/dashboard/settings/organization/OrganizationUsageCard";
+import { parsePaidPlanQueryParam } from "@/lib/plan-pricing";
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +36,15 @@ async function loadMembersForOrg(
   return { ok: true, members: data.members ?? [] };
 }
 
-export default async function OrganizationSettingsPage() {
+export default async function OrganizationSettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const params = await searchParams;
+  const planParam = typeof params.plan === "string" ? params.plan : null;
+  const paidPlan = parsePaidPlanQueryParam(planParam);
+
   const [workspace, user] = await Promise.all([
     getDashboardWorkspaceForRequest(),
     getDashboardUser(),
@@ -80,7 +89,7 @@ export default async function OrganizationSettingsPage() {
       ? (organizations.find((o) => o.id === effectiveOrgId)?.name ?? "Selected organization")
       : null;
 
-  const createOrganizationFields = <CreateOrganizationForm />;
+  const createOrganizationFields = <CreateOrganizationForm planIntent={paidPlan} />;
 
   return (
     <>
