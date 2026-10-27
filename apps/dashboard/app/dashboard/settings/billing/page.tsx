@@ -25,6 +25,7 @@ import {
   usageUnavailableMessage,
 } from "@/lib/plan-pricing";
 import { BillingPortalButton } from "./BillingPortalButton";
+import { BillingPlanIntent } from "./BillingPlanIntent";
 
 export const dynamic = "force-dynamic";
 
@@ -92,6 +93,11 @@ export default async function BillingSettingsPage() {
         }
       />
       <SettingsPageBody>
+        <BillingPlanIntent
+          organizationId={resolvedOrgId}
+          canManageBilling={canManageBilling}
+          effectivePlanTier={effectivePlanTier}
+        />
         {capabilities === null ? (
           <p
             className="rounded-lg border border-warning/35 bg-warning/10 px-4 py-3 text-sm text-foreground"

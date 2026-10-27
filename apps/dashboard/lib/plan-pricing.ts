@@ -122,3 +122,29 @@ export function usageUnavailableMessage({
   }
   return "Usage details are unavailable for the selected project. Try refreshing or choose another project.";
 }
+
+/**
+ * Parse and normalize a plan query param to a lowercase paid plan intent, or null.
+ * Accepts "pro", "PRO", "business", "BUSINESS" (trimmed). Rejects "free", empty, and invalid.
+ */
+export function parsePaidPlanQueryParam(
+  raw: string | null | undefined
+): "pro" | "business" | null {
+  if (!raw) return null;
+  const normalized = raw.trim().toLowerCase();
+  if (normalized === "pro" || normalized === "business") {
+    return normalized;
+  }
+  return null;
+}
+
+/**
+ * Map a parsed paid plan intent to the Stripe Checkout tier enum.
+ */
+export function paidPlanQueryToCheckoutTier(
+  plan: "pro" | "business" | null
+): "PRO" | "BUSINESS" | null {
+  if (plan === "pro") return "PRO";
+  if (plan === "business") return "BUSINESS";
+  return null;
+}
