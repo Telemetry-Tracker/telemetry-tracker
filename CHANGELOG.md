@@ -11,6 +11,10 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ## [Unreleased]
 
+### Fixed
+
+- **Duplicate session race condition (TT-031)** — POST `/ingest/session` now uses atomic upsert with a unique constraint on `(project_id, session_id)` instead of check-then-create, preventing duplicate session rows when `init()` and `identify()` are called concurrently (common with React Native SDK 1.3.1). Migration safely dedupes existing duplicates ([#887](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/887), Refs [#886](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/886))
+
 ---
 
 ## [1.22.19] - 2026-10-27
