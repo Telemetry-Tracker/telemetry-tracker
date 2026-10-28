@@ -125,6 +125,91 @@ describe("browser session lifecycle", () => {
     });
     expect(endedFirst).toBe(true);
   });
+
+  it("preserves identity when identify() is called before init() (fresh import)", async () => {
+    // Reset modules to get a clean state without beforeEach's init()
+    vi.resetModules();
+    
+    // Re-setup globals
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("localStorage", {
+      getItem: () => null,
+      setItem: () => {},
+    });
+    vi.stubGlobal("setInterval", () => 0 as unknown as ReturnType<typeof setInterval>);
+    
+    // Fresh import - no session yet
+    const { identify, init, getSessionId, getUserId } = await import("./index.js");
+    
+    // Call identify before init
+    identify("user-before-init", { email: "before@example.com" });
+    
+    // Then call init - should preserve the identity
+    init({
+      ingestUrl: "http://localhost:3001",
+      app: "test-app",
+      apiKey: "tt_live_pub_secret",
+      batchInterval: 0,
+      environment: "test",
+      webVitals: false,
+    });
+
+    expect(getUserId()).toBe("user-before-init");
+    
+    const sessionId = getSessionId();
+    const sessionPosts = fetchMock.mock.calls.filter(([url]) =>
+      String(url).includes("/ingest/session")
+    );
+    const initPost = sessionPosts.find(([, opts]) => {
+      const body = JSON.parse((opts as RequestInit).body as string);
+      return body.session_id === sessionId;
+    });
+    
+    expect(initPost).toBeDefined();
+    const body = JSON.parse((initPost![1] as RequestInit).body as string);
+    expect(body.user_id).toBe("user-before-init");
+    expect(body.user_email).toBe("before@example.com");
+    expect(body.identity_updated_at).toBeDefined();
+  });
+
+  it("clears stale identity from previous session on re-init", async () => {
+    const { init, identify, getSessionId, getUserId } = await import("./index.js");
+    
+    // First session with user A
+    identify("user-a", { email: "a@example.com" });
+    expect(getUserId()).toBe("user-a");
+    const firstId = getSessionId();
+    
+    // Re-init for new session (simulating app restart or new tab)
+    init({
+      ingestUrl: "http://localhost:3001",
+      app: "test-app",
+      apiKey: "tt_live_pub_secret",
+      batchInterval: 0,
+      environment: "test",
+      webVitals: false,
+    });
+    
+    const secondId = getSessionId();
+    expect(secondId).not.toBe(firstId);
+    
+    // Identity should be cleared (no explicit identify() for new session)
+    expect(getUserId()).toBeNull();
+    
+    // Second session init should NOT include stale user-a
+    const sessionPosts = fetchMock.mock.calls.filter(([url]) =>
+      String(url).includes("/ingest/session")
+    );
+    const secondInit = sessionPosts.find(([, opts]) => {
+      const body = JSON.parse((opts as RequestInit).body as string);
+      return body.session_id === secondId && body.ended_at == null;
+    });
+    
+    expect(secondInit).toBeDefined();
+    const body = JSON.parse((secondInit![1] as RequestInit).body as string);
+    expect(body.user_id).toBeUndefined();
+    expect(body.user_email).toBeUndefined();
+  });
 });
 
 describe("batched event flush on page lifecycle", () => {
