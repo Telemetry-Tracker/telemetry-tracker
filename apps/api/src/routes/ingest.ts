@@ -217,66 +217,50 @@ export async function ingestRoutes(
       if (!planOk.ok) return reply.status(planOk.status).send(planOk.body);
     }
     
-    // Use upsert to handle concurrent session creation atomically
+    // Use native INSERT ... ON CONFLICT for atomic upsert (Prisma's upsert does SELECT-then-INSERT)
     const scrubbedEmail = scrubIngestSessionUserEmail(
       body.user_email ?? null,
       scrubSessionEmail
     );
-    const createData: {
-      project_id: string;
-      session_id: string;
-      app: string;
-      platform: string | null;
-      environment: string | null;
-      release: string | null;
-      user_id: string | null;
-      user_email: string | null;
-      anonymous_id: string | null;
-      country: string | null;
-      device_browser: string | null;
-      device_os: string | null;
-      sdk_version: string | null;
-      started_at?: Date;
-      ended_at?: Date;
-    } = {
-      project_id: projectId,
-      session_id: body.session_id,
-      app,
-      platform: body.platform ?? null,
-      environment: normalizeIngestEnvironment(body.environment),
-      release: body.release ?? null,
-      user_id: body.user_id ?? null,
-      user_email: scrubbedEmail === undefined ? null : scrubbedEmail,
-      anonymous_id: body.anonymous_id ?? null,
-      country: body.country ?? null,
-      device_browser: body.device_browser ?? null,
-      device_os: body.device_os ?? null,
-      sdk_version: body.sdk_version ?? null,
-    };
+    const startedAt = body.started_at ? new Date(body.started_at) : new Date();
+    const endedAt = body.ended_at ? new Date(body.ended_at) : null;
     
-    if (body.started_at) {
-      createData.started_at = new Date(body.started_at);
-    }
-    if (body.ended_at) {
-      createData.ended_at = new Date(body.ended_at);
-    }
-    
-    await prisma.session.upsert({
-      where: {
-        project_id_session_id_app: {
-          project_id: projectId,
-          session_id: body.session_id,
-          app,
-        },
-      },
-      create: createData,
-      update: {
-        // On concurrent create, update identity/context fields but preserve started_at
-        ...sessionContextPatch(body, scrubSessionEmail),
-        // Include ended_at if provided to handle concurrent session end
-        ...(body.ended_at ? { ended_at: new Date(body.ended_at) } : {}),
-      },
-    });
+    await prisma.$executeRaw`
+      INSERT INTO "Session" (
+        id, project_id, session_id, app, platform, environment, release,
+        user_id, user_email, anonymous_id, country, device_browser, device_os,
+        sdk_version, started_at, ended_at
+      ) VALUES (
+        gen_random_uuid(),
+        ${projectId},
+        ${body.session_id},
+        ${app},
+        ${body.platform ?? null},
+        ${normalizeIngestEnvironment(body.environment)},
+        ${body.release ?? null},
+        ${body.user_id ?? null},
+        ${scrubbedEmail === undefined ? null : scrubbedEmail},
+        ${body.anonymous_id ?? null},
+        ${body.country ?? null},
+        ${body.device_browser ?? null},
+        ${body.device_os ?? null},
+        ${body.sdk_version ?? null},
+        ${startedAt},
+        ${endedAt}
+      )
+      ON CONFLICT (project_id, session_id, app) DO UPDATE SET
+        user_id = COALESCE("Session".user_id, EXCLUDED.user_id),
+        user_email = COALESCE("Session".user_email, EXCLUDED.user_email),
+        anonymous_id = COALESCE("Session".anonymous_id, EXCLUDED.anonymous_id),
+        country = COALESCE("Session".country, EXCLUDED.country),
+        device_browser = COALESCE("Session".device_browser, EXCLUDED.device_browser),
+        device_os = COALESCE("Session".device_os, EXCLUDED.device_os),
+        sdk_version = COALESCE("Session".sdk_version, EXCLUDED.sdk_version),
+        platform = COALESCE("Session".platform, EXCLUDED.platform),
+        environment = COALESCE("Session".environment, EXCLUDED.environment),
+        release = COALESCE("Session".release, EXCLUDED.release),
+        ended_at = GREATEST("Session".ended_at, EXCLUDED.ended_at)
+    `;
     
     if (isNewSession) {
       await recordFirstTelemetry(prisma, projectId);
