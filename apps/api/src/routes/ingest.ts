@@ -193,7 +193,11 @@ export async function ingestRoutes(
     if (!assertIngestAppAllowed(request, app, reply)) return;
     const piiSettings = await loadProjectPiiScrubSettings(prisma, projectId);
     const scrubSessionEmail = piiSettings.scrubSessionUserEmail;
+    
+    // Check if session exists to determine if this counts as new telemetry
     const existing = await findIngestSession(prisma, projectId, body.session_id, app);
+    const isNewSession = !existing;
+    
     // Closing a session only sets `ended_at` — no new telemetry; must not be blocked by quota.
     if (existing && body.ended_at) {
       await prisma.session.update({
@@ -206,45 +210,62 @@ export async function ingestRoutes(
       });
       return reply.status(204).send();
     }
-    // Same session already recorded, no end time — update identity/context fields on retry.
-    if (existing && body.ended_at == null) {
-      const patch = sessionContextPatch(body, scrubSessionEmail);
-      if (Object.keys(patch).length > 0) {
-        await prisma.session.update({
-          where: { id: existing.id },
-          data: patch,
-        });
-      }
-      return reply.status(204).send();
+    
+    // For new sessions, check quota before proceeding
+    if (isNewSession) {
+      const planOk = await assertIngestPlanOrReply(prisma, projectId, 1, [app]);
+      if (!planOk.ok) return reply.status(planOk.status).send(planOk.body);
     }
-    const planOk = await assertIngestPlanOrReply(prisma, projectId, 1, [app]);
-    if (!planOk.ok) return reply.status(planOk.status).send(planOk.body);
-    if (!existing) {
-      const scrubbedEmail = scrubIngestSessionUserEmail(
-        body.user_email ?? null,
-        scrubSessionEmail
-      );
-      await prisma.session.create({
-        data: {
-          project_id: projectId,
-          session_id: body.session_id,
-          app,
-          platform: body.platform ?? null,
-          environment: normalizeIngestEnvironment(body.environment),
-          release: body.release ?? null,
-          user_id: body.user_id ?? null,
-          user_email: scrubbedEmail === undefined ? null : scrubbedEmail,
-          anonymous_id: body.anonymous_id ?? null,
-          country: body.country ?? null,
-          device_browser: body.device_browser ?? null,
-          device_os: body.device_os ?? null,
-          sdk_version: body.sdk_version ?? null,
-          started_at: body.started_at ? new Date(body.started_at) : undefined,
-        },
-      });
+    
+    // Use native INSERT ... ON CONFLICT for atomic upsert (Prisma's upsert does SELECT-then-INSERT)
+    const scrubbedEmail = scrubIngestSessionUserEmail(
+      body.user_email ?? null,
+      scrubSessionEmail
+    );
+    const startedAt = body.started_at ? new Date(body.started_at) : new Date();
+    const endedAt = body.ended_at ? new Date(body.ended_at) : null;
+    
+    await prisma.$executeRaw`
+      INSERT INTO "Session" (
+        id, project_id, session_id, app, platform, environment, release,
+        user_id, user_email, anonymous_id, country, device_browser, device_os,
+        sdk_version, started_at, ended_at
+      ) VALUES (
+        gen_random_uuid(),
+        ${projectId},
+        ${body.session_id},
+        ${app},
+        ${body.platform ?? null},
+        ${normalizeIngestEnvironment(body.environment)},
+        ${body.release ?? null},
+        ${body.user_id ?? null},
+        ${scrubbedEmail === undefined ? null : scrubbedEmail},
+        ${body.anonymous_id ?? null},
+        ${body.country ?? null},
+        ${body.device_browser ?? null},
+        ${body.device_os ?? null},
+        ${body.sdk_version ?? null},
+        ${startedAt},
+        ${endedAt}
+      )
+      ON CONFLICT (project_id, session_id, app) DO UPDATE SET
+        user_id = COALESCE(EXCLUDED.user_id, "Session".user_id),
+        user_email = COALESCE(EXCLUDED.user_email, "Session".user_email),
+        anonymous_id = COALESCE(EXCLUDED.anonymous_id, "Session".anonymous_id),
+        country = COALESCE(EXCLUDED.country, "Session".country),
+        device_browser = COALESCE(EXCLUDED.device_browser, "Session".device_browser),
+        device_os = COALESCE(EXCLUDED.device_os, "Session".device_os),
+        sdk_version = COALESCE(EXCLUDED.sdk_version, "Session".sdk_version),
+        platform = COALESCE(EXCLUDED.platform, "Session".platform),
+        environment = COALESCE(EXCLUDED.environment, "Session".environment),
+        release = COALESCE(EXCLUDED.release, "Session".release),
+        ended_at = GREATEST("Session".ended_at, EXCLUDED.ended_at)
+    `;
+    
+    if (isNewSession) {
+      await recordFirstTelemetry(prisma, projectId);
+      await addIngestUnits(prisma, projectId, 1);
     }
-    await recordFirstTelemetry(prisma, projectId);
-    await addIngestUnits(prisma, projectId, 1);
     void maybeNotifyQuotaAlerts(prisma, projectId).catch(() => {});
     return reply.status(204).send();
   });
