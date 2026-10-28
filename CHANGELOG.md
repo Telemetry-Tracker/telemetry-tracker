@@ -11,6 +11,10 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ## [Unreleased]
 
+---
+
+## [1.22.21] - 2026-10-28
+
 ### Fixed
 
 - **Stale identity overwrite (TT-031 follow-up)** — Added `identity_updated_at` timestamp to Session table and ingest logic to prevent delayed SDK requests from overwriting fresher identity data. Server only updates `user_id` / `user_email` when BOTH stored and incoming requests have timestamps AND the incoming timestamp is newer. Requests without `identity_updated_at` continue using #887 behavior (new non-null wins). SDK 1.5.3+ sends `identity_updated_at` when calling `identify()`. **Old SDKs (1.3.1) remain affected until apps upgrade** — stale init requests can still overwrite correct identity. Client timestamps are clamped to server time and bounded by `started_at`. Core `init()` now clears stale identity from previous sessions while preserving identity set via identify-before-init pattern. ([#890](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/890), Refs [#886](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/886))
