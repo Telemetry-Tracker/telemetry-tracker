@@ -1,5 +1,6 @@
 "use server";
 
+import { apiFetch } from "@/lib/api-fetch";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { API_BASE_URL } from "@/lib/api-url";
@@ -209,7 +210,7 @@ async function resolveProjectCookieForOrganization(
   if (orgScopedProjectsPayload !== undefined) {
     data = orgScopedProjectsPayload;
   } else {
-    const res = await fetch(`${API_BASE_URL}/api/meta/projects`, {
+    const res = await apiFetch(`${API_BASE_URL}/api/meta/projects`, {
       cache: "no-store",
       headers: sessionScopedMetaHeaders(sessionId, {
         projectId: currentProjectId,
@@ -244,7 +245,7 @@ export async function setDashboardOrganizationId(
     return { ok: false, error: "Not signed in" };
   }
   const projectId = await getDashboardProjectId();
-  const verify = await fetch(`${API_BASE_URL}/api/meta/projects`, {
+  const verify = await apiFetch(`${API_BASE_URL}/api/meta/projects`, {
     cache: "no-store",
     headers: sessionScopedMetaHeaders(sessionId, {
       projectId,
@@ -313,6 +314,7 @@ export async function createOrganizationAction(
   if (!name) {
     return { ok: false, error: "Name is required" };
   }
+  
   const res = await dashboardApiFetch("/api/meta/organizations", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -427,6 +429,54 @@ export async function updateOrganizationMemberRoleAction(
       body: JSON.stringify({ role }),
     }
   );
+  if (res.status === 204) {
+    revalidatePath("/dashboard/settings/team");
+    return { ok: true };
+  }
+  const t = await res.text();
+  return { ok: false, error: t.slice(0, 400) || res.statusText };
+}
+
+export type PendingInviteRow = {
+  id: string;
+  email: string;
+  role: string;
+  expiresAt: string;
+  createdAt: string;
+};
+
+export async function removeOrganizationMemberAction(
+  organizationId: string,
+  userId: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const oid = organizationId.trim();
+  const uid = userId.trim();
+  if (!/^[0-9a-f-]{36}$/i.test(oid) || !/^[0-9a-f-]{36}$/i.test(uid)) {
+    return { ok: false, error: "Invalid id" };
+  }
+  const res = await dashboardApiFetch(`/api/meta/organizations/${oid}/members/${uid}`, {
+    method: "DELETE",
+  });
+  if (res.status === 204) {
+    revalidatePath("/dashboard/settings/team");
+    return { ok: true };
+  }
+  const t = await res.text();
+  return { ok: false, error: t.slice(0, 400) || res.statusText };
+}
+
+export async function revokeOrganizationInviteAction(
+  organizationId: string,
+  inviteId: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const oid = organizationId.trim();
+  const iid = inviteId.trim();
+  if (!/^[0-9a-f-]{36}$/i.test(oid) || !/^[0-9a-f-]{36}$/i.test(iid)) {
+    return { ok: false, error: "Invalid id" };
+  }
+  const res = await dashboardApiFetch(`/api/meta/organizations/${oid}/invites/${iid}`, {
+    method: "DELETE",
+  });
   if (res.status === 204) {
     revalidatePath("/dashboard/settings/team");
     return { ok: true };

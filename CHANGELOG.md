@@ -11,14 +11,425 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ## [Unreleased]
 
+---
+
+## [1.22.20] - 2026-10-28
+
+### Fixed
+
+- **Duplicate session race condition (TT-031)** — POST `/ingest/session` now uses atomic upsert with a unique constraint on `(project_id, session_id, app)` instead of check-then-create, preventing duplicate session rows when `init()` and `identify()` are called concurrently (common with React Native SDK 1.3.1). Migration safely dedupes existing duplicates ([#887](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/887), Refs [#886](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/886))
+
+---
+
+## [1.22.19] - 2026-10-27
+
+### Fixed
+
+- **Abandoned checkout upgrade CTAs (TT-030)** — Organization settings now treats only live/unpaid Stripe subscription statuses (`active`, `trialing`, `past_due`, `incomplete`, `unpaid`) as having a subscription, so FREE orgs that opened Checkout and left see "Upgrade to" and open Checkout again instead of an empty Customer Portal ([#883](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/883), Refs [#882](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/882))
+
+---
+
+## [1.22.18] - 2026-10-27
+
+### Fixed
+
+- **Duplicate subscription / plan-change guard** — Checkout is blocked when an org already has a live or unpaid Stripe subscription (`active`, `trialing`, `past_due`, `incomplete`, `unpaid`); same-tier returns `ALREADY_ON_PLAN`, other tiers return `USE_BILLING_PORTAL`. Billing UI routes existing subscribers to the Customer Portal (plan switches enabled for Pro ↔ Business) and keeps first-time Checkout (including abandoned-checkout customers without a subscription); invite precedence and non-owner permission coverage added in integration tests ([#879](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/879))
+
+---
+
+## [1.22.17] - 2026-10-27
+
+### Fixed
+
+- **Paid signup plan intent** — new users registering from Start with Pro/Business go to organization settings with `?plan=` preserved, then after creating an org to Billing Checkout; no-org billing copy and org-settings link no longer drop the plan ([#876](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/876), [#875](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/875))
+
+---
+
+## [1.22.16] - 2026-10-27
+
+### Changed
+
+- **Pricing CTAs** — Pro and Business buttons now say "Start with Pro" / "Start with Business" (or "Upgrade to …" when signed in) and carry a `?plan=` intent through register/login into the existing Stripe Checkout path on Billing; Free and Custom unchanged ([#872](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/872))
+
+---
+
+## [1.22.15] - 2026-10-26
+
+### Added
+
+- **Vercel cron jobs guide** — new marketing page at `/monitoring/nextjs/vercel-cron-jobs` describing how to monitor Next.js cron jobs on Vercel with check-ins and error tracking, including serverless-safe patterns (`withCheckIn`, `flush()` in `finally`), grace period guidance for Hobby vs Pro, the status-blind trap, and timeout detection with max runtime; added to the sitemap and `llms.txt`, with links from `/monitoring/nextjs` and `/docs/checkins` ([#869](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/869))
+
+---
+
+## [1.22.14] - 2026-10-25
+
+### Added
+
+- **Next.js monitoring page** — new marketing page at `/monitoring/nextjs` covering errors, Web Vitals, releases, alerts, and self-hosting for Next.js apps; added to the sitemap, `llms.txt`, and linked from `/error-tracking/nextjs` and `/docs/nextjs` ([#765](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/765), [#867](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/867))
+
+---
+
+## [1.22.13] - 2026-10-23
+
+### Added
+
+- **Check-in key rotation** — the API accepts an optional `CHECKIN_ENCRYPTION_KEY_PREVIOUS` (decrypt only), so `CHECKIN_ENCRYPTION_KEY` can be rotated without losing stored check-in tokens. A new `run-checkin-reencrypt` job re-encrypts tokens with the current key (dry run by default, `--apply` to write, counts only in output). Runbook in `docs/CHECK-INS.md` ([#863](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/863))
+
+### Changed
+
+- **Docs** — Node SDK docs align the ingest URL, add ESM-only guidance and an Express error handler example ([#862](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/862)); leftover `tacko.io` sender references replaced ([#861](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/861))
+
+---
+
+## [1.22.12] - 2026-10-20
+
+### Fixed
+
+- **Node SDK: events lost in short-lived processes** — `@telemetry-tracker/node` 1.4.2 (with `@telemetry-tracker/core` 1.5.2) exports `async flush()` and flushes queued events on `beforeExit`; it warns on exit if events are still queued (e.g. after `process.exit()`). Long-running processes keep batching. `/docs/node` and the heartbeat example in `/docs/alerts` now `await flush()` at the end of a job (requires Node SDK 1.4.2 or later) ([#843](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/843))
+
+---
+
+## [1.22.11] - 2026-10-20
+
+### Added
+
+- **Missing-event alerts page** — new marketing page at `/features/missing-event-alerts` describing business heartbeat rules (one named event per condition, 1–24 hour window, checks about every 5 minutes, no recovery notification yet), linking to `/docs/alerts` and `/docs/checkins`; added to the sitemap and `llms.txt` ([#842](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/842))
+- **README** — XERJ Corpus Hub contributor badge in the README and its German, Spanish and French versions ([#840](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/840))
+
+### Changed
+
+- **Heartbeat rule editor** — a "No events" condition now asks explicitly whether to watch all events in the project or a specific event; "A specific event" requires a name. Existing rules without an event name open as "All events" and behave as before. No API change ([#844](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/844))
+- **Docs** — example sender in the email setup docs is now `Telemetry Tracker <info@telemetry-tracker.com>` instead of `noreply@tacko.io` ([#845](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/845))
+
+---
+
+## [1.22.10] - 2026-10-20
+
+### Added
+
+- **Business heartbeats** — `NO_EVENTS` alert conditions take an optional `eventName`, so a rule can alert when an expected custom event (for example `trackEvent("signup_verified")`) has not arrived for up to 24 hours. The alert names the event and links to the Events page filtered to it. The dashboard rule editor can now create and edit these conditions ("No events (heartbeat)": event name, window in hours, environment), defaulting to a 6-hour window with a cooldown equal to the window. Rules without `eventName` behave as before. Recipe in [docs/ALERT-RULES.md](docs/ALERT-RULES.md#business-heartbeats) and `/docs/alerts`. No recovery notification and no database migration.
+
+---
+
+## [1.22.9] - 2026-10-19
+
+### Changed
+
+- **Official contact address** — public contact links, the contact form inbox default, README and TRADEMARK now use `info@telemetry-tracker.com`. Hosted-cloud emails set Reply-To to `info@telemetry-tracker.com` (override with `TELEMETRY_EMAIL_REPLY_TO`; self-hosted instances get no default). The sending address is unchanged.
+
+---
+
+## [1.22.8] - 2026-10-19
+
+### Added
+
+- **Self-hosting** — `selfhost/` provides a one-command Docker Compose stack (Postgres + API + dashboard). The API applies migrations on start. Services start in order through healthchecks, and the API and dashboard run as a non-root user. Postgres is not published, the API and dashboard listen on 127.0.0.1, and no default secrets ship with the stack. Measured on a test box: about 4 min from clone to a healthy stack on a cold build, 12 s with built images, and about 261 MiB of container memory when idle ([#827](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/827)).
+
+### Fixed
+
+- **Docs** — DEPLOYMENT.md and /docs/self-hosting no longer claim the API has no Dockerfile (`apps/api/Dockerfile` has built the production API since v1.18.5) ([#831](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/831)).
+
+## [1.22.7] - 2026-10-19
+
+### Changed
+
+- **Self-hosting docs** — measured setup time and idle/workload RAM and CPU for v1.22.6, a note that the API does not load `.env` itself (migrate-before-listen needs `NODE_ENV=production` in the process environment), and how to skip the resident `pnpm` wrapper processes. The local `docker-compose.yml` now binds Postgres to `127.0.0.1` and drops the obsolete `version` key ([#828](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/828)).
+- **Self-hosting** — the dashboard Docker image drops the build-time `.next/cache` and `.dockerignore` skips local `.next` output: on a v1.22.6 test build the image went from 2.35 GB to 1.06 GB ([#826](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/826)).
+
+## [1.22.6] - 2026-10-19
+
+### Added
+
+- **Docs** — Expo EAS Update source-map guide covering Hermes maps, per-update releases, Android device bundle names, and CI uploads; updated React Native references and handler documentation ([#820](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/820)).
+- **Docs** — SDK data inventory for App Store privacy labels and Google Play Data safety ([#816](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/816), [#822](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/822)); same-origin ingest proxy guide for ad blockers ([#819](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/819)).
+
+### Changed
+
+- **Docs** — faster time-to-first-error in the Next.js guide ([#818](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/818)); the Server Components render error guide targets "Minified React error #441" and adds FAQ structured data ([#823](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/823)).
+
+## [1.22.5] - 2026-10-16
+
+### Fixed
+
+- **SDK release process** — committed `@telemetry-tracker/node` and React Native build output now matches source (includes the [#724](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/724) crash fix), CI checks all SDK build output, and the generated API version no longer embeds the local checkout path; the release guide documents the per-package `sdk-*` tag step ([#813](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/813)).
+
+### Changed
+
+- **Docs** — Next.js provider config includes `release`; the source-map Action example is pinned to v1.22.4 with `project_id` optional ([#812](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/812)).
+
+## [1.22.4] - 2026-10-16
+
+### Fixed
+
+- **Team members** — organization owners can remove members and see and revoke pending invites (a revoked invite link stops working); the last owner cannot be removed. Both actions are recorded in the audit log ([#714](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/714)).
+- **Source maps for Next.js** — docs now cover `productionBrowserSourceMaps`, upload only browser maps from `.next/static`, and list per-plan artifact quotas; `X-Project-Id` is optional for API-key uploads (the key identifies its project); Settings → Source maps shows a copyable Project ID and links to the docs ([#704](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/704)).
+- **Accessibility** — every settings switch has an accessible name, the account menu trigger is labelled, and the API keys actions column has a header name ([#627](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/627), [#628](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/628), [#629](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/629)); creating the first API key shows errors as a toast ([#626](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/626)).
+
+### Changed
+
+- **Docs and self-hosting** — npm READMEs for all SDK packages, Vite plugin guide links, `piiScrub`/`shutdown` in the core guide, corrected React Native `platform` guidance, and a persistent volume plus healthcheck for local Postgres ([#621](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/621)–[#624](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/624), [#630](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/630), [#631](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/631)).
+- **SDK (unpublished)** — `@telemetry-tracker/node` 1.4.1 prepared: the crash handler always sends an event, even for hostile thrown values ([#724](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/724)). Not yet on npm.
+
+## [1.22.3] - 2026-10-16
+
+### Added
+
+- **Private signup analytics** — Dedicated bearer-token authenticated, rate-limited read-only endpoint with UTC daily/ISO weekly counts, approved first-touch acquisition labels and affiliate signup counts. Disabled unless `SIGNUP_STATS_TOKEN` is set. Unreliable conversion metrics explicitly return null. See `docs/SIGNUP-STATS.md` ([#778](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/778)).
+
+### Fixed
+
+- **Recurring resolved errors reopen** — a new occurrence of a resolved issue clears its resolved state, so it returns to Unresolved and notifications ([#713](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/713)).
+- **Settings redirect** — `/dashboard/settings` redirects server-side to the Profile tab without the brief "Application error" flash ([#712](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/712)).
+- **Cookie notice** — after rejecting optional cookies, the notice no longer blocks clicks on the sidebar user menu and can be dismissed ([#715](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/715)).
+
+---
+
+## [1.22.2] - 2026-10-12
+
+### Fixed
+
+- **Product update emails** — tagging a new minor line (`vX.Y.0`) now automatically sends the release email for the previous line, so subscribers are no longer missed when no milestone is closed; closing a historical milestone never emails stale releases, and the workflow gains a `test_to` input for one controlled test email ([#801](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/801)).
+
+### Changed
+
+- **Release automation** — GitHub Releases are created automatically for production tags ([#800](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/800)).
+
+---
+
+## [1.22.1] - 2026-10-12
+
+### Fixed
+
+- **Check-in management** — Rotate URL, Pause, Resume, and Delete no longer send a JSON content-type header with an empty body, avoiding API rejection ([#797](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/797)).
+
+---
+
+## [1.22.0] - 2026-10-12
+
+### Added
+
+- **Cron and background-job check-ins** — monitors with interval or cron schedules (timezone, grace period, optional max runtime), ping URLs for success/start/fail with run IDs and exit codes, history, missed/timeout/fail alerts to existing destinations with recovery notices, rotate/pause/delete, a Node helper, and dashboard + docs at /docs/checkins. Per-project monitor caps: Free 5, Pro 50, Business 500. Requires `CHECKIN_ENCRYPTION_KEY` on the API; missed-run detection runs in the alert-rules evaluator cron ([#783](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/783)).
+
+### Fixed
+
+- **Cron check-ins** — support secret headers to avoid token exposure in proxy/CDN URLs, use header authentication by default in the Node helper, scrub authentication headers, and rate-limit pings by trusted client IP.
+
+---
+
+## [1.21.0] - 2026-10-12
+
+### Added
+
+- **Privacy-conscious signup funnel measurement** — consent-gated first-touch attribution now also records a coarse acquisition channel (`signup_channel`) and a sanitized first landing path (pathname plus only `utm_source`/`utm_medium`/`utm_campaign`); registrations without forwarded attribution record a `no_consent` marker only. Projects store a set-once `first_event_at` server receipt timestamp on first accepted telemetry, which raw retention never clears. Successful registrations emit a GA4 `sign_up` event only under accepted cookie consent. No IP, user agent, full referrer or fingerprint is stored. Privacy and cookie pages updated ([#791](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/791)).
+
+### Migrations
+
+- `20261012120000_signup_funnel` — additive nullable `User.signup_channel`, `User.first_landing_path` and `Project.first_event_at`; backfills `first_event_at` from the earliest surviving telemetry (API key `last_used_at` as approximate fallback); grants `analytics_ro` column-level SELECT on the new columns when that role exists.
+
+---
+
+## [1.20.2] - 2026-10-12
+
+### Fixed
+
+- **API rate limits** — resolve visitor IPs through the trusted Railway and Cloudflare chain instead of rotating internal proxy addresses, reject spoofed forwarding headers, isolate ingest API keys behind shared networks, and authenticate dashboard visitor forwarding so server-side auth and API requests have per-visitor buckets ([#788](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/788)).
+
+---
+
+## [1.20.1] - 2026-10-12
+
+### Fixed
+
+- **Affiliate application rate limits** — forwarded visitor IPs now require the shared server-side `AFFILIATE_CLIENT_IP_FORWARD_SECRET`, preventing direct callers from spoofing per-IP rate-limit keys ([#781](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/781)).
+
+---
+
+## [1.20.0] - 2026-10-12
+
+### Added
+
+- **Read-only MCP agent access** — opt-in `/mcp` endpoint with five privacy-minimized tools, scoped expiring read tokens, settings management, agent setup documentation and a Copy for agent issue action. Off by default; operators enable it with `TELEMETRY_MCP_ENABLED=true` ([#779](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/779)).
+
+### Fixed
+
+- **MCP pre-auth rate limit** — unauthenticated `/mcp` requests are rate-limited before token lookup (`RATE_LIMIT_MAX_MCP`, default 300/min); per-token and per-org limits are unchanged ([#782](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/782)).
+
+---
+
+## [1.19.1] - 2026-10-11
+
+### Fixed
+
+- **Affiliate terms** — `/affiliates/terms` now matches the approved program rules: 30 days' email notice for material changes with already-earned commission unaffected, commission disclosure required, and payout details requested by email when the balance first reaches the €50 minimum.
+
+---
+
+## [1.19.0] - 2026-10-11
+
+### Added
+
+- **Public affiliate program page** — `/affiliates` ("Earn 30% recurring commission with Telemetry Tracker") with audiences, earning examples computed from the pricing source of truth (Pro €15/mo, Business €99/mo), how it works, rules, FAQ and an application form; `/affiliates/terms` with every number rendered from the program constants. Indexable (canonical, Open Graph, sitemap). Footer link "Affiliate Program — Earn 30%" plus one mention on pricing and docs. All of it follows `NEXT_PUBLIC_AFFILIATES_ENABLED`; off = 404 and no links.
+- **Affiliate applications** — No-account application form stored in Postgres (pending / approved / rejected) with validation, length limits, honeypot, per-IP rate limit, a global hourly cap and dedupe of pending applications by normalized email. Applicants are never emailed; optional founder notification via `AFFILIATE_APPLICATION_NOTIFY_EMAILS`.
+- **Founder affiliate admin** — Settings → Founder → Affiliates (only for `AFFILIATE_ADMIN_EMAILS`, server-side gate): review / approve (editable suggested code) / reject applications, copy referral URL and deep links, create an affiliate directly, disable / re-enable, reporting (referred orgs, paying orgs, pending, payable, paid), record payouts and resolve needs-attention holds.
+- **Privacy policy** — Short "Affiliate program applications" paragraph (shown when the program is enabled).
+- **Launch flags (default off)** — The public program, application form and founder admin additionally require `NEXT_PUBLIC_AFFILIATE_PROGRAM_PUBLIC=true` (dashboard, build-time, new Dockerfile `ARG`) and `AFFILIATE_APPLICATIONS_ENABLED=true` (API), so existing `?ref=` capture can stay on while the program stays dark.
+- **Signup acquisition attribution:** consent-gated first-touch UTM tags and external referrer hostname are preserved at email/password and invite registration. Existing accounts retain null attribution; affiliate referral behavior is unchanged.
+
+### Fixed
+
+- **Referral links through legacy auth URLs** — `/?signUp=1&ref=CODE` and `?signIn=1` redirects dropped the whole query string, losing `?ref=` / `?via=`; they now keep the referral parameters.
+
+### Changed
+
+- **Docs: French README** (`README.fr.md`, community contribution, #642).
+
+### Database
+
+- Additive migration `20261006120000_add_affiliate_applications` (new `AffiliateApplication` table; no existing tables changed). New optional API env: `AFFILIATE_APPLICATIONS_ENABLED`, `RATE_LIMIT_AFFILIATE_APPLICATION_MAX`, `AFFILIATE_APPLICATIONS_MAX_PER_HOUR`, `AFFILIATE_APPLICATION_NOTIFY_EMAILS`.
+
+### SDK
+
+- **`@telemetry-tracker/react-native` 1.3.1** — Hermes frame symbolication and preserved fatal handlers from #756 (npm publish follows the SDK release process).
+
+### Security
+
+- **Dependency patches (lockfile overrides, no major upgrades):** shell-quote 1.11.0, tinypool 2.1.2 (test runner), brace-expansion 1.1.21 / 2.1.7 / 5.0.12, browserslist 4.28.7, js-yaml 3.15.2 / 4.3.2, nanoid 3.3.18, source-map-js 1.2.2, postcss 8.5.23, postcss-selector-parser 6.1.3, baseline-browser-mapping 2.11.0, @humanfs/node 0.16.8. No migrations. No env var changes.
+
+---
+
+## [1.18.7] - 2026-10-11
+
+### Fixed
+
+- **API: Hermes symbolication.** React Native/Hermes stacks (including composed Hermes + packager source maps) now resolve to original source lines (#756).
+- **Monitoring: Sentry privacy guard.** Our own operator Sentry setup (API and dashboard) pins privacy-preserving data collection so a future Sentry SDK v11 default change cannot broaden what is sent (#752).
+- **Docs: Railway self-hosters upgrading to v1.18.5+.** `apps/api/Dockerfile` is auto-detected when a service's Root Directory is `apps/api`, which makes builds fail. Switch API/cron/worker services to Root Directory empty + Dockerfile `apps/api/Dockerfile` ([docs/RAILWAY.md](docs/RAILWAY.md#api--cron--worker-build-fails-with-appsapi-not-found-upgrading-to-v1185)).
+
+### Changed
+
+- **Docs: Expo/EAS source maps guide** for Hermes builds, and React Native SDK docs updates (#756).
+- **Docs and site: Web Vitals.** LCP/INP/CLS/TTFB capture, `webVitals: false`, p75 and slow pages are now documented across SDK, Next.js and error-tracking pages (#757).
+- **Site: privacy copy.** Privacy-by-default section on the Sentry alternative and migration pages (#753); privacy page lists the verified hosting region and processors (#755).
+- No migrations. No env var changes.
+
+---
+
+## [1.18.6] - 2026-10-11
+
+### Fixed
+
+- **Website: factual corrections.** Vue/Nuxt (via `@telemetry-tracker/core`) and NestJS (via `@telemetry-tracker/node`) are described as supported integrations, not dedicated SDKs; Microsoft Teams listed among alert channels; marketing footer version is read from CHANGELOG at build time instead of a hardcoded `v1.2.0`; `/llms.txt` now reflects verified capabilities and limitations; dashboard-vs-API alert rule authoring and request error-rate prerequisites clarified ([#766](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/766)).
+
+---
+
+## [1.18.5] - 2026-10-09
+
+### Changed
+
+- **API: reproducible builds from `pnpm-lock.yaml`.** New `apps/api/Dockerfile` (Node 22, pnpm 9.15.9 via corepack, `pnpm install --frozen-lockfile`, `pnpm deploy --prod`). Railway API/cron/worker services previously ran `npm install` without a lockfile. Takes effect once each Railway service is switched to the Dockerfile builder (see [docs/RAILWAY.md](docs/RAILWAY.md)) ([#759](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/759)).
+
+### Security
+
+- **API: fastify 5.8.5 → 5.12.5, find-my-way → 9.9.0, fast-uri → 3.1.8 / 4.2.1, Prisma → 6.19.3** in the lockfile, so self-hosters and the locked build are at least as patched as the hosted API ([#759](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/759)).
+- No migrations. No env var changes.
+
+---
+
+## [1.18.4] - 2026-10-09
+
+### Security
+
+- **Dashboard: Next.js 15.5.18 → 15.5.27, sharp 0.34.5 → 0.35.5** — fixes the App Router Server Actions denial of service ([GHSA-m99w-x7hq-7vfj](https://github.com/advisories/GHSA-m99w-x7hq-7vfj)), Image Optimization AVIF RCE ([GHSA-2xp9-vwfh-vxw4](https://github.com/advisories/GHSA-2xp9-vwfh-vxw4)), SSRF, cache-confusion and image DoS advisories, and sharp libvips/libheif advisories ([#754](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/754)).
+- **Windows self-hosters must upgrade** — Next.js < 15.5.24 allows unauthenticated remote code execution on Windows-hosted servers (CVE-2026-75604 / [GHSA-p293-qw3h-jr36](https://github.com/advisories/GHSA-p293-qw3h-jr36)). Linux/Docker deployments (including hosted) are not affected by this one, but should still upgrade for the other fixes.
+- No migrations. No env var changes.
+
+---
+
+## [1.18.3] - 2026-10-06
+
+### Added
+
+- **Dashboard Sentry release** — Browser, server, and edge Sentry now report `release` = `telemetry-tracker-dashboard@<version>` (derived at build time from `CHANGELOG.md`, no env var needed), so errors are tagged by version and release-health sessions are sent. Unresolvable version → release stays unset as before.
+
+---
+
+## [1.18.2] - 2026-10-06
+
+### Fixed
+
+- **Billing period end (Stripe dahlia)** — `checkout.session.completed` stored a null `stripe_current_period_end` because the stripe@22 SDK default API (`2026-03-25.dahlia`) only returns the period end on subscription items. The period end now uses the top-level `current_period_end` when present (older webhook payloads) and otherwise the latest `items.data[].current_period_end`; this also covers `customer.subscription.updated` / `.deleted` payloads on basil+ endpoint versions.
+- **Dashboard `NEXT_PUBLIC_*` at build** — The dashboard Docker build now declares every `NEXT_PUBLIC_*` the dashboard reads as a build `ARG`, so Railway passes them into `next build`. Browser Sentry (`NEXT_PUBLIC_SENTRY_DSN`) and dashboard product telemetry (`NEXT_PUBLIC_TELEMETRY_*`), which were configured but never reached the browser bundle, start working on the next dashboard rebuild. Unset variables behave as before.
+
+---
+
+## [1.18.1] - 2026-10-06
+
+### Fixed
+
+- **Dashboard build: affiliates flag** — The dashboard Docker build now declares `NEXT_PUBLIC_AFFILIATES_ENABLED` as a build `ARG`, so Railway passes it into `next build` and the client-side `?ref=` capture can see it. Unset keeps the flag off (unchanged). Changing the flag requires a dashboard rebuild.
+
+---
+
+## [1.18.0] - 2026-10-05
+
+### Fixed
+
+- **Affiliates ledger** — Pre-payout refunds and lost disputes now only mutate the commission row. `AffiliateAdjustment` is reserved for post-payout clawbacks so payable balance is not double-counted. Mark as paid auto-includes unsettled clawbacks, refuses `amount_mismatch` / `overpay`, and serializes concurrent submits (`already_paid`, no phantom payout). After marketing consent, a remembered sessionStorage referral is promoted into the 60-day cookie even without `?ref=` in the URL.
+- **Affiliates first-invoice race** — `invoice.paid` can arrive while `org.plan_tier` is still FREE (`checkout.session.completed` has not written it yet). Commission eligibility also reads hosted Pro/Business from invoice/subscription metadata (`parent.subscription_details.metadata` / `subscription_details.metadata`). If the invoice is a paid hosted subscription but the org is still FREE and that metadata is missing or ambiguous, the webhook fails so Stripe retries instead of marking processed and skipping forever. Self-hosted, explicit FREE, and zero-eligible invoices are never commissioned.
+- **Affiliates Stripe basil linking** — `invoice.paid` stores `stripe_payment_intent_id` from InvoicePayment (`invoice.payments` / `invoicePayments.list`) so refunds and disputes still match after API `2025-03-31.basil` removed `Invoice.charge` / `Charge.invoice`. If `invoicePayments.list` fails, the webhook errors for retry instead of saving a commission with no payment ids. Unmatched refunds/disputes on referred orgs set `needs_attention` instead of failing silent.
+- **Affiliates post-payout clawbacks** — Claw back only what was actually paid (`remaining_cents` at payout), minus every prior clawback (settled or open). Partial pre-payout refunds are respected; a second refund after a settled clawback does not re-claw the original amount.
+- **Affiliates refund vs mark-as-paid** — Refund and dispute handlers take the same affiliate `FOR UPDATE` lock as payout, re-read the commission, and apply state-aware updates (no stale `pending` overwrite, no payout of a just-reduced remaining without the clawback path).
+
+### Changed
+
+- **Affiliates (native)** — Telemetry Tracker now owns referral attribution and 30% recurring commissions. Rewardful is fully removed (no account, JS, API, webhooks, or secrets). Visitor links use `?ref=<code>` with last-touch, a 60-day window, signup lock, and first-party sessionStorage plus an optional consent cookie. Stripe `invoice.paid` writes an idempotent commission; refunds/disputes adjust the ledger; founder admin marks payouts paid at ≥ €50 after a 30-day hold. Feature flags stay **OFF** by default. Historical Rewardful notes in 1.17.26 described the previous integration that this replaces.
+
+### Database
+
+- `20261004180000_add_affiliate_tables` — restored to the **Rewardful-shaped** SQL already applied in production on **1.17.27** (`migrateDeployBeforeListen`). Do not edit this file in place.
+- `20261005180000_affiliate_rewardful_to_native` — forward migration from those Rewardful-shaped tables to native `Affiliate.code`, `AffiliatePayout`, `AffiliateAdjustment`, `stripe_payment_intent_id`, and related constraints. Production tables are expected empty (flags never enabled). Local/CI databases that already applied an earlier *edited* checksum of `20261004180000` need `prisma migrate reset` (or `prisma migrate resolve`); fresh databases apply the original then this forward migration.
+
+---
+
+## [1.17.27] - 2026-10-05
+
+### Added
+
+- **Affiliates (disabled by default)** — Rewardful affiliate integration behind `AFFILIATES_ENABLED` / `NEXT_PUBLIC_AFFILIATES_ENABLED` (requires Stripe). When flags are unset, webhook routes stay unregistered, admin APIs return 404, and the dashboard does not load Rewardful ([#732](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/732)).
+
+### Fixed
+
+- **Sentry operational privacy** — API and dashboard `beforeSend` sanitizers strip auth/API-key/session/cookie headers, request bodies, cookies, query strings, Sentry `user`, and `tt_live_*` keys; fail-closed try/catch so pathological events cannot drop reporting. `sendDefaultPii: false`, `includeLocalVariables: false`, `tracesSampleRate: 0`, and incoming request-body buffering disabled (`maxIncomingRequestBodySize: "none"`) ([#736](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/736)).
+
+### Changed
+
+- **/privacy** — describes Sentry as Hosted Cloud operational monitoring with EU ingest host `ingest.de.sentry.io`, without zero-PII or full EU residency claims ([#736](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/736)).
+- **Affiliates attribution** — Stripe `metadata.referral` withheld only for payout holds (`affiliate_email_unknown*`); plain UUID-only `UNRESOLVED` referrals write the Rewardful UUID; founder `resolve-needs-attention` path for `AFFILIATE_ADMIN_EMAILS` ([#732](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/732)).
+
+### Database
+
+- **`20261004180000_add_affiliate_tables`** — additive tables `WebhookEvent`, `UserReferral`, `Affiliate`, `OrganizationReferral`, `AffiliateCommission` (applied on production API boot via `migrateDeployBeforeListen`) ([#732](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/732)).
+
+---
+
+## [1.17.26] - 2026-10-05
+
 ### Added
 
 - **`@telemetry-tracker/core` 1.5.1** — sanitized browser `Script error.` handling: no fabricated SDK stacks, bounded per-window dedupe, and `context.sanitized` / `browser_error` metadata so one quirky session cannot flood App Health
 - **Dashboard** — error detail distinguishes sanitized browser Script errors from normal exceptions (badge + stack panel copy)
+- **Server Components digest guide** — `/error-tracking/nextjs/server-components-render-error` explains the production digest, `onRequestError`, and server stack mapping
+- **Digest search** — global search and Issues search match `ErrorOccurrence.context.digest`
+- **Analytics** — sanitized `app_startup` view for `analytics_ro`
+- **Docs** — Sentry migration guide, and verified alert channel names
 
 ### Fixed
 
+- **Transactional email** — brand header stays readable in Gmail dark mode. The header used a CSS gradient, which Gmail iOS does not recolor, so the light “Telemetry / Tracker” wordmark sat on a light bar. Notification and release emails now share a solid header fill with explicit text colors.
+- **`@telemetry-tracker/next` 1.3.3** — `createOnRequestError` no longer keeps a Next.js digest for the life of the process. The same Error object is still reported once, and a second callback in the same turn with that digest is skipped. A later request is reported again, so occurrence counts and alert rules are not stuck at one. Cross-realm Edge errors keep `message` and `stack` when `instanceof Error` fails. Server `onRequestError` requires Next.js 15+.
+
 ### Changed
+
 
 ### Database
 

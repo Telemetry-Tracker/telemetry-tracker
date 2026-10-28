@@ -149,6 +149,33 @@ describe("executeGlobalSearch users ordering", () => {
   });
 });
 
+describe("executeGlobalSearch error digest", () => {
+  it("matches occurrence context.digest as well as message and fingerprint", async () => {
+    const queryRaw = vi.fn().mockResolvedValue([]);
+    const prisma = { $queryRaw: queryRaw } as unknown as PrismaClient;
+
+    await executeGlobalSearch(
+      prisma,
+      "proj-1",
+      parseGlobalSearchQuery("2474318592"),
+      { range: {} }
+    );
+
+    const errorSql = queryRaw.mock.calls
+      .map((call) => call[0] as Prisma.Sql)
+      .find((sql) => prismaSqlText(sql).includes('"ErrorGroup"'));
+    expect(errorSql).toBeDefined();
+    const text = prismaSqlText(errorSql!);
+    expect(text).toContain('eg."message"');
+    expect(text).toContain('eg."fingerprint"');
+    expect(text).toContain(`occ."context"->>'digest'`);
+    expect(text).toContain('"ErrorOccurrence"');
+    expect(prismaSqlValues(errorSql!)).toEqual(
+      expect.arrayContaining(["%2474318592%"])
+    );
+  });
+});
+
 describe("globalSearchReleaseActivityBounds", () => {
   const gte = new Date("2026-07-01T00:00:00.000Z");
   const lte = new Date("2026-07-08T00:00:00.000Z");

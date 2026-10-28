@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { describe, expect, it } from "vitest";
 import {
   buildEventWhereSql,
+  errorGroupFreeTextMatchSql,
   freeTextAndMatchSql,
 } from "./list-query-helpers.js";
 import { UNKNOWN_RELEASE_KEY } from "./release-key.js";
@@ -28,6 +29,22 @@ describe("freeTextAndMatchSql", () => {
     const values = (sql as unknown as { values: unknown[] }).values;
     expect(values).toContain("%foo%");
     expect(values).toContain("%bar%");
+  });
+});
+
+describe("errorGroupFreeTextMatchSql", () => {
+  it("matches message, fingerprint, and context.digest for each term", () => {
+    const sql = errorGroupFreeTextMatchSql(
+      "2474318592",
+      Prisma.sql`eg."message"`,
+      Prisma.sql`eg."fingerprint"`,
+      Prisma.sql`eg."id"`
+    );
+    expect(sql).not.toBeNull();
+    const text = prismaSqlText(sql!);
+    expect(text).toContain(`occ."context"->>'digest'`);
+    expect(text).toContain('occ."error_group_id" = ');
+    expect((sql as unknown as { values: unknown[] }).values).toContain("%2474318592%");
   });
 });
 

@@ -26,12 +26,26 @@ describe("buildErrorGroupWhereInput", () => {
         OR: [
           { message: { contains: "checkout", mode: "insensitive" } },
           { fingerprint: { contains: "checkout", mode: "insensitive" } },
+          {
+            occurrences_list: {
+              some: {
+                context: { path: ["digest"], string_contains: "checkout" },
+              },
+            },
+          },
         ],
       },
       {
         OR: [
           { message: { contains: "TypeError", mode: "insensitive" } },
           { fingerprint: { contains: "TypeError", mode: "insensitive" } },
+          {
+            occurrences_list: {
+              some: {
+                context: { path: ["digest"], string_contains: "TypeError" },
+              },
+            },
+          },
         ],
       },
     ]);

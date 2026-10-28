@@ -10,7 +10,7 @@ function isEvent(value: unknown): value is AlertEventRow {
   const o = value as Record<string, unknown>;
   return (
     typeof o.id === "string" &&
-    (o.rule === "ERROR_SPIKE" ||
+    (o.rule === "CHECKIN_DOWN" || o.rule === "CHECKIN_RECOVERED" || o.rule === "ERROR_SPIKE" ||
       o.rule === "QUOTA_NEAR" ||
       o.rule === "QUOTA_EXCEEDED" ||
       o.rule === "ALERT_RULE") &&

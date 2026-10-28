@@ -14,6 +14,8 @@ function notifyConsentChanged(choice: CookieConsentChoice) {
   window.dispatchEvent(new CustomEvent(COOKIE_CONSENT_CHANGED_EVENT, { detail: choice }));
 }
 
+const REJECTED_NOTICE_DISMISSED_KEY = "tt_cookie_rejected_notice_dismissed";
+
 type CookieConsentProps = {
   serverChoice?: CookieConsentChoice | null;
 };
@@ -22,6 +24,7 @@ export function CookieConsent({ serverChoice = null }: CookieConsentProps) {
   const [choice, setChoice] = useState<CookieConsentChoice | null>(serverChoice);
   const [expanded, setExpanded] = useState(serverChoice == null);
   const [ready, setReady] = useState(false);
+  const [noticeDismissed, setNoticeDismissed] = useState(false);
   const [, startTransition] = useTransition();
 
   useEffect(() => {
@@ -37,6 +40,11 @@ export function CookieConsent({ serverChoice = null }: CookieConsentProps) {
         notifyConsentChanged(stored);
       } else {
         setExpanded(true);
+      }
+      try {
+        setNoticeDismissed(window.localStorage.getItem(REJECTED_NOTICE_DISMISSED_KEY) === "1");
+      } catch {
+        /* ignore */
       }
     } catch {
       setExpanded(true);
@@ -62,14 +70,18 @@ export function CookieConsent({ serverChoice = null }: CookieConsentProps) {
   if (!ready) return null;
   if (choice === "accepted") return null;
 
+  if (choice === "rejected" && !expanded && noticeDismissed) return null;
+
   if (choice === "rejected" && !expanded) {
+    // TT-016 (#715): the full-width wrapper must not intercept clicks (sidebar user menu / Log out),
+    // and the notice can be dismissed.
     return (
       <div
         role="status"
         aria-live="polite"
-        className="fixed inset-x-0 bottom-0 z-[60] flex justify-center px-4 pb-4 sm:pb-6"
+        className="pointer-events-none fixed inset-x-0 bottom-0 z-[60] flex justify-center px-4 pb-4 sm:pb-6"
       >
-        <div className="flex w-full max-w-3xl flex-col gap-3 rounded-2xl border border-border bg-surface/90 px-4 py-3 backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between sm:px-5">
+        <div className="pointer-events-auto flex w-full max-w-3xl flex-col gap-3 rounded-2xl border border-border bg-surface/90 px-4 py-3 backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between sm:px-5">
           <p className="text-sm text-muted-foreground">
             Optional analytics cookies are off. Sign-in and your selected project stay saved.
           </p>
@@ -86,6 +98,21 @@ export function CookieConsent({ serverChoice = null }: CookieConsentProps) {
               className="rounded-full bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground transition-transform hover:scale-[1.02]"
             >
               Change preferences
+            </button>
+            <button
+              type="button"
+              aria-label="Dismiss cookie notice"
+              onClick={() => {
+                try {
+                  window.localStorage.setItem(REJECTED_NOTICE_DISMISSED_KEY, "1");
+                } catch {
+                  /* ignore */
+                }
+                setNoticeDismissed(true);
+              }}
+              className="rounded-full border border-border px-3 py-1.5 text-sm text-foreground transition-colors hover:bg-surface-elevated"
+            >
+              Dismiss
             </button>
           </div>
         </div>
@@ -109,7 +136,8 @@ export function CookieConsent({ serverChoice = null }: CookieConsentProps) {
             />
             <p className="text-sm leading-relaxed text-muted-foreground">
               We use a minimal set of cookies to keep the product running. Optional analytics load
-              when you accept. Read our{" "}
+              when you accept. A first-party referral cookie is stored only if you accept; same-session
+              referral links still work if you decline. Read our{" "}
               <Link
                 href="/cookies"
                 className="text-foreground underline decoration-border underline-offset-4 transition-colors hover:decoration-foreground"

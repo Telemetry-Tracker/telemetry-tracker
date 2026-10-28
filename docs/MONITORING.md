@@ -69,7 +69,7 @@ Use a second monitor so alerts still fire if GitHub Actions is unavailable.
 | Same | HTTPS `https://telemetry-tracker.com` | 5 min |
 | [Better Stack](https://betterstack.com/uptime) | Multi-step HTTP checks | 3–5 min |
 
-Point alert contacts to **info@tacko.io** or your team Slack/email.
+Point alert contacts to **info@telemetry-tracker.com** or your team Slack/email.
 
 ---
 
@@ -78,6 +78,14 @@ Point alert contacts to **info@tacko.io** or your team Slack/email.
 Uncaught API errors are reported when `SENTRY_DSN` is set on the **API** service ([`apps/api/src/lib/observability.ts`](../apps/api/src/lib/observability.ts)).
 
 Uncaught dashboard errors (server, edge, and client error boundaries) are reported when both `SENTRY_DSN` and `NEXT_PUBLIC_SENTRY_DSN` are set on the **dashboard** service ([`apps/dashboard/lib/sentry.ts`](../apps/dashboard/lib/sentry.ts), `@sentry/nextjs`).
+
+### Operator privacy policy
+
+API and dashboard server, edge, and browser initialization use mirrored `sentry-policy.ts` options, with parity tests. The complete `dataCollection` object disables user/IP inference, cookies, request/response headers and bodies, URL queries, database query data, GraphQL documents/variables, AI inputs/outputs, and frame variables. Tracing, propagation, replay, and Sentry logs are disabled. Seven source context lines are retained, matching the v10 baseline. `beforeSendTransaction` drops transactions defensively, and Replay integrations are filtered out.
+
+The existing event scrubber additionally removes nested users/IP fields, response/DB/AI/GraphQL contexts and attributes, and stack-frame variables. Breadcrumbs are scrubbed before storage; console, database/query, AI, and GraphQL breadcrumbs are dropped because their free text may contain payloads. Error type/message, stack location, environment, and dashboard release remain, with `tt_live_*` values redacted. This is a structured-data filter, not a guarantee that arbitrary error messages contain no personal data.
+
+Sentry 10.66 supports `dataCollection`, but **partial objects enable permissive defaults**. See the [10.66 resolver](https://github.com/getsentry/sentry-javascript/blob/10.66.0/packages/core/src/utils/data-collection/resolveDataCollectionOptions.ts) and [v11 migration guide](https://github.com/getsentry/sentry-javascript/blob/develop/MIGRATION.md#senddefaultpii-is-replaced-by-datacollection). The policy includes v10 `queryParams` and v11 `urlQueryParams`/`queues`; v10 ignores the latter fields. Tests resolve the real installed SDK policy and capture a synthetic error with an in-memory transport. Both installed SDK majors must remain 10 until a privacy review updates the guard. A future major upgrade still needs runtime/transport review, including v11 span streaming.
 
 ### Railway setup
 
@@ -160,7 +168,7 @@ Dashboard **project-level** alerts (error spikes, quota) are for **customers**, 
 4. Check [GitHub Actions](https://github.com/Telemetry-Tracker/telemetry-tracker/actions/workflows/production-uptime.yml) for probe history.
 5. Post-incident: note in GitHub issue or internal log; update this doc if steps were missing.
 
-**Contacts:** maintainer @unjica · **info@tacko.io**
+**Contacts:** maintainer @unjica · **info@telemetry-tracker.com**
 
 ---
 

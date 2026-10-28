@@ -14,8 +14,10 @@ import { marketingSiteOrigin } from "@/lib/marketing-json-ld";
 import {
   nextDocsCheckButton,
   nextEnvLocal,
+  nextEnvLocalServer,
   nextErrorBoundary,
   nextInstall,
+  nextInstrumentation,
   nextProviderSetup,
   nextTestError,
   nextTrackPageView,
@@ -24,7 +26,7 @@ import {
 const PATH = "/error-tracking/nextjs";
 const TITLE = "Next.js Error Tracking";
 const DESCRIPTION =
-  "Install @telemetry-tracker/next, wrap your app with TelemetryProvider, and see grouped Next.js errors in the dashboard. Free plan, no credit card.";
+  "Next.js error tracking for the App Router: browser errors with TelemetryProvider and server-side errors with createOnRequestError. Free plan, no credit card.";
 
 export function generateMetadata() {
   return marketingGuideMetadata({
@@ -62,7 +64,7 @@ export default function NextJsErrorTrackingPage() {
               },
               {
                 name: "Wrap the app with TelemetryProvider",
-                text: "Set NEXT_PUBLIC_TELEMETRY_INGEST_URL to https://api.telemetry-tracker.com, NEXT_PUBLIC_TELEMETRY_API_KEY from Settings → API keys, and use the server layout plus client TrackPageView from the docs.",
+                text: "Set NEXT_PUBLIC_TELEMETRY_INGEST_URL to https://api.telemetry-tracker.com, NEXT_PUBLIC_TELEMETRY_API_KEY from Settings → API keys, and use the server layout plus client TrackPageView from the docs. Optionally add instrumentation.ts for server-side error capture.",
               },
               {
                 name: "Send a test error",
@@ -80,7 +82,8 @@ export default function NextJsErrorTrackingPage() {
             <code>@telemetry-tracker/next</code> wraps the core SDK for App Router apps: a provider
             that calls <code>init()</code>, an error boundary for React render errors, and{" "}
             <code>useTrackPage</code> for route changes. Uncaught browser errors and unhandled promise
-            rejections are reported after init.
+            rejections are reported after init. Optionally, <code>createOnRequestError</code> captures
+            server-side App Router errors.
           </p>
         }
       >
@@ -111,7 +114,43 @@ export default function NextJsErrorTrackingPage() {
             <code>trackError</code>, <code>trackEvent</code>, <code>screen</code>, and{" "}
             <code>identify</code> are re-exported from the same package.
           </li>
+          <li>
+            Optional <code>createOnRequestError</code> in <code>instrumentation.ts</code> captures
+            uncaught App Router server errors (Next.js 15+), matching{" "}
+            <Link href="/docs/nextjs" className="text-brand hover:underline">
+              /docs/nextjs
+            </Link>
+            .
+          </li>
         </ul>
+
+        <h2>Real-user Web Vitals in the same SDK</h2>
+        <p>
+          Browser apps collect LCP, INP, CLS and TTFB by default after SDK initialization, where
+          supported by the browser. Next.js uses <code>@telemetry-tracker/next</code>; React uses
+          <code>@telemetry-tracker/core</code>. No extra package or separate Web Vitals setup is
+          needed. This gives small teams error tracking with Web Vitals from real visits in one
+          dashboard.
+        </p>
+        <p>
+          Open <strong>Performance</strong> for p75 values, ratings and trends, plus the Slow pages
+          table with LCP and CLS by page path. <strong>Overview</strong> includes a Web Vitals
+          snapshot. Set <code>webVitals: false</code> in the <code>TelemetryProvider</code>
+          config to turn capture off.
+          Each reported metric is an event and counts as one ingest unit toward your plan limit.
+          These are browser measurements, not native React Native or Node.js server metrics.
+        </p>
+        <p>
+          See the{" "}
+          <Link href="/docs/sdk#sdk-web-vitals-heading" className="text-brand hover:underline">
+            Web Vitals configuration and limitations
+          </Link>
+          . For a broader Next.js monitoring overview covering Web Vitals, releases, alerts and more in one place, see{" "}
+          <Link href="/monitoring/nextjs" className="text-brand hover:underline">
+            Next.js monitoring
+          </Link>
+          .
+        </p>
 
         <h2>Install</h2>
         <CodeBlock code={nextInstall} lang="bash" caption="Install" />
@@ -132,7 +171,7 @@ export default function NextJsErrorTrackingPage() {
         <CodeBlock code={nextProviderSetup} lang="tsx" caption="app/layout.tsx" />
         <CodeBlock code={nextTrackPageView} lang="tsx" caption="app/track-page-view.tsx" />
 
-        <h2>Verify ingest (optional)</h2>
+        <h2>Verify your first error</h2>
         <p>
           Not required for production. Temporarily call{" "}
           <code>trackError(new Error(&quot;docs-check&quot;))</code> from a client button (or throw
@@ -143,12 +182,49 @@ export default function NextJsErrorTrackingPage() {
         <CodeBlock code={nextTestError} lang="typescript" caption="trackError call" />
         <CodeBlock code={nextErrorBoundary} lang="tsx" caption="Error boundary" />
 
+        <h2>Server-side error tracking with Next.js App Router</h2>
+        <p>
+          Skip this section for browser-only setup. The provider above does not capture uncaught
+          errors in Server Components, Route Handlers, or Server Actions. Add{" "}
+          <code>instrumentation.ts</code> with <code>createOnRequestError</code> from{" "}
+          <code>@telemetry-tracker/next/server</code> and the server-only variables below. That hook
+          requires <strong>Next.js 15+</strong>. Use <code>TELEMETRY_API_KEY</code> — do not expose
+          a server-only secret via <code>NEXT_PUBLIC_*</code>. Seeing{" "}
+          <q>An error occurred in the Server Components render</q>?{" "}
+          <Link
+            href="/error-tracking/nextjs/server-components-render-error"
+            className="text-brand hover:underline"
+          >
+            Find the real error behind the digest
+          </Link>
+          . Limits of the hook are on{" "}
+          <Link href="/docs/nextjs" className="text-brand hover:underline">
+            the Next.js docs
+          </Link>
+          . Replacing <code>@sentry/nextjs</code> is covered in{" "}
+          <Link href="/docs/migrate-from-sentry" className="text-brand hover:underline">
+            Migrate from Sentry
+          </Link>
+          .
+        </p>
+        <CodeBlock code={nextEnvLocalServer} lang="bash" caption=".env.local (server)" />
+        <CodeBlock code={nextInstrumentation} lang="ts" caption="instrumentation.ts" />
+
+        <h2>Source maps</h2>
+        <p>
+          Set <code>productionBrowserSourceMaps: true</code>, keep the SDK <code>release</code> in
+          sync with your upload, and follow{" "}
+          <Link href="/docs/source-maps" className="text-brand hover:underline">
+            Source maps
+          </Link>{" "}
+          (same guidance as <Link href="/docs/nextjs" className="text-brand hover:underline">/docs/nextjs</Link>
+          ). Grouping still uses the minified stack; maps improve the frames you read in Issues.
+        </p>
+
         <h2>What you will see</h2>
         <p>
           Open <strong>Issues</strong> in the dashboard. Matching stack traces are grouped into one
-          issue with occurrences, release, and context. Upload source maps under Settings → Source
-          maps (same <code>release</code> as the SDK) if you want symbolicated frames instead of
-          minified lines. Optional spike alerts live under Alerts.
+          issue with occurrences, release, and context. Optional spike alerts live under Alerts.
         </p>
         <p>
           The free hosted plan is €0 with no credit card: 250K ingest units per month, 14-day
@@ -188,7 +264,17 @@ export default function NextJsErrorTrackingPage() {
             {
               href: "/docs/nextjs",
               label: "Next.js docs",
-              description: "Provider, error boundary, and page tracking.",
+              description: "Provider, error boundary, verify step, and server capture.",
+            },
+            {
+              href: "/docs/source-maps",
+              label: "Source maps",
+              description: "Readable stacks for Next.js webpack and Turbopack builds.",
+            },
+            {
+              href: "/docs/migrate-from-sentry",
+              label: "Migrate from Sentry",
+              description: "Replace @sentry/nextjs with this SDK.",
             },
             {
               href: "/sentry-alternative",

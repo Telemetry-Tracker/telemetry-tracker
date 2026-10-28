@@ -1,5 +1,8 @@
+import { redactCheckInSecrets } from "./checkin-secrets.js";
 import { randomUUID } from "node:crypto";
 import type { FastifyInstance } from "fastify";
+import { safeSanitizeSentryEvent, sanitizeSentryBreadcrumb } from "./sentry-privacy.js";
+import { sentryPrivacyOptions } from "./sentry-policy.js";
 
 let sentryInitialized = false;
 
@@ -16,7 +19,18 @@ export async function initSentryIfConfigured(): Promise<void> {
   Sentry.init({
     dsn,
     environment: process.env.NODE_ENV ?? "development",
-    tracesSampleRate: 0,
+    ...sentryPrivacyOptions,
+    beforeBreadcrumb: sanitizeSentryBreadcrumb,
+    beforeSend(event) {
+      return safeSanitizeSentryEvent(event);
+    },
+    integrations(integrations) {
+      return integrations.filter((integration) => !integration.name.startsWith("Replay")).map((integration) =>
+        integration.name === "Http"
+          ? Sentry.httpIntegration({ maxIncomingRequestBodySize: "none" })
+          : integration
+      );
+    },
   });
   sentryInitialized = true;
 }
@@ -25,8 +39,8 @@ export async function initSentryIfConfigured(): Promise<void> {
 export function registerObservabilityHooks(app: FastifyInstance): void {
   app.addHook("onError", async (request, _reply, error) => {
     request.log.error(
-      { err: error, reqId: request.id, url: request.url, method: request.method },
-      error.message
+      { err: error, reqId: request.id, url: redactCheckInSecrets(request.url), method: request.method },
+      redactCheckInSecrets(error.message)
     );
     if (process.env.NODE_ENV === "test" || !process.env.SENTRY_DSN?.trim()) return;
     try {

@@ -23,6 +23,14 @@ export default function DocsReactNativePage() {
         </p>
       }
     >
+      <p>
+        For Hermes and OTA releases, follow the <a href="/error-tracking/react-native/expo-source-maps">Expo/EAS source-map guide</a>.
+        Use a unique release for every JS bundle and separate app labels for Android and iOS.
+        Native version alone is insufficient for OTA updates. JavaScript errors only; native crashes are not captured.
+        For App Store and Play disclosure fields, see{" "}
+        <a href="/docs/sdk-privacy">SDK data &amp; privacy labels</a>.
+      </p>
+
       <h2>Install</h2>
       <CodeBlock
         code={`pnpm add @telemetry-tracker/react-native
@@ -40,7 +48,7 @@ npm install @telemetry-tracker/react-native`}
       <p>
         Set <code>platform</code> from <code>Platform.OS</code> so the dashboard can filter by
         device family. Map <code>ios</code>, <code>android</code>, and <code>web</code> (when
-        running in a browser). Set <code>release</code> to your app version (e.g. from{" "}
+        running in a browser). Set <code>release</code> to a unique JS bundle identity (combine metadata from{" "}
         <code>expo-constants</code> or native build metadata) and <code>environment</code> to
         distinguish production from staging or development builds.
       </p>
@@ -90,8 +98,8 @@ identify(user.id);`}
       <h2>Global error handler</h2>
       <p>
         After <code>init()</code>, the package sets <code>ErrorUtils.setGlobalHandler</code> so
-        unhandled JavaScript errors are sent to the ingest API. The previous handler is not
-        re-invoked (to avoid duplicate reports).
+        unhandled JavaScript errors are sent to the ingest API. The previous handler is chained. For fatal errors, reporting waits at most one second
+        before invoking it; delivery is best effort.
       </p>
 
       <DocsAlsoSee

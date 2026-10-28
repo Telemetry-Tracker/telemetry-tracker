@@ -51,9 +51,11 @@ export async function resolveSourceMapUploadAuth(
     return null;
   }
 
-  const rawProjectId = headerFirst(request, "x-project-id");
-  if (!rawProjectId || !UUID_RE.test(rawProjectId)) {
-    await reply.status(400).send({ error: "X-Project-Id header is required" });
+  // TT-005 (#704): the API key already identifies its project, so X-Project-Id is optional.
+  // When sent, it must be a valid UUID that matches the key's project.
+  const rawProjectId = headerFirst(request, "x-project-id") || verified.projectId;
+  if (!UUID_RE.test(rawProjectId)) {
+    await reply.status(400).send({ error: "Invalid X-Project-Id header" });
     return null;
   }
   if (rawProjectId.toLowerCase() !== verified.projectId.toLowerCase()) {

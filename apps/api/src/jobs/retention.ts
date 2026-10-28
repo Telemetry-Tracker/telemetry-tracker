@@ -1,3 +1,4 @@
+import { pruneCheckIns } from "../lib/checkins.js";
 import { type PrismaClient, type PlanTier } from "@prisma/client";
 import { limitsForPlan } from "../config/plans.js";
 import { effectivePlanTierForLimits } from "../lib/effective-plan-tier.js";
@@ -89,6 +90,7 @@ async function retainProject(
   const projectId = project.id;
 
   return prisma.$transaction(async (tx) => {
+    await pruneCheckIns(tx, projectId, cutoff, dryRun);
     const occOldWhere = {
       created_at: { lt: cutoff },
       error_group: { project_id: projectId },

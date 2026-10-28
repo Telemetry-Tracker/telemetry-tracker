@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/api-fetch";
 import { API_BASE_URL } from "@/lib/api-url";
 import { getDashboardSessionId } from "@/lib/dashboard-project";
 
@@ -24,7 +25,7 @@ export async function GET(
     ? `/api/auth/avatars/${trimmed}?v=${encodeURIComponent(version)}`
     : `/api/auth/avatars/${trimmed}`;
 
-  const upstream = await fetch(`${API_BASE_URL}${path}`, {
+  const upstream = await apiFetch(`${API_BASE_URL}${path}`, {
     cache: "no-store",
     headers: { Authorization: `Bearer ${sessionId}` },
   });

@@ -85,6 +85,7 @@ packages/
   telemetry-next/
   telemetry-node/
   telemetry-react-native/
+  telemetry-vite-plugin/
 ```
 
 SDKs are published as `@telemetry-tracker/*` on npm:
@@ -144,7 +145,7 @@ User-facing changes must add a line under **[Unreleased]** in [CHANGELOG.md](CHA
 - **Added** / **Changed** / **Fixed** / **Security** / **Breaking** / **Database** (if migrations or env vars)
 - Skip for internal refactors, test-only, or comment-only changes
 
-Maintainers rename `[Unreleased]` to a version when cutting a release, then publish a GitHub Release from [docs/RELEASE_NOTES_TEMPLATE.md](docs/RELEASE_NOTES_TEMPLATE.md) (see [docs/RELEASE.md](docs/RELEASE.md)).
+Maintainers rename `[Unreleased]` to a version when cutting a release, then push the production tag to trigger the **GitHub Release** workflow. Verify the run succeeded and `gh release view vX.Y.Z` exists with author `github-actions[bot]` (see [docs/RELEASE.md](docs/RELEASE.md)); [docs/RELEASE_NOTES_TEMPLATE.md](docs/RELEASE_NOTES_TEMPLATE.md) is the manual fallback.
 
 ### Branch naming
 

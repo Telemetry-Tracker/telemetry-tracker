@@ -13,7 +13,7 @@ channels). Choose a channel when adding:
 | **GENERIC** (`#225`) | Signed `alert.fired` JSON below | Optional HMAC signing secret |
 | **SLACK** (`#223`) | Slack Incoming Webhook (`text` + Block Kit) | URL must be `hooks.slack.com/services/…` |
 | **DISCORD** (`#224`) | Discord webhook embeds | URL must be `discord.com` / `discordapp.com` `/api/webhooks/{id}/{token}` |
-| **MICROSOFT_TEAMS** / **TELEGRAM** (`#500`) | Teams MessageCard / Bot `sendMessage` | Teams: Office 365 / Power Automate HTTPS; Telegram: `api.telegram.org/bot…/sendMessage` + `chatId` |
+| **MICROSOFT_TEAMS** / **TELEGRAM** (`#500`) | Teams MessageCard / Bot `sendMessage` | Teams: legacy Office 365 MessageCard only (see below). Telegram: `api.telegram.org/bot…/sendMessage` + `chatId` |
 
 - URLs must be `https:` and must not target loopback, private, or link-local hosts
   (create/update string checks).
@@ -60,9 +60,16 @@ optional `url` back to the dashboard). Create a channel webhook in Discord
 
 ## Microsoft Teams payload
 
-Teams destinations POST an Office 365 [MessageCard](https://learn.microsoft.com/en-us/outlook/actionable-messages/message-card-reference)
-(`title`, `text`, optional OpenUri action). Paste a Teams Incoming Webhook or Power Automate
-HTTP URL on Alerts → Delivery → Microsoft Teams.
+Teams destinations always POST an Office 365 [MessageCard](https://learn.microsoft.com/en-us/outlook/actionable-messages/message-card-reference)
+(`@type: MessageCard`, `title`, `text`, optional OpenUri action). There is no Adaptive Card body.
+
+The URL check accepts `outlook.office.com`, `webhook.office.com`, `*.webhook.office.com`
+(including `/webhookb2/…`), `*.logic.azure.com`, and `*.environment.api.powerplatform.com`.
+Tests cover that host list and the MessageCard JSON shape. They do not POST to Microsoft.
+
+Power Automate and Teams Workflows HTTP URLs pass the host check only. This repository does
+not verify that those endpoints accept a MessageCard. Do not treat Power Automate as a
+supported destination. The dashboard placeholder is still a `webhook.office.com/webhookb2/` URL.
 
 ## Telegram payload
 

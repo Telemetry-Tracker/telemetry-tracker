@@ -23,26 +23,39 @@ import {
   PLAN_LIST_PRICES_EUR,
   resolveEffectivePlanTier,
   usageUnavailableMessage,
+  parsePaidPlanQueryParam,
 } from "@/lib/plan-pricing";
 import { BillingPortalButton } from "./BillingPortalButton";
+import { BillingPlanIntent } from "./BillingPlanIntent";
 
 export const dynamic = "force-dynamic";
 
-export default async function BillingSettingsPage() {
+export default async function BillingSettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const params = await searchParams;
+  const planParam = typeof params.plan === "string" ? params.plan : null;
+  const paidPlan = parsePaidPlanQueryParam(planParam);
+
   const workspace = await getDashboardWorkspaceForRequest();
   const { organizations, projects, resolvedOrgId, effectiveProjectId } = workspace;
   const hasProjects = projects.length > 0;
 
   if (resolvedOrgId === null) {
+    const orgSettingsHref = paidPlan
+      ? `/dashboard/settings/organization?plan=${paidPlan}`
+      : "/dashboard/settings/organization";
     return (
       <>
         <SettingsPageHeader
           title="Billing & usage"
           description="Create an organization to view plan limits and manage Stripe billing."
         />
-        <ErrorState message="No organization selected. Create one under Organization settings first." />
+        <ErrorState message="Create an organization to view billing and usage details." />
         <p className="mt-4 text-sm">
-          <Link href="/dashboard/settings/organization" className="text-brand hover:underline">
+          <Link href={orgSettingsHref} className="text-brand hover:underline">
             Go to Organization settings →
           </Link>
         </p>
@@ -69,6 +82,13 @@ export default async function BillingSettingsPage() {
     sessionCanManageMembers: capabilities?.canManageMembers,
   });
   const hasStripeCustomer = billing?.hasStripeCustomer === true;
+  // hasStripeSubscription: true if org has a live/unpaid subscription (not just abandoned checkout customer)
+  const hasStripeSubscription = Boolean(
+    billing?.stripeSubscriptionStatus &&
+    ["active", "trialing", "past_due", "incomplete", "unpaid"].includes(
+      billing.stripeSubscriptionStatus.toLowerCase()
+    )
+  );
   const billingContextLoaded = capabilities !== null;
   const effectivePlanTier = resolveEffectivePlanTier(billing, usage);
   const showBillingActions = canManageBilling && billingContextLoaded;
@@ -92,6 +112,12 @@ export default async function BillingSettingsPage() {
         }
       />
       <SettingsPageBody>
+        <BillingPlanIntent
+          organizationId={resolvedOrgId}
+          canManageBilling={canManageBilling}
+          effectivePlanTier={effectivePlanTier}
+          hasStripeSubscription={hasStripeSubscription}
+        />
         {capabilities === null ? (
           <p
             className="rounded-lg border border-warning/35 bg-warning/10 px-4 py-3 text-sm text-foreground"
@@ -137,7 +163,7 @@ export default async function BillingSettingsPage() {
             usage={usage}
             organizationId={resolvedOrgId}
             canManageBilling={canManageBilling}
-            hasStripeCustomer={hasStripeCustomer}
+            hasStripeCustomer={hasStripeSubscription}
           />
         ) : (
           <Section title="Usage">
@@ -180,7 +206,7 @@ export default async function BillingSettingsPage() {
             <OrganizationBillingActions
               organizationId={resolvedOrgId}
               canManageBilling={canManageBilling}
-              hasStripeCustomer={hasStripeCustomer}
+              hasStripeCustomer={hasStripeSubscription}
               planTier={effectivePlanTier ?? "FREE"}
             />
           ) : null}

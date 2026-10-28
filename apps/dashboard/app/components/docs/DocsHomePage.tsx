@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AFFILIATE_COMMISSION_PERCENT, isAffiliateProgramEnabled } from "@/lib/affiliate-program";
 import {
   DocsCodeBlock,
   DocsDefinitions,
@@ -41,6 +42,10 @@ export function DocsHomePage() {
         . Comparing to a larger platform?{" "}
         <Link href="/sentry-alternative" className="text-brand hover:underline">
           Sentry alternative
+        </Link>
+        . Already sending data with Sentry?{" "}
+        <Link href="/docs/migrate-from-sentry" className="text-brand hover:underline">
+          Migrate from Sentry
         </Link>
         .
       </p>
@@ -294,6 +299,16 @@ trackEvent("plan.upgraded", { from: "free", to: "pro" });`}</DocsCodeBlock>
           </svg>
         </a>
       </div>
+
+      {isAffiliateProgramEnabled() ? (
+        <p className="mt-6 text-sm text-muted-foreground">
+          Writing a tutorial, newsletter issue, or video about Telemetry Tracker?{" "}
+          <Link href="/affiliates" className="text-brand hover:underline">
+            Join the affiliate program and earn {AFFILIATE_COMMISSION_PERCENT}% recurring
+          </Link>
+          .
+        </p>
+      ) : null}
     </article>
   );
 }

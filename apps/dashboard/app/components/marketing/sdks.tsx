@@ -142,7 +142,7 @@ export function Sdks() {
         <SectionHeading
           eyebrow="SDKs"
           title={<>Drop-in for the stack you already use.</>}
-          subtitle="Lightweight clients for Next.js, Node, NestJS, Nuxt, Vue, React Native, and the web — one ingest API, consistent payloads."
+          subtitle="SDKs for Next.js, Node, React Native, and the web. Vue and Nuxt integrate via @telemetry-tracker/core; NestJS via @telemetry-tracker/node."
         />
 
         <div className="mt-12 rounded-2xl border border-border bg-surface/40">

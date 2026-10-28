@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resetTransactionalEmailConfigWarningForTests } from "../lib/email.js";
 
+const { runCheckInSweep } = vi.hoisted(() => ({ runCheckInSweep: vi.fn(async () => undefined) }));
+vi.mock("../lib/checkins.js", () => ({ runCheckInSweep }));
+
 const runScheduledAlertRuleEvaluation = vi.fn(async () => ({
   projectsScanned: 2,
   rulesEvaluated: 3,
@@ -21,6 +24,7 @@ import { runAlertRulesEvaluatorSweep } from "./alert-rules-evaluator.js";
 describe("runAlertRulesEvaluatorSweep", () => {
   beforeEach(() => {
     runScheduledAlertRuleEvaluation.mockClear();
+    runCheckInSweep.mockClear();
     resetTransactionalEmailConfigWarningForTests();
   });
 
@@ -32,6 +36,7 @@ describe("runAlertRulesEvaluatorSweep", () => {
       ALERT_RULES_SCHEDULE_INTERVAL_MINUTES: "10",
     });
     expect(runScheduledAlertRuleEvaluation).toHaveBeenCalledWith(prisma);
+    expect(runCheckInSweep).toHaveBeenCalledWith(prisma, 10);
     expect(upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { job: "alert-rules-evaluator" },

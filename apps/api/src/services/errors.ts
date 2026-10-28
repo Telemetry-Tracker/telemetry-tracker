@@ -35,6 +35,8 @@ async function touchExistingErrorGroup(
     data: {
       occurrences: { increment: 1 },
       last_seen: new Date(),
+      // TT-014 (#713): a new occurrence of a resolved group reopens it (back in Unresolved + notifications).
+      resolved_at: null,
       ...(data.environment != null && data.environment !== ""
         ? { environment: data.environment }
         : {}),

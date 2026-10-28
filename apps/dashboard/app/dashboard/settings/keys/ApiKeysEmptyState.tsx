@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { KeyRound } from "lucide-react";
+import { toast } from "sonner";
 import { createFirstDashboardApiKey } from "@/app/dashboard/actions";
 import { SettingsBtn } from "@/app/components/dashboard/settings/settings-ui";
 
@@ -23,7 +24,7 @@ export function ApiKeysEmptyState({
         onCreated(result.key);
         router.refresh();
       } else {
-        alert(result.error);
+        toast.error(result.error);
       }
     });
   }

@@ -1,2 +1,5 @@
 **/node_modules
 **/.env
+# Local build output: the image runs its own `next build`; a host .next (incl. ~1 GB
+# .next/cache) only bloats the build context.
+**/.next

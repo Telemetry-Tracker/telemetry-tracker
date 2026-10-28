@@ -3,6 +3,8 @@ import Link from "next/link";
 import { CodeBlock } from "@/app/components/docs/CodeBlock";
 import { DocsAlsoSee } from "@/app/components/docs/DocsAlsoSee";
 import { DocsArticle } from "@/app/components/docs/DocsArticle";
+import { HOSTED_API_URL } from "@/lib/hosted-cloud";
+import { nodeCommonJs, nodeExpressErrorHandler, nodeSetup } from "@/lib/sdk-setup-snippets";
 
 export const metadata: Metadata = {
   title: "Node.js",
@@ -35,18 +37,42 @@ npm install @telemetry-tracker/node`}
       <p>
         Call <code>init()</code> as early as possible (e.g. at the top of your entry file):
       </p>
+      <CodeBlock code={nodeSetup} />
+      <p>
+        <code>ingestUrl</code> is required: the SDK has no built-in default. The fallback above is
+        the hosted API (<code>{HOSTED_API_URL}</code>); set <code>TELEMETRY_INGEST_URL</code> to
+        your own API when self-hosting.
+      </p>
+
+      <h2>ES modules only</h2>
+      <p>
+        <code>@telemetry-tracker/node</code> is published as an ES module only: its <code>package.json</code> sets{" "}
+        <code>{`"type": "module"`}</code> and exports only an <code>import</code> condition. Use{" "}
+        <code>import</code> in <code>.mjs</code> files or packages with{" "}
+        <code>{`"type": "module"`}</code>. <code>{`require("@telemetry-tracker/node")`}</code> is not
+        supported. From CommonJS code, load it with a dynamic <code>import()</code> and await{" "}
+        <code>flush()</code> inside an async function:
+      </p>
+      <CodeBlock code={nodeCommonJs} />
+
+      <h2>Short-lived scripts and jobs</h2>
+      <p>
+        Events are batched and sent every few seconds, so long-running servers need no extra code.
+        In a cron job, CLI or script that exits right away, call <code>await flush()</code> after
+        the last <code>trackEvent()</code>. It sends queued events and resolves once they are
+        delivered or have failed; it never throws. <code>flush()</code> requires{" "}
+        <code>@telemetry-tracker/node</code> 1.4.2 or later. From 1.4.2 the SDK also flushes
+        automatically when Node exits on its own (<code>beforeExit</code>), but not after{" "}
+        <code>process.exit()</code>, so awaiting <code>flush()</code> is the reliable option.
+      </p>
       <CodeBlock
-        code={`import { init, trackEvent, trackError } from "@telemetry-tracker/node";
+        code={`import { init, trackEvent, flush } from "@telemetry-tracker/node";
 
-init({
-  ingestUrl: process.env.TELEMETRY_INGEST_URL || "https://your-api.example.com",
-  app: "my-api",
-  apiKey: process.env.TELEMETRY_API_KEY,
-  platform: "node",
-});
+init({ ingestUrl: process.env.TELEMETRY_INGEST_URL, app: "nightly-report", apiKey: process.env.TELEMETRY_API_KEY });
 
-trackEvent("server_started", { version: "1.0.0" });
-trackError(new Error("DB connection failed"), { db: "primary" });`}
+await runReport();
+trackEvent("daily_report_finished");
+await flush(); // requires @telemetry-tracker/node >= 1.4.2`}
       />
 
       <h2>Global error handlers</h2>
@@ -89,6 +115,14 @@ app.use((req, res, next) => {
         </Link>
         .
       </p>
+
+      <h2>Express error handler</h2>
+      <p>
+        Errors that Express catches in a route never reach the global handlers. Report them from an
+        error-handling middleware (four arguments, registered after your routes) with{" "}
+        <code>trackError()</code>, then pass the error on:
+      </p>
+      <CodeBlock code={nodeExpressErrorHandler} />
 
       <DocsAlsoSee
         links={[

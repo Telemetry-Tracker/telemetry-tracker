@@ -118,12 +118,19 @@ export default function DocsDashboardPage() {
         <h2 id="dash-performance-heading">Performance / Web Vitals</h2>
         <p>
           The <strong className="text-foreground">Performance</strong> page summarizes Core Web
-          Vitals (LCP, INP/FID, CLS, TTFB) with Good / Needs improvement / Poor ratings, distribution
-          bars, and trend charts. Tables list slowest{" "}
+          Vitals (LCP, INP, CLS, TTFB) with p75 values, Good / Needs improvement / Poor ratings,
+          distribution bars, and trend charts. Tables list slowest{" "}
           <code className="text-foreground">$request</code> routes (method, path, count, p50/p95,
-          error rate) and slowest <code className="text-foreground">$web_vital</code> pages (path,
+          error rate when events include a status code) and slowest{" "}
+          <code className="text-foreground">$web_vital</code> pages (path,
           LCP p75, CLS, samples), with deep links back to Events. Overview also shows a scoped
-          vitals snapshot with a link into the full report.
+          vitals snapshot with a link into the full report. The INP / FID label also accepts
+          legacy FID events; the current browser SDK reports INP. Enable capture (on by default)
+          or disable it with <code>webVitals: false</code> as described in the{" "}
+          <Link href="/docs/sdk#sdk-web-vitals-heading" className="text-link font-medium">
+            SDK reference
+          </Link>
+          .
         </p>
       </section>
 
@@ -158,7 +165,8 @@ export default function DocsDashboardPage() {
           and delivery history. <strong className="text-foreground">Alert rules</strong> decide{" "}
           <em>when</em> to fire (conditions, thresholds, cooldowns) and which destinations to bind.
           Built-in error-spike and quota rules ship as system-managed rules; you can add custom
-          rules for project-specific thresholds. See also{" "}
+          error-count and &ldquo;no events&rdquo; (business heartbeat) rules in the dashboard. Other
+          condition types are API-only. Chat channels use incoming webhook or bot URLs, not OAuth apps. See also{" "}
           <a
             href="https://github.com/Telemetry-Tracker/telemetry-tracker/blob/main/docs/ALERT-RULES.md"
             className="text-brand hover:underline"

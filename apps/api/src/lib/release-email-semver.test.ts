@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  isStaleProductLine,
+  previousLineClosedByOpeningTag,
   compareReleaseVersion,
   formatMinorLineLabel,
   parseProductMilestoneTitle,
@@ -175,5 +177,43 @@ describe("shouldSendProductUpdateEmail", () => {
     const d = shouldSendProductUpdateEmail("1.6.0", "not-a-version");
     expect(d.send).toBe(false);
     expect(d.reason).toContain("invalid previous tag");
+  });
+});
+
+describe("previousLineClosedByOpeningTag", () => {
+  const tags = ["v1.20.0", "v1.20.2", "v1.21.0", "v1.22.0", "v1.22.1"];
+
+  it("returns the previous minor line for a new .0 tag", () => {
+    expect(previousLineClosedByOpeningTag([...tags, "v1.23.0"], "v1.23.0")).toEqual({
+      major: 1,
+      minor: 22,
+      lineLabel: "1.22",
+    });
+  });
+
+  it("handles a major bump", () => {
+    expect(previousLineClosedByOpeningTag([...tags, "v2.0.0"], "v2.0.0")?.lineLabel).toBe("1.22");
+  });
+
+  it("skips patch tags", () => {
+    expect(previousLineClosedByOpeningTag(tags, "v1.22.1")).toBeNull();
+  });
+
+  it("skips the very first line", () => {
+    expect(previousLineClosedByOpeningTag(["v1.0.0"], "v1.0.0")).toBeNull();
+  });
+});
+
+describe("isStaleProductLine", () => {
+  const tags = ["v1.18.7", "v1.19.1", "v1.20.2", "v1.21.0", "v1.22.1"];
+
+  it("allows the latest and most recently completed lines", () => {
+    expect(isStaleProductLine(tags, 1, 22)).toBe(false);
+    expect(isStaleProductLine(tags, 1, 21)).toBe(false);
+  });
+
+  it("flags older lines as historical", () => {
+    expect(isStaleProductLine(tags, 1, 20)).toBe(true);
+    expect(isStaleProductLine(tags, 1, 18)).toBe(true);
   });
 });

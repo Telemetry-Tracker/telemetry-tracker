@@ -1,3 +1,4 @@
+import { runCheckInSweep } from "../lib/checkins.js";
 import type { PrismaClient } from "@prisma/client";
 import {
   resolveAlertRulesScheduleIntervalMinutes,
@@ -45,6 +46,7 @@ export async function runAlertRulesEvaluatorSweep(
     warnIfTransactionalEmailNotConfigured(env, { job: ALERT_RULES_EVALUATOR_JOB });
   }
   const result = await runScheduledAlertRuleEvaluation(prisma);
+  await runCheckInSweep(prisma, intervalMinutes);
   await recordAlertRulesEvaluatorHeartbeat(prisma);
   return {
     ...result,

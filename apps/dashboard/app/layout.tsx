@@ -6,6 +6,8 @@ import { CookieConsent } from "@/app/components/marketing/cookie-consent";
 import { MarketingJsonLd } from "@/app/components/marketing/MarketingJsonLd";
 import { GoogleAnalytics } from "@/app/components/analytics/GoogleAnalytics";
 import { ProductTelemetry } from "@/app/components/analytics/ProductTelemetry";
+import { SignupAttributionCapture } from "@/app/components/marketing/signup-attribution-capture";
+import { ReferralCapture } from "@/app/components/marketing/referral-capture";
 import { ThemeColorMeta } from "@/app/components/ThemeColorMeta";
 import { ThemeProvider } from "@/app/components/ThemeProvider";
 import { NavigationProgress } from "@/app/components/ui/NavigationProgress";
@@ -99,6 +101,10 @@ export default function RootLayout({
           {children}
           <ProductTelemetry />
           <GoogleAnalytics measurementId={measurementId} />
+          <Suspense fallback={null}>
+            <ReferralCapture />
+            <SignupAttributionCapture />
+          </Suspense>
           <CookieConsent />
         </ThemeProvider>
       </body>

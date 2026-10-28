@@ -1,3 +1,4 @@
+import { sanitizeSignupAttribution } from "../lib/signup-attribution.js";
 import { randomBytes } from "node:crypto";
 import type { FastifyInstance, FastifyPluginOptions } from "fastify";
 import { Prisma } from "@prisma/client";
@@ -74,12 +75,18 @@ export async function authRoutes(
 
   app.post("/auth/register", async (request, reply) => {
     const body = (request.body ?? {}) as {
+      signupAttribution?: unknown;
       email?: string;
       password?: string;
       displayName?: string;
       inviteToken?: string;
       marketingOptIn?: boolean;
+      referralCode?: string;
+      viaToken?: string;
+      referralCapturedAt?: string;
     };
+    const attribution = sanitizeSignupAttribution(body.signupAttribution);
+    if (!body.signupAttribution) attribution.signup_channel = "no_consent";
     const email = typeof body.email === "string" ? normalizeEmail(body.email) : "";
     const password = typeof body.password === "string" ? body.password : "";
     const displayName =
@@ -89,6 +96,14 @@ export async function authRoutes(
     const inviteToken =
       typeof body.inviteToken === "string" ? body.inviteToken.trim() : "";
     const marketingOptIn = body.marketingOptIn !== false;
+    const referralCode =
+      typeof body.referralCode === "string"
+        ? body.referralCode.trim()
+        : typeof body.viaToken === "string"
+          ? body.viaToken.trim()
+          : "";
+    const referralCapturedAt =
+      typeof body.referralCapturedAt === "string" ? body.referralCapturedAt.trim() : "";
 
     if (!email.includes("@")) {
       return reply.status(400).send({ error: "Invalid email" });
@@ -126,6 +141,7 @@ export async function authRoutes(
           try {
             const u = await tx.user.create({
               data: {
+                ...attribution,
                 email,
                 password_hash: passwordHash,
                 display_name: displayName,
@@ -232,12 +248,40 @@ export async function authRoutes(
     /** Self-serve signup: no organization until the user creates one or accepts an invite. */
     const user = await prisma.user.create({
       data: {
+        ...attribution,
         email,
         password_hash: hashPassword(password),
         display_name: displayName,
       },
       select: { id: true, email: true, display_name: true },
     });
+
+    // Capture affiliate referral at registration (if applicable)
+    if (referralCode) {
+      const { captureUserReferral } = await import("../lib/user-referral-capture.js");
+      const captureResult = await captureUserReferral(
+        prisma,
+        {
+          userId: user.id,
+          userEmail: user.email,
+          referralCode,
+          capturedAt: referralCapturedAt || undefined,
+        },
+        request.log
+      );
+      
+      if (captureResult.kind === "rejected_self_referral") {
+        request.log.warn(
+          { userId: user.id, reason: captureResult.reason },
+          "Self-referral rejected at registration"
+        );
+      } else if (captureResult.kind === "captured") {
+        request.log.info(
+          { userId: user.id, userReferralId: captureResult.userReferralId },
+          "User referral captured at registration"
+        );
+      }
+    }
 
     const { sessionId, expiresAt } = await createUserSession(user.id, request);
 

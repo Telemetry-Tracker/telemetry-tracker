@@ -7,8 +7,13 @@ import {
   SettingsToggle,
 } from "@/app/components/dashboard/settings/settings-ui";
 import {
+  changeDraftConditionType,
   conditionTypeLabel,
   createEmptyErrorCountCondition,
+  MAX_ALERT_RULE_EVENT_NAME_LENGTH,
+  MAX_NO_EVENTS_WINDOW_HOURS,
+  MIN_NO_EVENTS_WINDOW_HOURS,
+  updateDraftCondition,
   MAX_ALERT_RULE_CONDITIONS,
   MAX_ALERT_RULE_NAME_LENGTH,
   MAX_ALERT_COOLDOWN_MINUTES,
@@ -20,6 +25,7 @@ import {
   PROJECT_EMAIL_DESTINATION_ID,
   type AlertRuleFormDraft,
   type DestinationOption,
+  type EditableConditionType,
 } from "@/lib/alert-rules";
 
 const inputClass =
@@ -59,15 +65,14 @@ export function AlertRuleEditor({
   const canAddCondition = draft.conditions.length < MAX_ALERT_RULE_CONDITIONS;
 
   function updateCondition(
-    key: string,
-    patch: Partial<AlertRuleFormDraft["conditions"][number]>
+    index: number,
+    patch: Parameters<typeof updateDraftCondition>[2]
   ) {
-    onChange({
-      ...draft,
-      conditions: draft.conditions.map((c) =>
-        c.key === key ? { ...c, ...patch } : c
-      ),
-    });
+    onChange(updateDraftCondition(draft, index, patch));
+  }
+
+  function changeType(index: number, type: EditableConditionType) {
+    onChange(changeDraftConditionType(draft, index, type));
   }
 
   function removeCondition(key: string) {
@@ -112,7 +117,7 @@ export function AlertRuleEditor({
 
       <Field
         label="Conditions (AND)"
-        hint={`Every condition must match. Up to ${MAX_ALERT_RULE_CONDITIONS} conditions. Only error count is evaluated today — more kinds ship later.`}
+        hint={`Every condition must match. Up to ${MAX_ALERT_RULE_CONDITIONS} conditions. "No events (heartbeat)" alerts when an expected event — e.g. trackEvent("signup_verified") — has not arrived for a number of hours.`}
       >
         <div className="flex flex-col gap-3">
           {draft.conditions.length === 0 ? (
@@ -135,12 +140,18 @@ export function AlertRuleEditor({
                     Type
                     <select
                       value={condition.type}
-                      disabled
+                      disabled={pending}
+                      onChange={(e) =>
+                        changeType(index, e.target.value as EditableConditionType)
+                      }
                       className={`${inputClass} max-w-xs`}
                       aria-label={`Condition ${index + 1} type`}
                     >
                       <option value="ERROR_COUNT">
                         {conditionTypeLabel("ERROR_COUNT")}
+                      </option>
+                      <option value="NO_EVENTS">
+                        {conditionTypeLabel("NO_EVENTS")}
                       </option>
                     </select>
                   </label>
@@ -154,59 +165,171 @@ export function AlertRuleEditor({
                     </SettingsBtn>
                   ) : null}
                 </div>
-                <div className="flex flex-wrap gap-3">
-                  <label className="flex flex-col gap-1 text-[12px] text-muted-foreground">
-                    Threshold
-                    <input
-                      type="number"
-                      min={MIN_ERROR_COUNT_THRESHOLD}
-                      max={MAX_ERROR_COUNT_THRESHOLD}
-                      value={condition.threshold}
-                      disabled={pending}
-                      onChange={(e) =>
-                        updateCondition(condition.key, {
-                          threshold: Number(e.target.value) || 1,
-                        })
-                      }
-                      className={narrowInputClass}
-                      aria-label={`Condition ${index + 1} threshold`}
-                    />
-                  </label>
-                  <label className="flex flex-col gap-1 text-[12px] text-muted-foreground">
-                    Window (minutes)
-                    <input
-                      type="number"
-                      min={MIN_ERROR_COUNT_WINDOW_MINUTES}
-                      max={MAX_ERROR_COUNT_WINDOW_MINUTES}
-                      value={condition.windowMinutes}
-                      disabled={pending}
-                      onChange={(e) =>
-                        updateCondition(condition.key, {
-                          windowMinutes: Number(e.target.value) || 15,
-                        })
-                      }
-                      className={narrowInputClass}
-                      aria-label={`Condition ${index + 1} window minutes`}
-                    />
-                  </label>
-                  <label className="flex min-w-[10rem] flex-1 flex-col gap-1 text-[12px] text-muted-foreground">
-                    Environment (optional)
-                    <input
-                      type="text"
-                      value={condition.environment}
-                      disabled={pending}
-                      onChange={(e) =>
-                        updateCondition(condition.key, {
-                          environment: e.target.value,
-                        })
-                      }
-                      placeholder="production"
-                      maxLength={64}
-                      className={inputClass}
-                      aria-label={`Condition ${index + 1} environment`}
-                    />
-                  </label>
-                </div>
+                {condition.type === "NO_EVENTS" ? (
+                  <>
+                    <fieldset className="mb-3 flex flex-col gap-1.5 text-[12px] text-muted-foreground">
+                      <legend className="mb-1">Watch</legend>
+                      <div className="flex flex-wrap gap-4">
+                        <label className="flex items-center gap-1.5 text-[13px] text-foreground">
+                          <input
+                            type="radio"
+                            name={`condition-${condition.key}-event-scope`}
+                            value="all"
+                            checked={condition.eventScope === "all"}
+                            disabled={pending}
+                            onChange={() =>
+                              updateCondition(index, { eventScope: "all" })
+                            }
+                            aria-label={`Condition ${index + 1} all events`}
+                          />
+                          All events in the project
+                        </label>
+                        <label className="flex items-center gap-1.5 text-[13px] text-foreground">
+                          <input
+                            type="radio"
+                            name={`condition-${condition.key}-event-scope`}
+                            value="specific"
+                            checked={condition.eventScope === "specific"}
+                            disabled={pending}
+                            onChange={() =>
+                              updateCondition(index, { eventScope: "specific" })
+                            }
+                            aria-label={`Condition ${index + 1} specific event`}
+                          />
+                          A specific event
+                        </label>
+                      </div>
+                    </fieldset>
+                    <div className="flex flex-wrap gap-3">
+                      {condition.eventScope === "specific" ? (
+                      <label className="flex min-w-[12rem] flex-1 flex-col gap-1 text-[12px] text-muted-foreground">
+                        Event name
+                        <input
+                          type="text"
+                          value={condition.eventName}
+                          disabled={pending}
+                          onChange={(e) =>
+                            updateCondition(index, { eventName: e.target.value })
+                          }
+                          placeholder="signup_verified"
+                          maxLength={MAX_ALERT_RULE_EVENT_NAME_LENGTH}
+                          className={`${inputClass} font-mono`}
+                          aria-label={`Condition ${index + 1} event name`}
+                          aria-invalid={!condition.eventName.trim()}
+                          required
+                        />
+                        {!condition.eventName.trim() ? (
+                          <span className="text-destructive" role="status">
+                            Enter the event name, or choose &quot;All events&quot;.
+                          </span>
+                        ) : null}
+                      </label>
+                      ) : null}
+                      <label className="flex flex-col gap-1 text-[12px] text-muted-foreground">
+                        No event for (hours)
+                        <input
+                          type="number"
+                          min={MIN_NO_EVENTS_WINDOW_HOURS}
+                          max={MAX_NO_EVENTS_WINDOW_HOURS}
+                          value={condition.windowHours}
+                          disabled={pending}
+                          onChange={(e) =>
+                            updateCondition(index, {
+                              windowHours: Number(e.target.value) || MIN_NO_EVENTS_WINDOW_HOURS,
+                            })
+                          }
+                          className={narrowInputClass}
+                          aria-label={`Condition ${index + 1} window hours`}
+                        />
+                      </label>
+                      <label className="flex min-w-[10rem] flex-1 flex-col gap-1 text-[12px] text-muted-foreground">
+                        Environment (optional)
+                        <input
+                          type="text"
+                          value={condition.environment}
+                          disabled={pending}
+                          onChange={(e) =>
+                            updateCondition(index, {
+                              environment: e.target.value,
+                            })
+                          }
+                          placeholder="production"
+                          maxLength={64}
+                          className={inputClass}
+                          aria-label={`Condition ${index + 1} environment`}
+                        />
+                      </label>
+                    </div>
+                    <p className="mt-2 text-[12px] text-muted-foreground">
+                      {condition.eventScope === "specific" ? (
+                        <>
+                          Exact name as sent with <code>trackEvent()</code>.{" "}
+                        </>
+                      ) : (
+                        <>Alerts when no event of any name arrives. </>
+                      )}
+                      Pick a window comfortably longer than the usual
+                      gap between these events (max {MAX_NO_EVENTS_WINDOW_HOURS}h) —
+                      quiet apps can go hours without a signup. While the event stays
+                      missing the alert repeats every cooldown; there is no recovery
+                      notification.
+                    </p>
+                  </>
+                ) : (
+                  <div className="flex flex-wrap gap-3">
+                    <label className="flex flex-col gap-1 text-[12px] text-muted-foreground">
+                      Threshold
+                      <input
+                        type="number"
+                        min={MIN_ERROR_COUNT_THRESHOLD}
+                        max={MAX_ERROR_COUNT_THRESHOLD}
+                        value={condition.threshold}
+                        disabled={pending}
+                        onChange={(e) =>
+                          updateCondition(index, {
+                            threshold: Number(e.target.value) || 1,
+                          })
+                        }
+                        className={narrowInputClass}
+                        aria-label={`Condition ${index + 1} threshold`}
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1 text-[12px] text-muted-foreground">
+                      Window (minutes)
+                      <input
+                        type="number"
+                        min={MIN_ERROR_COUNT_WINDOW_MINUTES}
+                        max={MAX_ERROR_COUNT_WINDOW_MINUTES}
+                        value={condition.windowMinutes}
+                        disabled={pending}
+                        onChange={(e) =>
+                          updateCondition(index, {
+                            windowMinutes: Number(e.target.value) || 15,
+                          })
+                        }
+                        className={narrowInputClass}
+                        aria-label={`Condition ${index + 1} window minutes`}
+                      />
+                    </label>
+                    <label className="flex min-w-[10rem] flex-1 flex-col gap-1 text-[12px] text-muted-foreground">
+                      Environment (optional)
+                      <input
+                        type="text"
+                        value={condition.environment}
+                        disabled={pending}
+                        onChange={(e) =>
+                          updateCondition(index, {
+                            environment: e.target.value,
+                          })
+                        }
+                        placeholder="production"
+                        maxLength={64}
+                        className={inputClass}
+                        aria-label={`Condition ${index + 1} environment`}
+                      />
+                    </label>
+                  </div>
+                )}
               </div>
             </div>
           ))}
@@ -224,7 +347,10 @@ export function AlertRuleEditor({
         </div>
       </Field>
 
-      <Field label="Cooldown (minutes)">
+      <Field
+        label="Cooldown (minutes)"
+        hint="Minimum time between alerts from this rule. Heartbeat rules default to their window."
+      >
         <input
           type="number"
           min={MIN_ALERT_COOLDOWN_MINUTES}
@@ -234,7 +360,7 @@ export function AlertRuleEditor({
           onChange={(e) =>
             onChange({
               ...draft,
-              cooldownMinutes: Number(e.target.value) || 15,
+              cooldownMinutes: Number(e.target.value) || MIN_ALERT_COOLDOWN_MINUTES,
             })
           }
           className={narrowInputClass}
@@ -249,6 +375,7 @@ export function AlertRuleEditor({
         <div className="flex flex-col gap-2">
           <label className="flex items-center gap-2 text-[13px] text-foreground">
             <SettingsToggle
+              aria-label="Project alert email"
               on={emailSelected}
               onChange={(on) =>
                 toggleDestination(PROJECT_EMAIL_DESTINATION_ID, on)
@@ -335,6 +462,12 @@ export function AlertRuleEditor({
             pending ||
             !draft.name.trim() ||
             draft.conditions.length === 0 ||
+            draft.conditions.some(
+              (c) =>
+                c.type === "NO_EVENTS" &&
+                c.eventScope === "specific" &&
+                !c.eventName.trim()
+            ) ||
             draft.destinationIds.length === 0
           }
           onClick={onSubmit}

@@ -1,3 +1,5 @@
+import { parsePaidPlanQueryParam } from "./plan-pricing";
+
 type AuthSearchParams = Pick<URLSearchParams, "get">;
 
 export const DEFAULT_POST_LOGIN_PATH = "/dashboard/overview";
@@ -100,9 +102,23 @@ export function crossAuthHref(
   const params = new URLSearchParams();
   const invite = searchParams.get("invite")?.trim();
   if (invite) params.set("invite", invite);
+  const ref = searchParams.get("ref")?.trim();
+  if (ref) params.set("ref", ref);
+  const via = searchParams.get("via")?.trim();
+  if (via) params.set("via", via);
+  
+  // Preserve paid plan intent across register ↔ login
+  const paidPlan = parsePaidPlanQueryParam(searchParams.get("plan"));
+  if (paidPlan) params.set("plan", paidPlan);
+  
   if (target === "/login") {
     const safeNext = normalizePostLoginRedirectPath(searchParams.get("next"));
-    if (safeNext) params.set("next", safeNext);
+    // When plan is set and no explicit next, point to billing with plan
+    if (safeNext) {
+      params.set("next", safeNext);
+    } else if (paidPlan) {
+      params.set("next", `/dashboard/settings/billing?plan=${paidPlan}`);
+    }
   }
   const qs = params.toString();
   return qs ? `${target}?${qs}` : target;

@@ -176,6 +176,40 @@ describe("sendTransactionalEmail", () => {
     expect(body.attachments).toBeUndefined();
   });
 
+  it("defaults Reply-To to the official address on the hosted cloud only", async () => {
+    process.env.RESEND_API_KEY = "re_test";
+    process.env.TELEMETRY_EMAIL_FROM = "Telemetry Tracker <noreply@example.com>";
+    const prevOrigin = process.env.TELEMETRY_DASHBOARD_ORIGIN;
+    const prevReply = process.env.TELEMETRY_EMAIL_REPLY_TO;
+    delete process.env.TELEMETRY_EMAIL_REPLY_TO;
+    fetchMock.mockResolvedValue({ ok: true, text: async () => "" });
+    const replyToOf = (i: number) =>
+      (JSON.parse(String(fetchMock.mock.calls[i]?.[1]?.body)) as { reply_to?: string }).reply_to;
+    try {
+      process.env.TELEMETRY_DASHBOARD_ORIGIN = "https://telemetry-tracker.com";
+      await sendTransactionalEmail({ to: "u@example.com", subject: "s", html: "<p>x</p>" });
+      expect(replyToOf(0)).toBe("info@telemetry-tracker.com");
+
+      process.env.TELEMETRY_DASHBOARD_ORIGIN = "https://tt.selfhosted.example";
+      await sendTransactionalEmail({ to: "u@example.com", subject: "s", html: "<p>x</p>" });
+      expect(replyToOf(1)).toBeUndefined();
+
+      process.env.TELEMETRY_EMAIL_REPLY_TO = "ops@example.com";
+      await sendTransactionalEmail({ to: "u@example.com", subject: "s", html: "<p>x</p>" });
+      expect(replyToOf(2)).toBe("ops@example.com");
+
+      process.env.TELEMETRY_DASHBOARD_ORIGIN = "https://telemetry-tracker.com";
+      process.env.TELEMETRY_EMAIL_REPLY_TO = "none";
+      await sendTransactionalEmail({ to: "u@example.com", subject: "s", html: "<p>x</p>" });
+      expect(replyToOf(3)).toBeUndefined();
+    } finally {
+      if (prevOrigin === undefined) delete process.env.TELEMETRY_DASHBOARD_ORIGIN;
+      else process.env.TELEMETRY_DASHBOARD_ORIGIN = prevOrigin;
+      if (prevReply === undefined) delete process.env.TELEMETRY_EMAIL_REPLY_TO;
+      else process.env.TELEMETRY_EMAIL_REPLY_TO = prevReply;
+    }
+  });
+
   it("attaches brand logo CID when HTML references cid:tt-brand-logo", async () => {
     process.env.RESEND_API_KEY = "re_test";
     process.env.TELEMETRY_EMAIL_FROM = "Telemetry <noreply@example.com>";

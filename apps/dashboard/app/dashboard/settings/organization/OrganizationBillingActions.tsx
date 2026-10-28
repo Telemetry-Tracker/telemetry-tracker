@@ -32,12 +32,23 @@ export function OrganizationBillingActions({
 
   function goCheckout(tier: "PRO" | "BUSINESS") {
     startTransition(async () => {
-      const r = await createBillingCheckoutAction(organizationId, tier);
-      if (!r.ok) {
-        toast.error(r.error);
-        return;
+      // If customer has existing subscription, use portal instead of checkout
+      if (hasStripeCustomer) {
+        const r = await createBillingPortalAction(organizationId);
+        if (!r.ok) {
+          toast.error(r.error);
+          return;
+        }
+        window.location.href = r.url;
+      } else {
+        // First-time subscription: use checkout
+        const r = await createBillingCheckoutAction(organizationId, tier);
+        if (!r.ok) {
+          toast.error(r.error);
+          return;
+        }
+        window.location.href = r.url;
       }
-      window.location.href = r.url;
     });
   }
 
@@ -63,7 +74,7 @@ export function OrganizationBillingActions({
           disabled={pending}
           onClick={() => goCheckout("PRO")}
         >
-          Upgrade to Pro ({formatPlanPriceEur(PLAN_LIST_PRICES_EUR.PRO)}/mo)
+          {hasStripeCustomer ? "Change to" : "Upgrade to"} Pro ({formatPlanPriceEur(PLAN_LIST_PRICES_EUR.PRO)}/mo)
         </SettingsBtn>
       ) : null}
       {upgrades.showBusiness ? (
@@ -73,7 +84,7 @@ export function OrganizationBillingActions({
           disabled={pending}
           onClick={() => goCheckout("BUSINESS")}
         >
-          Upgrade to Business ({formatPlanPriceEur(PLAN_LIST_PRICES_EUR.BUSINESS)}/mo)
+          {hasStripeCustomer ? "Change to" : "Upgrade to"} Business ({formatPlanPriceEur(PLAN_LIST_PRICES_EUR.BUSINESS)}/mo)
         </SettingsBtn>
       ) : null}
       {hasStripeCustomer ? (

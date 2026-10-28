@@ -2,6 +2,9 @@ import type { PrismaClient } from "@prisma/client";
 
 /** Stable action identifiers for the settings / security MVP audit log. */
 export const AUDIT_ACTIONS = {
+  MCP_TOKEN_CREATE: "mcp.token.create",
+  MCP_TOKEN_REVOKE: "mcp.token.revoke",
+  MCP_TOKEN_EXPIRE: "mcp.token.expire",
   AUTH_LOGIN: "auth.login",
   AUTH_PASSWORD_CHANGE: "auth.password_change",
   AUTH_SESSION_REVOKE: "auth.session.revoke",
@@ -15,6 +18,20 @@ export const AUDIT_ACTIONS = {
   PROJECT_UPDATE: "project.update",
   /** Organization (workspace) display name changed. */
   ORGANIZATION_UPDATE: "organization.update",
+  /** Owner removed a member from the organization (TT-015). */
+  ORGANIZATION_MEMBER_REMOVE: "organization.member.remove",
+  /** Owner revoked a pending invite (TT-015). */
+  ORGANIZATION_INVITE_REVOKE: "organization.invite.revoke",
+  /** Founder/admin resolved OrganizationReferral.needs_attention as VALID. */
+  AFFILIATE_NEEDS_ATTENTION_RESOLVE: "affiliate.needs_attention.resolve",
+  AFFILIATE_CREATED: "affiliate.created",
+  AFFILIATE_UPDATED: "affiliate.updated",
+  AFFILIATE_PAYOUT_MARKED_PAID: "affiliate.payout.marked_paid",
+  AFFILIATE_APPLICATION_APPROVED: "affiliate.application.approved",
+  AFFILIATE_APPLICATION_REJECTED: "affiliate.application.rejected",
+  AFFILIATE_DISPUTE_CREATED: "affiliate.dispute.created",
+  /** Refund/dispute arrived for a referred org but no commission row matched. */
+  AFFILIATE_COMMISSION_NOT_FOUND: "affiliate.commission.not_found",
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];

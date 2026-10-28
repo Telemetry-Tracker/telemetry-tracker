@@ -141,6 +141,7 @@ describe("buildErrorGroupScopeSql", () => {
     const text = prismaSqlText(sql);
     expect(text).toContain('COALESCE("eg"."message", \'\') ILIKE ?');
     expect(text).toContain('COALESCE("eg"."fingerprint", \'\') ILIKE ?');
+    expect(text).toContain(`occ."context"->>'digest'`);
   });
 
   it("applies multi-word q as AND across message OR fingerprint terms", () => {

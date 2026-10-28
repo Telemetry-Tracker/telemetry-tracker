@@ -1,8 +1,11 @@
 "use client";
 
+import { trackSignup } from "@/lib/signup-analytics";
+import { readSignupAttribution } from "@/lib/signup-attribution";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useTransition, type FormEvent } from "react";
+import * as React from "react";
 import { register } from "@/app/auth/actions";
 import { LegalExternalLink } from "@/app/components/legal/LegalPageShell";
 import {
@@ -20,6 +23,12 @@ import {
   type RegisterPageValues,
 } from "@/lib/auth-schemas";
 import type { CookieConsentChoice } from "@/lib/cookie-consent";
+import {
+  readRememberedAffiliateReferral,
+  rememberAffiliateReferral,
+  resolveReferralFromParams,
+} from "@/lib/affiliate-referral";
+import { parsePaidPlanQueryParam } from "@/lib/plan-pricing";
 
 type RegisterPageFormProps = {
   serverChoice: CookieConsentChoice | null;
@@ -58,13 +67,25 @@ export function RegisterPageForm({ serverChoice }: RegisterPageFormProps) {
 
     setErrors({});
     setFormError(null);
+
+    const urlCode = resolveReferralFromParams(searchParams);
+    const urlReferral = urlCode ? rememberAffiliateReferral(urlCode) : null;
+    const stored = readRememberedAffiliateReferral();
+    const referral = urlReferral ?? stored;
+
     const formData = new FormData();
+    const attribution = readSignupAttribution();
+    if (attribution) formData.set("signupAttribution", JSON.stringify(attribution));
     formData.set("email", parsed.data.email);
     formData.set("password", parsed.data.password);
     formData.set("displayName", parsed.data.name);
     formData.set("termsAccepted", "yes");
     if (parsed.data.marketingOptIn) formData.set("marketingOptIn", "yes");
     if (inviteToken) formData.set("inviteToken", inviteToken);
+    if (referral) {
+      formData.set("referralCode", referral.code);
+      formData.set("referralCapturedAt", referral.capturedAt);
+    }
     appendCookieConsentToFormData(formData, serverChoice);
 
     startTransition(async () => {
@@ -73,9 +94,17 @@ export function RegisterPageForm({ serverChoice }: RegisterPageFormProps) {
         setFormError(result.error);
         return;
       }
-      router.push(
-        inviteToken ? "/dashboard/overview" : "/dashboard/settings/organization",
-      );
+      trackSignup();
+      
+      // Preserve paid plan intent: redirect to org settings with plan (new users have no org yet)
+      const paidPlan = parsePaidPlanQueryParam(searchParams.get("plan"));
+      if (inviteToken) {
+        router.push("/dashboard/overview");
+      } else if (paidPlan) {
+        router.push(`/dashboard/settings/organization?plan=${paidPlan}`);
+      } else {
+        router.push("/dashboard/settings/organization");
+      }
       router.refresh();
     });
   }

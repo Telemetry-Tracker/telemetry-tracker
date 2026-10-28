@@ -146,6 +146,8 @@ export default defineConfig({
 });
 ```
 
+**Next.js:** set `productionBrowserSourceMaps: true` in `next.config`, then use `artifact_path: ".next/static"` and `base_url: "https://your-domain/_next/static"` so only browser maps are uploaded (the Free plan stores 25 artifacts per project across all releases; Pro 250, Business 2,500).
+
 Create a project API key in **Settings → API keys** and enable **Allow source map uploads**. Do not use that key in client apps. Browser ingest keys are rejected for upload. `baseUrl` must match the public URL where your minified JS is served. The plugin and GitHub Action set `bundle_url` from the built file’s `sourceMappingURL` comment (Next.js 16 Turbopack hashes maps separately from chunks). When no comment points at the map, the URL falls back to the `.map` path with `.map` removed.
 
 See [sdk-vite.md](./sdk-vite.md) for full options and a Vue + Vite example. Full option reference: [sdk-vite.md](./sdk-vite.md).
@@ -201,12 +203,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Upload Source Maps
-        # Pin to a full commit SHA (≥ v1.17.18). Tags before v1.17.18 ship an older Action
+        # Pin to a full commit SHA (≥ v1.22.4, where project_id is optional). Tags before v1.17.18 ship an older Action
         # without sourceMappingURL support; ≤ v1.16.5 also interpolated inputs into the script.
-        uses: Telemetry-Tracker/telemetry-tracker/.github/actions/upload-source-maps@8d00f9d1527783f6365e7c6e2e1f19630920bc6e # v1.17.24
+        uses: Telemetry-Tracker/telemetry-tracker/.github/actions/upload-source-maps@559d1f5b9ca4c79ed282de49b5a7b5f55b33b8bd # v1.22.4
         with:
           api_key: ${{ secrets.TT_API_KEY }}
-          project_id: "your-project-uuid-here"
+          # project_id is optional: the API key identifies its project (shown in Settings → Source maps)
           release: ${{ github.event.release.tag_name }}
           app: "my-telemetry-app"
           artifact_path: "./dist"
@@ -224,7 +226,7 @@ The action defaults to the hosted cloud API (`https://api.telemetry-tracker.com`
         uses: ./.github/actions/upload-source-maps
         with:
           api_key: ${{ secrets.TT_API_KEY }}
-          project_id: "your-project-uuid-here"
+          # project_id is optional: the API key identifies its project (shown in Settings → Source maps)
           release: ${{ github.event.release.tag_name }}
           app: "my-telemetry-app"
           artifact_path: "./dist"
@@ -234,7 +236,7 @@ The action defaults to the hosted cloud API (`https://api.telemetry-tracker.com`
 
 Use `http://localhost:3001` (or your dev API port) when testing uploads against a local API from CI or a runner on your network.
 
-`uses: ./.github/actions/upload-source-maps` only works inside this repository. Other projects must pin the composite action to a **full commit SHA** (with a version comment), for example `@8d00f9d1527783f6365e7c6e2e1f19630920bc6e # v1.17.24` as shown above.
+`uses: ./.github/actions/upload-source-maps` only works inside this repository. Other projects must pin the composite action to a **full commit SHA** (with a version comment), for example `@559d1f5b9ca4c79ed282de49b5a7b5f55b33b8bd # v1.22.4` as shown above.
 
 **Do not use tags older than v1.17.18** for this Action: those builds lack `sourceMappingURL` resolution, and tags ≤ v1.16.5 interpolated workflow inputs directly into the inline script. Prefer Dependabot’s `github-actions` ecosystem (or Renovate) to bump the SHA when you intentionally take a newer release.
 

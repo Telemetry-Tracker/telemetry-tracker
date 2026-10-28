@@ -7,6 +7,12 @@ export type FatalFlushDeps = {
     timeoutMs?: number;
 };
 /**
+ * TT-022 (#724): turn any thrown value into a plain Error whose message/stack are own string
+ * properties, so ingest never touches user-defined getters or Proxy traps. Falls back to a
+ * generic Error when inspecting the value throws.
+ */
+export declare function toSafeFatalError(thrown: unknown): Error;
+/**
  * Report a fatal error, wait up to `timeoutMs` for ingest, then exit(1).
  * Accepts any thrown value (null/undefined/primitives/objects).
  * Clears the timeout when ingest settles so the timer does not keep the process alive.

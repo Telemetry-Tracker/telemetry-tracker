@@ -3,10 +3,11 @@ import type { ReactNode } from "react";
 import { ContactEmailLink } from "@/app/components/legal/ContactEmailLink";
 import { Footer } from "@/app/components/marketing/footer";
 import { Nav } from "@/app/components/marketing/nav";
+import { isAffiliateProgramEnabled } from "@/lib/affiliate-program";
 import { HOSTED_DASHBOARD_URL, HOSTED_OPERATOR } from "@/lib/hosted-cloud";
 
-const EFFECTIVE = "July 2, 2026";
-const VERSION = "2026.07";
+const EFFECTIVE = "October 11, 2026";
+const VERSION = "2026.10";
 
 const principles = [
   {
@@ -58,12 +59,46 @@ const dataTable = [
     purpose: "Send optional release notes and feature announcements on the Hosted Cloud.",
     retention: "Until you unsubscribe via the link in our emails.",
   },
+  {
+    kind: "Signup attribution",
+    examples:
+      "UTM campaign tags (source, medium, campaign, content, term) from the page you first landed on, coarse acquisition channel, first landing path (only source/medium/campaign query tags), and the hostname of the referring website (no full referrer URL, path or query). Attribution is collected only if you accepted cookies; stored with your account when you sign up. Without consent we store only a no-consent marker. Project first-telemetry timestamps survive raw telemetry retention to measure activation.",
+    purpose: "Understand which channels and campaigns bring new users (aggregate marketing analysis).",
+    retention: "Remembered in a cookie for up to 60 days before signup; then kept with your account and deleted when the account is deleted.",
+  },
 ];
 
-const optionalServices = [
-  { name: "Stripe", role: "Optional payment processing", note: "When configured on the API" },
-  { name: "Resend", role: "Optional transactional email", note: "Invites, password reset, contact, product updates" },
-  { name: "Sentry", role: "Optional error monitoring", note: "When SENTRY_DSN is set on the API and/or dashboard" },
+const hostedServices = [
+  {
+    name: "Railway",
+    role: "API hosting and primary PostgreSQL database",
+    note: "API, dashboard, database and its attached volume, and scheduled jobs (retention, alert-rule evaluation, alert webhook delivery): EU West (Amsterdam, Netherlands). Until 9 October 2026 the alert-rule evaluator ran in Southeast Asia (Singapore). An older, unattached database volume remains in Southeast Asia (Singapore). Backup locations unverified.",
+  },
+  {
+    name: "Cloudflare",
+    role: "CDN / edge network and R2 avatar storage",
+    note: "Avatar bucket telemetry-avatars: Eastern Europe (EEUR) location hint; EU jurisdiction setting unverified. Edge processing is separate from the API/database region.",
+  },
+  {
+    name: "Stripe",
+    role: "Billing",
+    note: "Used when billing is configured; production activation, data regions and transfer mechanism not independently verified.",
+  },
+  {
+    name: "Resend",
+    role: "Email",
+    note: "Invites, password reset, contact and optional product updates. Email configured in production; data regions and transfer mechanism unverified.",
+  },
+  {
+    name: "Google Analytics",
+    role: "Website analytics",
+    note: "Code enables analytics outside /dashboard after cookie consent when a measurement ID is configured or the production site hostname matches telemetry-tracker.com. Live activation and data regions unverified.",
+  },
+  {
+    name: "Sentry",
+    role: "Operational error monitoring",
+    note: "Enabled for Hosted Cloud service errors. Not the store for customer telemetry. Organization data region unverified.",
+  },
 ];
 
 const rights = [
@@ -81,7 +116,7 @@ const toc: { id: string; label: string }[] = [
   { id: "what", label: "2. What we collect" },
   { id: "legal", label: "3. Legal basis" },
   { id: "sharing", label: "4. Sharing" },
-  { id: "subprocessors", label: "5. Optional third parties" },
+  { id: "subprocessors", label: "5. Third-party services" },
   { id: "transfers", label: "6. Where data lives" },
   { id: "retention", label: "7. Retention" },
   { id: "security", label: "8. Security" },
@@ -195,11 +230,47 @@ export function PrivacyPageContent() {
                     through ingest (errors, events, sessions, source maps).
                   </p>
                   <p>
-                    Data is stored in managed PostgreSQL and object storage operated for the Hosted
-                    Cloud. Retention follows your plan tier and runs on a scheduled job. Billing uses
-                    Stripe; transactional email (invites, password reset, contact form, optional
-                    product updates) may use Resend when configured.
+                    The Hosted Cloud API and primary PostgreSQL database, including its volume, run
+                    on Railway in EU West (Amsterdam, Netherlands). PostgreSQL stores accounts,
+                    customer telemetry and source maps; source map contents are stored in a TEXT
+                    column. Cloudflare R2 object storage is used for avatars only. The
+                    telemetry-avatars bucket has an Eastern Europe (EEUR) location hint; its EU
+                    jurisdiction setting has not been verified. Retention follows your plan tier
+                    and runs on a scheduled job. The scheduled jobs (retention, alert-rule
+                    evaluation and alert webhook delivery) also run on Railway in EU West; until 9
+                    October 2026 the alert-rule evaluator, which reads alert rules and project data
+                    from the database and sends alert emails, ran in Railway&apos;s Southeast Asia
+                    (Singapore) region. See Section 5 for third-party services.
                   </p>
+                  <p>
+                    Customer telemetry you send through ingest is stored by Telemetry Tracker.
+                    Separately, Telemetry Tracker uses Sentry for operational error monitoring of
+                    the Hosted Cloud service. Production error events are submitted to Sentry at
+                    the EU ingest host <code className="font-mono text-[12px]">ingest.de.sentry.io</code>.
+                    That is the ingest endpoint on the production DSN. Before an event is sent,
+                    the SDK is configured with default personal-data sending off and a filter that
+                    removes common authentication headers, cookies, query strings, request bodies,
+                    and Sentry user fields. This describes that configuration. It does not mean later
+                    Sentry processing stays in the EU, and it does not mean an error event never
+                    contains personal data.
+                  </p>
+                  {isAffiliateProgramEnabled() ? (
+                    // Founder review: added with the public affiliate application form.
+                    <p id="affiliate-applications" className="scroll-mt-28">
+                      <span className="text-foreground/85">Affiliate program applications.</span> If
+                      you apply at{" "}
+                      <Link href="/affiliates" className="text-foreground/85 hover:text-foreground">
+                        /affiliates
+                      </Link>
+                      , {HOSTED_OPERATOR} stores the name, email, website or profile URL and
+                      promotion description you submit, plus when you accepted the affiliate terms,
+                      to review the application and, if approved, to run your affiliate account
+                      (attribution, commission and payout records). No account is required. Your IP
+                      address is used only transiently for rate limiting and is not stored with the
+                      application. We do not email applicants automatically. You can ask us to delete
+                      your application at any time via the contact address below.
+                    </p>
+                  ) : null}
                   <p>
                     Privacy requests for Hosted Cloud accounts:{" "}
                     <ContactEmailLink className="text-foreground/85 hover:text-foreground" />.
@@ -305,16 +376,18 @@ export function PrivacyPageContent() {
                   <p>
                     We do not sell personal data. On a self-hosted deployment, telemetry is not
                     shared with us unless you include reproduction details in support correspondence.
-                    On the Hosted Cloud, {HOSTED_OPERATOR} uses subprocessors (for example Stripe,
-                    Resend, and infrastructure providers) only to operate the service — see Section
-                    5.
+                    On the Hosted Cloud, {HOSTED_OPERATOR} uses third-party services as described in
+                    Section 5. Customer telemetry stored by Telemetry Tracker is separate from the
+                    operational error events Telemetry Tracker sends to Sentry to monitor the Hosted
+                    Cloud service.
                   </p>
                 </Section>
 
                 <Section id="subprocessors" title="5. Third-party services">
                   <p>
-                    Self-hosted and Hosted Cloud deployments may call external services when
-                    configured:
+                    The following services process data for the Hosted Cloud, with configuration
+                    and verification limits noted below. Self-hosted deployments use third-party
+                    services according to your own configuration.
                   </p>
                   <div className="mt-5 overflow-hidden rounded-xl border border-border">
                     <table className="w-full text-left text-sm">
@@ -322,33 +395,42 @@ export function PrivacyPageContent() {
                         <tr className="text-xs uppercase tracking-[0.12em] text-muted-foreground">
                           <th className="px-4 py-3 font-medium">Service</th>
                           <th className="px-4 py-3 font-medium">Role</th>
-                          <th className="hidden px-4 py-3 font-medium md:table-cell">When used</th>
+                          <th className="px-4 py-3 font-medium">Hosted Cloud details</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border">
-                        {optionalServices.map((s) => (
+                        {hostedServices.map((s) => (
                           <tr key={s.name}>
                             <td className="px-4 py-3 text-foreground">{s.name}</td>
                             <td className="px-4 py-3">{s.role}</td>
-                            <td className="hidden px-4 py-3 md:table-cell">{s.note}</td>
+                            <td className="px-4 py-3">{s.note}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
                   <p className="mt-5">
-                    Review each vendor&apos;s terms and data processing agreements before enabling
-                    them in production.
+                    The AI brief worker is not enabled in production and is not part of the Hosted
+                    Cloud production service. Customer-configured alert webhooks send alert
+                    metadata to destinations you choose.
                   </p>
                 </Section>
 
                 <Section id="transfers" title="6. Where data lives">
                   <p>
                     Self-hosted: data residency is determined by where you deploy PostgreSQL and
-                    the dashboard. Hosted Cloud: Customer Data and account data are stored in
-                    infrastructure selected by {HOSTED_OPERATOR} for the managed service. Optional
-                    third-party services may process data in their own regions — configure them only
-                    if that meets your compliance requirements.
+                    the dashboard. On the Hosted Cloud, the API and primary PostgreSQL database
+                    (accounts, customer telemetry and source maps), including the database volume,
+                    run on Railway in EU West (Amsterdam, Netherlands). Avatars are stored in
+                    Cloudflare R2 with an Eastern Europe (EEUR) location hint. These facts describe
+                    the API, primary database and avatar storage; they do not establish the location
+                    of backups or processing by the edge network and other third-party services.
+                    The dashboard and scheduled jobs also run in EU West. Until 9 October 2026 the
+                    alert-rule evaluator ran in Southeast Asia (Singapore), and an older, unattached
+                    database volume is still stored in that region.
+                    Operational error events are submitted to Sentry at{" "}
+                    <code className="font-mono text-[12px]">ingest.de.sentry.io</code>. Third-party
+                    services may process data in regions described by those providers.
                   </p>
                 </Section>
 

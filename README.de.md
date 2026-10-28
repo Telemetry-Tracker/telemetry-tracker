@@ -1,5 +1,6 @@
 🇬🇧 English: [README.md](README.md)
 🇪🇸 Español: [README.es.md](README.es.md)
+🇫🇷 Français: [README.fr.md](README.fr.md)
 # Telemetry Tracker
 
 ![License](https://img.shields.io/github/license/Telemetry-Tracker/telemetry-tracker)
@@ -9,6 +10,7 @@
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat&logo=typescript&logoColor=white)
 [![npm version](https://img.shields.io/npm/v/@telemetry-tracker/core)](https://www.npmjs.com/package/@telemetry-tracker/core)
 [![npm downloads](https://img.shields.io/npm/dm/@telemetry-tracker/core)](https://www.npmjs.com/package/@telemetry-tracker/core)
+[![XERJ Corpus Hub contributor](https://hub.xerj.org/contributors/unjica/badge.svg)](https://hub.xerj.org/contributors/unjica.html)
 
 <p align="center">
   <strong>Open-source Fehlerverfolgung, Produktanalyse, und Sitzungstelemetrie.</strong>
@@ -304,4 +306,4 @@ Der **verwaltete Dienst** unter [telemetry-tracker.com](https://telemetry-tracke
 
 Biete keinen mandantenfähigen Hosting-Dienst **für Dritte** unter dem Namen, Logo oder Marketing von **Telemetry Tracker** an, als wäre es das offizielle Produkt. Forks und interne Bereitstellungen sollten einen **eigenständigen Namen** verwenden, sofern du keine schriftliche Genehmigung von Tacko hast.
 
-Details und Beispiele: **[TRADEMARK.md](TRADEMARK.md)** · Partnerschaften: [info@tacko.io](mailto:info@tacko.io)
+Details und Beispiele: **[TRADEMARK.md](TRADEMARK.md)** · Partnerschaften: [info@telemetry-tracker.com](mailto:info@telemetry-tracker.com)

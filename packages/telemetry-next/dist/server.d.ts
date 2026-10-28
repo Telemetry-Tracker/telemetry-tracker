@@ -17,9 +17,12 @@
  *   documents App Router behavior)
  *
  * Safety: the hook never throws, never copies request headers, strips query
- * strings from the path, skips an Error already marked with the shared
- * `telemetry.reported` symbol (and recent Next.js digests), and aborts a hung
- * ingest after a few seconds so Next.js error handling is not blocked.
+ * strings from the path, reports a given Error object only once, collapses a
+ * second same-digest callback in the same turn, and aborts a hung ingest after
+ * a few seconds so Next.js error handling is not blocked.
+ *
+ * Next.js 15+ calls `onRequestError` (the hook does not exist on Next.js 14).
+ * The browser package still supports Next.js 14.
  */
 export type ServerTelemetryConfig = {
     ingestUrl: string;
@@ -46,7 +49,7 @@ export type RequestErrorContext = {
     routeType: "render" | "route" | "action" | "middleware" | "proxy";
     renderSource?: "react-server-components" | "react-server-components-payload" | "server-rendering";
 };
-export declare const SERVER_SDK_VERSION = "1.3.2";
+export declare const SERVER_SDK_VERSION = "1.3.3";
 export type ServerErrorPayload = {
     app: string;
     message: string;
@@ -73,5 +76,14 @@ export declare function wasAlreadyReported(error: unknown): boolean;
 export declare function markReported(error: unknown): void;
 /** @internal test helper */
 export declare function clearReportedDigestsForTests(): void;
+/**
+ * Read message and stack without relying on `instanceof Error`.
+ * Edge isolates can hand the hook an Error from another realm, where
+ * `instanceof` is false and `String(error)` becomes `"Error: <message>"`.
+ */
+export declare function readServerError(error: unknown): {
+    message: string;
+    stack?: string;
+};
 export declare function serverErrorPayload(error: unknown, request: RequestErrorRequest, context: RequestErrorContext, config: ServerTelemetryConfig): ServerErrorPayload;
 export declare function createOnRequestError(config: ServerTelemetryConfig): (error: unknown, request: RequestErrorRequest, context: RequestErrorContext) => Promise<void>;

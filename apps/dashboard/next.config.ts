@@ -1,8 +1,38 @@
 import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
+import { readFileSync } from "node:fs";
 import path from "path";
+import { dashboardSentryReleaseFromChangelog, latestChangelogVersion } from "./lib/sentry-release";
+
+function readRepoChangelog(): string | null {
+  for (const candidate of [
+    path.join(__dirname, "..", "..", "CHANGELOG.md"),
+    path.join(process.cwd(), "..", "..", "CHANGELOG.md"),
+    path.join(process.cwd(), "CHANGELOG.md"),
+  ]) {
+    try {
+      return readFileSync(candidate, "utf8");
+    } catch {
+      /* try next */
+    }
+  }
+  return null;
+}
+
+// Sentry release (e.g. `telemetry-tracker-dashboard@1.18.3`) from CHANGELOG at build time.
+// Inlined into client, server, and edge bundles; omitted (release unset) if unresolved.
+const changelog = readRepoChangelog();
+const sentryRelease = dashboardSentryReleaseFromChangelog(changelog);
+const platformVersion = changelog ? latestChangelogVersion(changelog) : null;
 
 const nextConfig: NextConfig = {
+  // Self-host image only (selfhost/dashboard.Dockerfile sets NEXT_OUTPUT=standalone). Unset on
+  // Railway, so the production dashboard build and `next start` are unchanged.
+  ...(process.env.NEXT_OUTPUT === "standalone" ? { output: "standalone" as const } : {}),
+  env: {
+    ...(sentryRelease ? { TT_SENTRY_RELEASE: sentryRelease } : {}),
+    ...(platformVersion ? { TT_PLATFORM_VERSION: platformVersion } : {}),
+  },
   // Put <title> and other metadata in <head> for crawlers instead of streaming them into <body>.
   htmlLimitedBots: /.*/,
   // Avoid duplicate server/API work in dev (Strict Mode renders Server Components twice).
@@ -12,6 +42,13 @@ const nextConfig: NextConfig = {
   // Lint runs in `prebuild` via root `eslint.config.mjs` (Next’s built-in pass doesn’t detect FlatCompat + monorepo).
   eslint: {
     ignoreDuringBuilds: true,
+  },
+  // TT-013 (#712): send /dashboard/settings straight to the profile tab with a server redirect,
+  // before any client render (the in-page redirect() flashed React #310).
+  async redirects() {
+    return [
+      { source: "/dashboard/settings", destination: "/dashboard/settings/profile", permanent: false },
+    ];
   },
 };
 

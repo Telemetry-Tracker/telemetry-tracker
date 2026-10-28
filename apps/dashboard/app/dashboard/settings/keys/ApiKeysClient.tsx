@@ -17,6 +17,8 @@ import {
 import { Table, TableWrap, tableDateColumnClass } from "@/app/components/ui/Table";
 import { TimeAgo } from "@/app/components/TimeAgo";
 import { toast } from "sonner";
+import { HOSTED_API_URL } from "@/lib/hosted-cloud";
+import { buildNextEnvLocal } from "@/lib/sdk-setup-snippets";
 
 export type ApiKeyRow = {
   publicId: string;
@@ -98,6 +100,41 @@ export function ApiKeysClient({ keys }: { keys: ApiKeyRow[] }) {
             <SettingsBtn type="button" variant="ghost" onClick={() => setNewKey(null)}>
               Done
             </SettingsBtn>
+          </div>
+          <div className="mt-5 border-t border-border pt-4">
+            <p className="mb-2 text-[13px] font-medium text-foreground">
+              Next.js setup (.env.local)
+            </p>
+            <p className="mb-2 text-[13px] text-muted-foreground">
+              Prefills hosted ingest (<code className="text-[12px]">{HOSTED_API_URL}</code>
+              ). Paste into your App Router app, then follow{" "}
+              <a className="underline" href="/docs/nextjs">
+                /docs/nextjs
+              </a>
+              .
+            </p>
+            <pre className="mb-2 max-h-48 overflow-auto rounded-md border border-border bg-background/80 p-3 font-mono text-[11px] leading-relaxed whitespace-pre-wrap">
+              {buildNextEnvLocal(newKey)}
+            </pre>
+            <SettingsBtn
+              type="button"
+              variant="default"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(buildNextEnvLocal(newKey));
+                  toast.success("Next.js .env.local copied");
+                } catch {
+                  toast.error("Could not copy to clipboard.");
+                }
+              }}
+            >
+              Copy Next.js .env.local
+            </SettingsBtn>
+            <p className="mt-3 text-[12px] text-muted-foreground">
+              Also add <code className="text-[11px]">app/track-page-view.tsx</code> from the docs
+              and wrap your server <code className="text-[11px]">app/layout.tsx</code> with{" "}
+              <code className="text-[11px]">TelemetryProvider</code>.
+            </p>
           </div>
         </Section>
       ) : null}
@@ -186,7 +223,7 @@ export function ApiKeysClient({ keys }: { keys: ApiKeyRow[] }) {
                   <th className={tableDateColumnClass}>Created</th>
                   <th className={`hidden sm:table-cell ${tableDateColumnClass}`}>Last used</th>
                   <th>Status</th>
-                  <th />
+                  <th aria-label="Actions" />
                 </tr>
               </thead>
               <tbody>

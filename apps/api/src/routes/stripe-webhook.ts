@@ -8,6 +8,21 @@ import {
   subscriptionToOrgSyncPatch,
 } from "../lib/stripe-subscription-sync.js";
 import { stripeSubscriptionPeriodEndUnix } from "../lib/stripe-runtime-fields.js";
+import {
+  dedupeWebhookEvent,
+  markWebhookProcessed,
+  markWebhookFailed,
+} from "../lib/webhook-dedupe.js";
+import {
+  applyDisputeToCommission,
+  applyRefundToCommission,
+  mapStripeDisputeStatus,
+  recordCommissionFromInvoice,
+  chargeCustomerId,
+  chargeInvoiceId,
+  chargePaymentIntentId,
+} from "../lib/affiliate-commission.js";
+import { AUDIT_ACTIONS } from "../lib/audit-log.js";
 
 /** Prisma P2002 — unique constraint (e.g. Stripe customer/sub already bound to another org). */
 function isUniqueConstraintError(e: unknown): boolean {
@@ -60,6 +75,57 @@ export async function registerStripeWebhookIfConfigured(
           return reply.status(400).send({ error: "Invalid signature" });
         }
 
+        // Deduplicate webhook events (idempotency) - only when affiliates enabled
+        const { isAffiliateFeatureEnabled } = await import("../lib/affiliates-feature-flag.js");
+        if (isAffiliateFeatureEnabled()) {
+          const dedupeResult = await dedupeWebhookEvent(
+            prisma,
+            "stripe",
+            event.id,
+            event.type
+          );
+          if (dedupeResult.kind === "duplicate") {
+            // Already processed; return success to prevent Stripe retries
+            return reply.send({ received: true });
+          }
+          if (dedupeResult.kind === "processing") {
+            // Another delivery is processing this event
+            return reply.status(409).send({ error: "Event is being processed by another delivery" });
+          }
+
+          try {
+            await processStripeEvent(event, request, stripe);
+            await markWebhookProcessed(prisma, dedupeResult.id, dedupeResult.claimToken);
+          } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : String(err);
+            await markWebhookFailed(prisma, dedupeResult.id, dedupeResult.claimToken, errorMessage);
+            throw err; // Re-throw to let Fastify handle error response
+          }
+        } else {
+          // Flag off: process without dedupe (identical to develop)
+          await processStripeEvent(event, request, stripe);
+        }
+
+        return reply.send({ received: true });
+      });
+    },
+    { prefix: "/" }
+  );
+}
+
+/**
+ * Process Stripe webhook event (extracted for testability and to preserve existing behavior).
+ */
+async function processStripeEvent(
+  event: Stripe.Event,
+  request: {
+    log: {
+      warn: (arg: unknown, msg: string) => void;
+      info?: (arg: unknown, msg: string) => void;
+    };
+  },
+  stripe: Stripe
+): Promise<void> {
         switch (event.type) {
           case "checkout.session.completed": {
             const session = event.data.object as Stripe.Checkout.Session;
@@ -188,13 +254,130 @@ export async function registerStripeWebhookIfConfigured(
             }
             break;
           }
+          case "invoice.paid": {
+            const { isAffiliateFeatureEnabled } = await import("../lib/affiliates-feature-flag.js");
+            if (!isAffiliateFeatureEnabled()) break;
+            const invoice = event.data.object as Stripe.Invoice;
+            await recordCommissionFromInvoice(prisma, invoice, request.log, { stripe });
+            break;
+          }
+          case "charge.refunded": {
+            const { isAffiliateFeatureEnabled } = await import("../lib/affiliates-feature-flag.js");
+            if (!isAffiliateFeatureEnabled()) break;
+            const charge = event.data.object as Stripe.Charge;
+            const invoiceId = chargeInvoiceId(charge);
+            const latestRefund = Array.isArray(charge.refunds?.data)
+              ? charge.refunds.data[0]
+              : null;
+            await applyRefundToCommission(
+              prisma,
+              {
+                invoiceId,
+                chargeId: charge.id,
+                paymentIntentId: chargePaymentIntentId(charge),
+                customerId: chargeCustomerId(charge),
+                chargeAmount: charge.amount,
+                amountRefunded: charge.amount_refunded,
+                refundId: latestRefund?.id ?? null,
+                currency: charge.currency,
+              },
+              request.log
+            );
+            break;
+          }
+          case "charge.dispute.created":
+          case "charge.dispute.updated":
+          case "charge.dispute.closed": {
+            const dispute = event.data.object as Stripe.Dispute;
+            const chargeId = typeof dispute.charge === "string" ? dispute.charge : null;
+            if (!chargeId) break;
+
+            const { isAffiliateFeatureEnabled } = await import("../lib/affiliates-feature-flag.js");
+            if (!isAffiliateFeatureEnabled()) break;
+
+            const charge = await stripe.charges.retrieve(chargeId);
+            const customerId = chargeCustomerId(charge) ?? chargeCustomerId(dispute);
+            const invoiceId = chargeInvoiceId(charge);
+            await applyDisputeToCommission(
+              prisma,
+              {
+                invoiceId,
+                chargeId,
+                paymentIntentId:
+                  chargePaymentIntentId(charge) ?? chargePaymentIntentId(dispute),
+                customerId,
+                status: mapStripeDisputeStatus(dispute.status),
+                currency: dispute.currency,
+              },
+              request.log
+            );
+
+            if (event.type !== "charge.dispute.created") break;
+            if (!customerId) break;
+
+            const org = await prisma.organization.findFirst({
+              where: { stripe_customer_id: customerId, deleted_at: null },
+              select: { id: true, name: true },
+            });
+            if (!org) break;
+
+            const referral = await prisma.organizationReferral.findUnique({
+              where: { organization_id: org.id },
+              select: { id: true, affiliate_id: true },
+            });
+            if (!referral) break;
+
+            await prisma.organizationAuditEvent.create({
+              data: {
+                organization_id: org.id,
+                actor_email: "system@telemetry-tracker.com",
+                action: AUDIT_ACTIONS.AFFILIATE_DISPUTE_CREATED,
+                target: `Stripe dispute ${dispute.id} for charge ${chargeId}`,
+              },
+            });
+
+            const adminEmails = process.env.AFFILIATE_ADMIN_EMAILS?.trim();
+            if (adminEmails) {
+              if (!dispute.livemode) {
+                request.log.warn(
+                  { disputeId: dispute.id, chargeId, orgId: org.id, livemode: false },
+                  "Skipping dispute alert email for test-mode dispute (livemode=false)"
+                );
+              } else {
+                const { sendTransactionalEmail } = await import("../lib/email.js");
+                const { escapeHtml } = await import("../lib/notification-email-template.js");
+                const emails = adminEmails.split(",").map((e) => e.trim()).filter(Boolean);
+
+                const subject = `[Affiliate] Dispute on referred organization: ${org.name}`;
+
+                for (const email of emails) {
+                  try {
+                    await sendTransactionalEmail({
+                      to: email,
+                      subject,
+                      html: `<p>A Stripe dispute was created for a referred organization:</p>
+                        <ul>
+                          <li>Organization: ${escapeHtml(org.name)} (${org.id})</li>
+                          <li>Dispute ID: ${dispute.id}</li>
+                          <li>Charge ID: ${chargeId}</li>
+                          <li>Amount: ${dispute.amount / 100} ${dispute.currency.toUpperCase()}</li>
+                          <li>Reason: ${dispute.reason}</li>
+                          <li>Livemode: ${dispute.livemode ? "Yes" : "No"}</li>
+                        </ul>
+                        <p>Commission is held until the dispute is won or lost. Review in founder affiliate admin.</p>`,
+                    });
+                  } catch (mailErr) {
+                    request.log.warn(
+                      { err: mailErr, email, disputeId: dispute.id },
+                      "Failed to send dispute alert email"
+                    );
+                  }
+                }
+              }
+            }
+            break;
+          }
           default:
             break;
         }
-
-        return reply.send({ received: true });
-      });
-    },
-    { prefix: "/" }
-  );
 }
