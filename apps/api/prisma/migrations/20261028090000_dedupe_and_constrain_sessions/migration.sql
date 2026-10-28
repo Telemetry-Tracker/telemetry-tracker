@@ -28,17 +28,17 @@ WITH duplicates AS (
     s.project_id,
     s.session_id,
     s.app,
-    -- Latest non-null values (last_value ignores nulls)
-    (array_agg(s.user_id ORDER BY s.started_at, s.id) FILTER (WHERE s.user_id IS NOT NULL))[1] AS latest_user_id,
-    (array_agg(s.user_email ORDER BY s.started_at, s.id) FILTER (WHERE s.user_email IS NOT NULL))[1] AS latest_user_email,
-    (array_agg(s.anonymous_id ORDER BY s.started_at, s.id) FILTER (WHERE s.anonymous_id IS NOT NULL))[1] AS latest_anonymous_id,
-    (array_agg(s.country ORDER BY s.started_at, s.id) FILTER (WHERE s.country IS NOT NULL))[1] AS latest_country,
-    (array_agg(s.device_browser ORDER BY s.started_at, s.id) FILTER (WHERE s.device_browser IS NOT NULL))[1] AS latest_device_browser,
-    (array_agg(s.device_os ORDER BY s.started_at, s.id) FILTER (WHERE s.device_os IS NOT NULL))[1] AS latest_device_os,
-    (array_agg(s.sdk_version ORDER BY s.started_at, s.id) FILTER (WHERE s.sdk_version IS NOT NULL))[1] AS latest_sdk_version,
-    (array_agg(s.platform ORDER BY s.started_at, s.id) FILTER (WHERE s.platform IS NOT NULL))[1] AS latest_platform,
-    (array_agg(s.environment ORDER BY s.started_at, s.id) FILTER (WHERE s.environment IS NOT NULL))[1] AS latest_environment,
-    (array_agg(s.release ORDER BY s.started_at, s.id) FILTER (WHERE s.release IS NOT NULL))[1] AS latest_release,
+    -- Latest non-null values (DESC order, take first = latest)
+    (array_agg(s.user_id ORDER BY s.started_at DESC, s.id DESC) FILTER (WHERE s.user_id IS NOT NULL))[1] AS latest_user_id,
+    (array_agg(s.user_email ORDER BY s.started_at DESC, s.id DESC) FILTER (WHERE s.user_email IS NOT NULL))[1] AS latest_user_email,
+    (array_agg(s.anonymous_id ORDER BY s.started_at DESC, s.id DESC) FILTER (WHERE s.anonymous_id IS NOT NULL))[1] AS latest_anonymous_id,
+    (array_agg(s.country ORDER BY s.started_at DESC, s.id DESC) FILTER (WHERE s.country IS NOT NULL))[1] AS latest_country,
+    (array_agg(s.device_browser ORDER BY s.started_at DESC, s.id DESC) FILTER (WHERE s.device_browser IS NOT NULL))[1] AS latest_device_browser,
+    (array_agg(s.device_os ORDER BY s.started_at DESC, s.id DESC) FILTER (WHERE s.device_os IS NOT NULL))[1] AS latest_device_os,
+    (array_agg(s.sdk_version ORDER BY s.started_at DESC, s.id DESC) FILTER (WHERE s.sdk_version IS NOT NULL))[1] AS latest_sdk_version,
+    (array_agg(s.platform ORDER BY s.started_at DESC, s.id DESC) FILTER (WHERE s.platform IS NOT NULL))[1] AS latest_platform,
+    (array_agg(s.environment ORDER BY s.started_at DESC, s.id DESC) FILTER (WHERE s.environment IS NOT NULL))[1] AS latest_environment,
+    (array_agg(s.release ORDER BY s.started_at DESC, s.id DESC) FILTER (WHERE s.release IS NOT NULL))[1] AS latest_release,
     -- ended_at: GREATEST of all non-null values
     MAX(s.ended_at) AS latest_ended_at
   FROM "Session" s
@@ -64,17 +64,17 @@ kept_rows AS (
 )
 UPDATE "Session" s
 SET 
-  user_id = COALESCE(s.user_id, k.latest_user_id),
-  user_email = COALESCE(s.user_email, k.latest_user_email),
-  anonymous_id = COALESCE(s.anonymous_id, k.latest_anonymous_id),
-  country = COALESCE(s.country, k.latest_country),
-  device_browser = COALESCE(s.device_browser, k.latest_device_browser),
-  device_os = COALESCE(s.device_os, k.latest_device_os),
-  sdk_version = COALESCE(s.sdk_version, k.latest_sdk_version),
-  platform = COALESCE(s.platform, k.latest_platform),
-  environment = COALESCE(s.environment, k.latest_environment),
-  release = COALESCE(s.release, k.latest_release),
-  ended_at = COALESCE(s.ended_at, k.latest_ended_at)
+  user_id = COALESCE(k.latest_user_id, s.user_id),
+  user_email = COALESCE(k.latest_user_email, s.user_email),
+  anonymous_id = COALESCE(k.latest_anonymous_id, s.anonymous_id),
+  country = COALESCE(k.latest_country, s.country),
+  device_browser = COALESCE(k.latest_device_browser, s.device_browser),
+  device_os = COALESCE(k.latest_device_os, s.device_os),
+  sdk_version = COALESCE(k.latest_sdk_version, s.sdk_version),
+  platform = COALESCE(k.latest_platform, s.platform),
+  environment = COALESCE(k.latest_environment, s.environment),
+  release = COALESCE(k.latest_release, s.release),
+  ended_at = COALESCE(k.latest_ended_at, s.ended_at)
 FROM kept_rows k
 WHERE s.id = k.id;
 

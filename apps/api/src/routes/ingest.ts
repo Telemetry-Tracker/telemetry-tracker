@@ -249,16 +249,16 @@ export async function ingestRoutes(
         ${endedAt}
       )
       ON CONFLICT (project_id, session_id, app) DO UPDATE SET
-        user_id = COALESCE("Session".user_id, EXCLUDED.user_id),
-        user_email = COALESCE("Session".user_email, EXCLUDED.user_email),
-        anonymous_id = COALESCE("Session".anonymous_id, EXCLUDED.anonymous_id),
-        country = COALESCE("Session".country, EXCLUDED.country),
-        device_browser = COALESCE("Session".device_browser, EXCLUDED.device_browser),
-        device_os = COALESCE("Session".device_os, EXCLUDED.device_os),
-        sdk_version = COALESCE("Session".sdk_version, EXCLUDED.sdk_version),
-        platform = COALESCE("Session".platform, EXCLUDED.platform),
-        environment = COALESCE("Session".environment, EXCLUDED.environment),
-        release = COALESCE("Session".release, EXCLUDED.release),
+        user_id = COALESCE(EXCLUDED.user_id, "Session".user_id),
+        user_email = COALESCE(EXCLUDED.user_email, "Session".user_email),
+        anonymous_id = COALESCE(EXCLUDED.anonymous_id, "Session".anonymous_id),
+        country = COALESCE(EXCLUDED.country, "Session".country),
+        device_browser = COALESCE(EXCLUDED.device_browser, "Session".device_browser),
+        device_os = COALESCE(EXCLUDED.device_os, "Session".device_os),
+        sdk_version = COALESCE(EXCLUDED.sdk_version, "Session".sdk_version),
+        platform = COALESCE(EXCLUDED.platform, "Session".platform),
+        environment = COALESCE(EXCLUDED.environment, "Session".environment),
+        release = COALESCE(EXCLUDED.release, "Session".release),
         ended_at = GREATEST("Session".ended_at, EXCLUDED.ended_at)
     `;
     
