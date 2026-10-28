@@ -11,6 +11,16 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ## [Unreleased]
 
+### Fixed
+
+- **Stale identity overwrite (TT-031 follow-up)** — Added `identity_updated_at` timestamp to Session table and ingest logic to prevent delayed SDK requests from overwriting fresher identity data. Server only updates `user_id` / `user_email` when the incoming timestamp is newer than what's stored. SDK 1.5.3+ sends `identity_updated_at` when calling `identify()`. Old SDKs fall back to `started_at` but won't overwrite an existing user_id with a different value unless the timestamp is newer. Fixes issue where stale requests arrived ~1s after `identify()` and overwrote the correct user. ([#XXX](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/XXX), Refs [#886](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/886))
+
+### Changed
+
+- **SDK version bumps:**
+  - `@telemetry-tracker/core` → 1.5.3: Added `identity_updated_at` field in session payloads
+  - `@telemetry-tracker/react-native` → 1.3.2: Inherits core 1.5.3 fix
+
 ---
 
 ## [1.22.20] - 2026-10-28

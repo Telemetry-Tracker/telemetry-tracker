@@ -69,6 +69,7 @@ const sessionSchema = z.object({
   sdk_version: z.string().optional(),
   started_at: z.string().datetime().optional(),
   ended_at: z.string().datetime().optional().nullable(),
+  identity_updated_at: z.string().datetime().optional().nullable(),
 });
 
 function sessionContextPatch(
@@ -225,11 +226,17 @@ export async function ingestRoutes(
     const startedAt = body.started_at ? new Date(body.started_at) : new Date();
     const endedAt = body.ended_at ? new Date(body.ended_at) : null;
     
+    // Identity timestamp: use provided identity_updated_at, or fall back to started_at if identity fields are present
+    const hasIdentity = body.user_id !== undefined || body.user_email !== undefined;
+    const identityUpdatedAt = body.identity_updated_at 
+      ? new Date(body.identity_updated_at)
+      : (hasIdentity ? startedAt : null);
+    
     await prisma.$executeRaw`
       INSERT INTO "Session" (
         id, project_id, session_id, app, platform, environment, release,
         user_id, user_email, anonymous_id, country, device_browser, device_os,
-        sdk_version, started_at, ended_at
+        sdk_version, started_at, ended_at, identity_updated_at
       ) VALUES (
         gen_random_uuid(),
         ${projectId},
@@ -246,11 +253,28 @@ export async function ingestRoutes(
         ${body.device_os ?? null},
         ${body.sdk_version ?? null},
         ${startedAt},
-        ${endedAt}
+        ${endedAt},
+        ${identityUpdatedAt}
       )
       ON CONFLICT (project_id, session_id, app) DO UPDATE SET
-        user_id = COALESCE(EXCLUDED.user_id, "Session".user_id),
-        user_email = COALESCE(EXCLUDED.user_email, "Session".user_email),
+        user_id = CASE
+          WHEN EXCLUDED.identity_updated_at IS NOT NULL 
+            AND ("Session".identity_updated_at IS NULL OR EXCLUDED.identity_updated_at > "Session".identity_updated_at)
+          THEN COALESCE(EXCLUDED.user_id, "Session".user_id)
+          ELSE "Session".user_id
+        END,
+        user_email = CASE
+          WHEN EXCLUDED.identity_updated_at IS NOT NULL 
+            AND ("Session".identity_updated_at IS NULL OR EXCLUDED.identity_updated_at > "Session".identity_updated_at)
+          THEN COALESCE(EXCLUDED.user_email, "Session".user_email)
+          ELSE "Session".user_email
+        END,
+        identity_updated_at = CASE
+          WHEN EXCLUDED.identity_updated_at IS NOT NULL 
+            AND ("Session".identity_updated_at IS NULL OR EXCLUDED.identity_updated_at > "Session".identity_updated_at)
+          THEN EXCLUDED.identity_updated_at
+          ELSE "Session".identity_updated_at
+        END,
         anonymous_id = COALESCE(EXCLUDED.anonymous_id, "Session".anonymous_id),
         country = COALESCE(EXCLUDED.country, "Session".country),
         device_browser = COALESCE(EXCLUDED.device_browser, "Session".device_browser),

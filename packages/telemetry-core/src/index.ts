@@ -135,6 +135,7 @@ export type TelemetryConfig = {
 let config: TelemetryConfig | null = null;
 let userId: string | null = null;
 let userEmail: string | null = null;
+let identityUpdatedAt: Date | null = null;
 let browserHandlersInstalled = false;
 let sessionLifecycleInstalled = false;
 let sessionId: string | null = null;
@@ -179,6 +180,7 @@ function buildSessionPayload(cfg: TelemetryConfig, endedAt?: Date): Record<strin
     device_os: device.device_os ?? undefined,
     started_at: sessionStartedAt?.toISOString(),
     ended_at: endedAt?.toISOString(),
+    identity_updated_at: identityUpdatedAt?.toISOString(),
   };
 }
 
@@ -217,6 +219,7 @@ function closeSessionKeepalive(endedAt: Date): void {
   postSessionKeepalive(endedAt);
   sessionId = null;
   sessionStartedAt = null;
+  identityUpdatedAt = null;
   clearSanitizedGlobalErrorDedupe(sanitizedGlobalErrorDedupe);
 }
 
@@ -271,6 +274,7 @@ export function endSession(): void {
   void postSession(cfg, ended);
   sessionId = null;
   sessionStartedAt = null;
+  identityUpdatedAt = null;
   clearSanitizedGlobalErrorDedupe(sanitizedGlobalErrorDedupe);
 }
 
@@ -373,6 +377,10 @@ export function init(c: TelemetryConfig): void {
   if (sessionId) {
     endSession();
   }
+  // Clear identity when reinitializing (will be set by identify() if needed)
+  userId = null;
+  userEmail = null;
+  identityUpdatedAt = null;
   config = { ...c };
   warnIfMissingApiKey(config);
   getAnonymousId(); // ensure anonymous id exists and is persisted (browser) or set in memory (Node)
@@ -422,6 +430,7 @@ export function identify(id: string | null, traits?: IdentifyTraits): void {
   if (traits && "email" in traits) {
     userEmail = traits.email ?? null;
   }
+  identityUpdatedAt = new Date();
   const cfg = getConfigOrNull();
   if (cfg && sessionId) {
     void postSession(cfg);

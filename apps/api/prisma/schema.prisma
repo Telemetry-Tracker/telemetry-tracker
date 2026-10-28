@@ -649,23 +649,24 @@ model ErrorOccurrence {
 }
 
 model Session {
-  id             String    @id @default(uuid())
-  project_id     String    @map("project_id")
-  project        Project   @relation(fields: [project_id], references: [id], onDelete: Cascade)
-  session_id     String    @map("session_id")
-  app            String
-  platform       String?
-  environment    String?
-  release        String?
-  user_id        String?
-  anonymous_id   String?
-  user_email     String?   @map("user_email")
-  country        String?
-  device_browser String?   @map("device_browser")
-  device_os      String?   @map("device_os")
-  sdk_version    String?
-  started_at     DateTime  @default(now()) @map("started_at")
-  ended_at       DateTime? @map("ended_at")
+  id                   String    @id @default(uuid())
+  project_id           String    @map("project_id")
+  project              Project   @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  session_id           String    @map("session_id")
+  app                  String
+  platform             String?
+  environment          String?
+  release              String?
+  user_id              String?
+  anonymous_id         String?
+  user_email           String?   @map("user_email")
+  country              String?
+  device_browser       String?   @map("device_browser")
+  device_os            String?   @map("device_os")
+  sdk_version          String?
+  started_at           DateTime  @default(now()) @map("started_at")
+  ended_at             DateTime? @map("ended_at")
+  identity_updated_at  DateTime? @map("identity_updated_at")
 
   @@unique([project_id, session_id, app])
   @@index([project_id, started_at])

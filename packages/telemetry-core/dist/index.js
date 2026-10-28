@@ -67,6 +67,7 @@ export function getAnonymousId() {
 let config = null;
 let userId = null;
 let userEmail = null;
+let identityUpdatedAt = null;
 let browserHandlersInstalled = false;
 let sessionLifecycleInstalled = false;
 let sessionId = null;
@@ -100,6 +101,7 @@ function buildSessionPayload(cfg, endedAt) {
         device_os: device.device_os ?? undefined,
         started_at: sessionStartedAt?.toISOString(),
         ended_at: endedAt?.toISOString(),
+        identity_updated_at: identityUpdatedAt?.toISOString(),
     };
 }
 async function postSession(cfg, endedAt) {
@@ -140,6 +142,7 @@ function closeSessionKeepalive(endedAt) {
     postSessionKeepalive(endedAt);
     sessionId = null;
     sessionStartedAt = null;
+    identityUpdatedAt = null;
     clearSanitizedGlobalErrorDedupe(sanitizedGlobalErrorDedupe);
 }
 function startSession() {
@@ -190,6 +193,7 @@ export function endSession() {
     void postSession(cfg, ended);
     sessionId = null;
     sessionStartedAt = null;
+    identityUpdatedAt = null;
     clearSanitizedGlobalErrorDedupe(sanitizedGlobalErrorDedupe);
 }
 /**
@@ -279,6 +283,10 @@ export function init(c) {
     if (sessionId) {
         endSession();
     }
+    // Clear identity when reinitializing (will be set by identify() if needed)
+    userId = null;
+    userEmail = null;
+    identityUpdatedAt = null;
     config = { ...c };
     warnIfMissingApiKey(config);
     getAnonymousId(); // ensure anonymous id exists and is persisted (browser) or set in memory (Node)
@@ -322,6 +330,7 @@ export function identify(id, traits) {
     if (traits && "email" in traits) {
         userEmail = traits.email ?? null;
     }
+    identityUpdatedAt = new Date();
     const cfg = getConfigOrNull();
     if (cfg && sessionId) {
         void postSession(cfg);

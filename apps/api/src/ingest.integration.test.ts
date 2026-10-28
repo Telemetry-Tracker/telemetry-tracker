@@ -322,4 +322,168 @@ describe.skipIf(!runDbIntegration)("POST /ingest/session concurrent requests (TT
     expect(sessions).toHaveLength(1);
     expect(sessions[0]!.ended_at).toEqual(endedAt);
   });
+
+  it("prevents stale identity request from overwriting newer identify()", async () => {
+    const sessionId = randomBytes(16).toString("hex");
+    const appName = "test-app-stale-identity";
+    const now = new Date();
+    
+    // Step 1: init() with old user (stale-user)
+    const initRes = await app!.inject({
+      method: "POST",
+      url: "/ingest/session",
+      headers: {
+        authorization: `Bearer ${fullKey}`,
+        "content-type": "application/json",
+      },
+      payload: {
+        session_id: sessionId,
+        app: appName,
+        user_id: "stale-user",
+        started_at: now.toISOString(),
+        identity_updated_at: now.toISOString(),
+      },
+    });
+    expect(initRes.statusCode).toBe(204);
+
+    // Step 2: identify() with new user (fresh-user) - 100ms later
+    const identifyTime = new Date(now.getTime() + 100);
+    const identifyRes = await app!.inject({
+      method: "POST",
+      url: "/ingest/session",
+      headers: {
+        authorization: `Bearer ${fullKey}`,
+        "content-type": "application/json",
+      },
+      payload: {
+        session_id: sessionId,
+        app: appName,
+        user_id: "fresh-user",
+        user_email: "fresh@example.com",
+        started_at: now.toISOString(),
+        identity_updated_at: identifyTime.toISOString(),
+      },
+    });
+    expect(identifyRes.statusCode).toBe(204);
+
+    // Step 3: Delayed stale request arrives with old user (should be rejected)
+    const staleRes = await app!.inject({
+      method: "POST",
+      url: "/ingest/session",
+      headers: {
+        authorization: `Bearer ${fullKey}`,
+        "content-type": "application/json",
+      },
+      payload: {
+        session_id: sessionId,
+        app: appName,
+        user_id: "stale-user",
+        started_at: now.toISOString(),
+        identity_updated_at: now.toISOString(), // older timestamp
+      },
+    });
+    expect(staleRes.statusCode).toBe(204);
+
+    // Verify the fresh identity was preserved
+    const sessions = await prisma.session.findMany({
+      where: {
+        project_id: projectId!,
+        session_id: sessionId,
+      },
+    });
+
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0]!.user_id).toBe("fresh-user"); // NOT stale-user
+    expect(sessions[0]!.user_email).toBe("fresh@example.com");
+    expect(sessions[0]!.identity_updated_at).toEqual(identifyTime);
+  });
+
+  it("allows newer identity to overwrite older identity", async () => {
+    const sessionId = randomBytes(16).toString("hex");
+    const appName = "test-app-newer-identity";
+    const time1 = new Date();
+    const time2 = new Date(time1.getTime() + 1000);
+
+    // First identify with user1
+    await app!.inject({
+      method: "POST",
+      url: "/ingest/session",
+      headers: {
+        authorization: `Bearer ${fullKey}`,
+        "content-type": "application/json",
+      },
+      payload: {
+        session_id: sessionId,
+        app: appName,
+        user_id: "user1",
+        started_at: time1.toISOString(),
+        identity_updated_at: time1.toISOString(),
+      },
+    });
+
+    // Later identify with user2 (newer timestamp should win)
+    await app!.inject({
+      method: "POST",
+      url: "/ingest/session",
+      headers: {
+        authorization: `Bearer ${fullKey}`,
+        "content-type": "application/json",
+      },
+      payload: {
+        session_id: sessionId,
+        app: appName,
+        user_id: "user2",
+        user_email: "user2@example.com",
+        started_at: time1.toISOString(),
+        identity_updated_at: time2.toISOString(),
+      },
+    });
+
+    const sessions = await prisma.session.findMany({
+      where: {
+        project_id: projectId!,
+        session_id: sessionId,
+      },
+    });
+
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0]!.user_id).toBe("user2");
+    expect(sessions[0]!.user_email).toBe("user2@example.com");
+    expect(sessions[0]!.identity_updated_at).toEqual(time2);
+  });
+
+  it("backward compat: old SDK without identity_updated_at uses started_at fallback", async () => {
+    const sessionId = randomBytes(16).toString("hex");
+    const appName = "test-app"; // Reuse existing app to avoid hitting app limit
+    const now = new Date();
+
+    // Old SDK: no identity_updated_at field, should fall back to started_at
+    const res = await app!.inject({
+      method: "POST",
+      url: "/ingest/session",
+      headers: {
+        authorization: `Bearer ${fullKey}`,
+        "content-type": "application/json",
+      },
+      payload: {
+        session_id: sessionId,
+        app: appName,
+        user_id: "old-sdk-user",
+        started_at: now.toISOString(),
+        // no identity_updated_at
+      },
+    });
+    expect(res.statusCode).toBe(204);
+
+    const sessions = await prisma.session.findMany({
+      where: {
+        project_id: projectId!,
+        session_id: sessionId,
+      },
+    });
+
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0]!.user_id).toBe("old-sdk-user");
+    expect(sessions[0]!.identity_updated_at).toEqual(now); // Should use started_at
+  });
 });
