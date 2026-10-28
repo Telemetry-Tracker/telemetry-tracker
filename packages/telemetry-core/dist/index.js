@@ -67,6 +67,7 @@ export function getAnonymousId() {
 let config = null;
 let userId = null;
 let userEmail = null;
+let identityUpdatedAt = null;
 let browserHandlersInstalled = false;
 let sessionLifecycleInstalled = false;
 let sessionId = null;
@@ -100,6 +101,7 @@ function buildSessionPayload(cfg, endedAt) {
         device_os: device.device_os ?? undefined,
         started_at: sessionStartedAt?.toISOString(),
         ended_at: endedAt?.toISOString(),
+        identity_updated_at: identityUpdatedAt?.toISOString(),
     };
 }
 async function postSession(cfg, endedAt) {
@@ -140,6 +142,7 @@ function closeSessionKeepalive(endedAt) {
     postSessionKeepalive(endedAt);
     sessionId = null;
     sessionStartedAt = null;
+    identityUpdatedAt = null;
     clearSanitizedGlobalErrorDedupe(sanitizedGlobalErrorDedupe);
 }
 function startSession() {
@@ -190,6 +193,7 @@ export function endSession() {
     void postSession(cfg, ended);
     sessionId = null;
     sessionStartedAt = null;
+    identityUpdatedAt = null;
     clearSanitizedGlobalErrorDedupe(sanitizedGlobalErrorDedupe);
 }
 /**
@@ -276,9 +280,21 @@ export function init(c) {
         clearInterval(flushTimer);
         flushTimer = null;
     }
+    // Preserve identity only if it was set via identify() before ANY session started
+    // (sessionId === null AND identityUpdatedAt !== null).
+    // This supports identify-before-init while clearing stale identity from previous sessions.
+    const hadSession = sessionId !== null;
+    const preserveIdentity = !hadSession && identityUpdatedAt !== null;
+    const preservedUserId = preserveIdentity ? userId : null;
+    const preservedUserEmail = preserveIdentity ? userEmail : null;
+    const preservedIdentityTimestamp = preserveIdentity ? identityUpdatedAt : null;
     if (sessionId) {
-        endSession();
+        endSession(); // This clears identityUpdatedAt
     }
+    // Restore preserved identity or clear stale identity from previous session
+    userId = preservedUserId;
+    userEmail = preservedUserEmail;
+    identityUpdatedAt = preservedIdentityTimestamp;
     config = { ...c };
     warnIfMissingApiKey(config);
     getAnonymousId(); // ensure anonymous id exists and is persisted (browser) or set in memory (Node)
@@ -322,6 +338,7 @@ export function identify(id, traits) {
     if (traits && "email" in traits) {
         userEmail = traits.email ?? null;
     }
+    identityUpdatedAt = new Date();
     const cfg = getConfigOrNull();
     if (cfg && sessionId) {
         void postSession(cfg);

@@ -322,4 +322,224 @@ describe.skipIf(!runDbIntegration)("POST /ingest/session concurrent requests (TT
     expect(sessions).toHaveLength(1);
     expect(sessions[0]!.ended_at).toEqual(endedAt);
   });
+
+  it("QA sequence: stale init() request arrives first, then identify()", async () => {
+    const sessionId = randomBytes(16).toString("hex");
+    const appName = "test-app";
+    // Use timestamps in the past to avoid clamping to server time
+    const now = new Date(Date.now() - 60000); // 1 minute ago
+    
+    // Step 1: Stale init() request arrives first (NO identity_updated_at, carries stale user)
+    const staleInitRes = await app!.inject({
+      method: "POST",
+      url: "/ingest/session",
+      headers: {
+        authorization: `Bearer ${fullKey}`,
+        "content-type": "application/json",
+      },
+      payload: {
+        session_id: sessionId,
+        app: appName,
+        user_id: "stale-user",
+        started_at: now.toISOString(),
+        // No identity_updated_at - old SDK behavior
+      },
+    });
+    expect(staleInitRes.statusCode).toBe(204);
+
+    // Step 2: identify() request arrives with correct user and timestamp (1 second later)
+    const identifyTime = new Date(now.getTime() + 1000);
+    const identifyRes = await app!.inject({
+      method: "POST",
+      url: "/ingest/session",
+      headers: {
+        authorization: `Bearer ${fullKey}`,
+        "content-type": "application/json",
+      },
+      payload: {
+        session_id: sessionId,
+        app: appName,
+        user_id: "correct-user",
+        user_email: "correct@example.com",
+        started_at: now.toISOString(),
+        identity_updated_at: identifyTime.toISOString(),
+      },
+    });
+    expect(identifyRes.statusCode).toBe(204);
+
+    // Verify the correct identity won (old SDK stale request was overwritten)
+    const sessions = await prisma.session.findMany({
+      where: {
+        project_id: projectId!,
+        session_id: sessionId,
+      },
+    });
+
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0]!.user_id).toBe("correct-user");
+    expect(sessions[0]!.user_email).toBe("correct@example.com");
+    expect(sessions[0]!.identity_updated_at).toEqual(identifyTime);
+  });
+
+  it("prevents stale identify() from overwriting newer identify()", async () => {
+    const sessionId = randomBytes(16).toString("hex");
+    const appName = "test-app";
+    // Use timestamps well in the past to avoid clamping to server time
+    const baseTime = new Date(Date.now() - 60000); // 1 minute ago
+    
+    // Step 1: First identify() with timestamp T1
+    const time1 = baseTime;
+    await app!.inject({
+      method: "POST",
+      url: "/ingest/session",
+      headers: {
+        authorization: `Bearer ${fullKey}`,
+        "content-type": "application/json",
+      },
+      payload: {
+        session_id: sessionId,
+        app: appName,
+        user_id: "user-1",
+        started_at: baseTime.toISOString(),
+        identity_updated_at: time1.toISOString(),
+      },
+    });
+
+    // Step 2: Second identify() with timestamp T2 (5 seconds newer)
+    const time2 = new Date(baseTime.getTime() + 5000);
+    await app!.inject({
+      method: "POST",
+      url: "/ingest/session",
+      headers: {
+        authorization: `Bearer ${fullKey}`,
+        "content-type": "application/json",
+      },
+      payload: {
+        session_id: sessionId,
+        app: appName,
+        user_id: "user-2",
+        user_email: "user2@example.com",
+        started_at: baseTime.toISOString(),
+        identity_updated_at: time2.toISOString(),
+      },
+    });
+
+    // Step 3: Delayed request from step 1 arrives again (should be rejected)
+    await app!.inject({
+      method: "POST",
+      url: "/ingest/session",
+      headers: {
+        authorization: `Bearer ${fullKey}`,
+        "content-type": "application/json",
+      },
+      payload: {
+        session_id: sessionId,
+        app: appName,
+        user_id: "user-1",
+        started_at: baseTime.toISOString(),
+        identity_updated_at: time1.toISOString(), // older timestamp
+      },
+    });
+
+    // Verify user-2 is preserved (stale user-1 was rejected)
+    const sessions = await prisma.session.findMany({
+      where: {
+        project_id: projectId!,
+        session_id: sessionId,
+      },
+    });
+
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0]!.user_id).toBe("user-2");
+    expect(sessions[0]!.user_email).toBe("user2@example.com");
+    expect(sessions[0]!.identity_updated_at).toEqual(time2);
+  });
+
+  it("old SDK identify mid-session: uses #887 behavior (new non-null wins)", async () => {
+    const sessionId = randomBytes(16).toString("hex");
+    const appName = "test-app";
+    const now = new Date();
+
+    // Initial session without identity
+    await app!.inject({
+      method: "POST",
+      url: "/ingest/session",
+      headers: {
+        authorization: `Bearer ${fullKey}`,
+        "content-type": "application/json",
+      },
+      payload: {
+        session_id: sessionId,
+        app: appName,
+        started_at: now.toISOString(),
+      },
+    });
+
+    // Old SDK (1.3.1) identify mid-session: no identity_updated_at
+    await app!.inject({
+      method: "POST",
+      url: "/ingest/session",
+      headers: {
+        authorization: `Bearer ${fullKey}`,
+        "content-type": "application/json",
+      },
+      payload: {
+        session_id: sessionId,
+        app: appName,
+        user_id: "old-sdk-user",
+        user_email: "old@example.com",
+        started_at: now.toISOString(),
+        // No identity_updated_at - uses #887 behavior
+      },
+    });
+
+    const sessions = await prisma.session.findMany({
+      where: {
+        project_id: projectId!,
+        session_id: sessionId,
+      },
+    });
+
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0]!.user_id).toBe("old-sdk-user");
+    expect(sessions[0]!.user_email).toBe("old@example.com");
+    expect(sessions[0]!.identity_updated_at).toBeNull(); // No timestamp from old SDK
+  });
+
+  it("future timestamp is clamped to server time", async () => {
+    const sessionId = randomBytes(16).toString("hex");
+    const appName = "test-app";
+    const now = new Date();
+    const futureTime = new Date(now.getTime() + 3600000); // 1 hour in future
+
+    const res = await app!.inject({
+      method: "POST",
+      url: "/ingest/session",
+      headers: {
+        authorization: `Bearer ${fullKey}`,
+        "content-type": "application/json",
+      },
+      payload: {
+        session_id: sessionId,
+        app: appName,
+        user_id: "future-user",
+        started_at: now.toISOString(),
+        identity_updated_at: futureTime.toISOString(), // Future timestamp
+      },
+    });
+    expect(res.statusCode).toBe(204);
+
+    const sessions = await prisma.session.findMany({
+      where: {
+        project_id: projectId!,
+        session_id: sessionId,
+      },
+    });
+
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0]!.user_id).toBe("future-user");
+    // Timestamp should be clamped to <= now (server time)
+    expect(sessions[0]!.identity_updated_at!.getTime()).toBeLessThanOrEqual(Date.now());
+    expect(sessions[0]!.identity_updated_at!.getTime()).toBeGreaterThanOrEqual(now.getTime());
+  });
 });
