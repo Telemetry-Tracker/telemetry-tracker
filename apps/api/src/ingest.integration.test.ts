@@ -326,7 +326,8 @@ describe.skipIf(!runDbIntegration)("POST /ingest/session concurrent requests (TT
   it("QA sequence: stale init() request arrives first, then identify()", async () => {
     const sessionId = randomBytes(16).toString("hex");
     const appName = "test-app";
-    const now = new Date();
+    // Use timestamps in the past to avoid clamping to server time
+    const now = new Date(Date.now() - 60000); // 1 minute ago
     
     // Step 1: Stale init() request arrives first (NO identity_updated_at, carries stale user)
     const staleInitRes = await app!.inject({
@@ -346,8 +347,8 @@ describe.skipIf(!runDbIntegration)("POST /ingest/session concurrent requests (TT
     });
     expect(staleInitRes.statusCode).toBe(204);
 
-    // Step 2: identify() request arrives with correct user and timestamp
-    const identifyTime = new Date(now.getTime() + 100);
+    // Step 2: identify() request arrives with correct user and timestamp (1 second later)
+    const identifyTime = new Date(now.getTime() + 1000);
     const identifyRes = await app!.inject({
       method: "POST",
       url: "/ingest/session",
