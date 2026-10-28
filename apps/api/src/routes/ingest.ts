@@ -237,13 +237,15 @@ export async function ingestRoutes(
       device_os: body.device_os ?? null,
       sdk_version: body.sdk_version ?? null,
       started_at: body.started_at ? new Date(body.started_at) : undefined,
+      ended_at: body.ended_at ? new Date(body.ended_at) : undefined,
     };
     
     await prisma.session.upsert({
       where: {
-        project_id_session_id: {
+        project_id_session_id_app: {
           project_id: projectId,
           session_id: body.session_id,
+          app,
         },
       },
       create: createData,
