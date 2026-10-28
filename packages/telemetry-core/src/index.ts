@@ -374,13 +374,24 @@ export function init(c: TelemetryConfig): void {
     clearInterval(flushTimer);
     flushTimer = null;
   }
+  // Preserve identity only if it was set via identify() before ANY session started
+  // (sessionId === null AND identityUpdatedAt !== null).
+  // This supports identify-before-init while clearing stale identity from previous sessions.
+  const hadSession = sessionId !== null;
+  const preserveIdentity = !hadSession && identityUpdatedAt !== null;
+  const preservedUserId = preserveIdentity ? userId : null;
+  const preservedUserEmail = preserveIdentity ? userEmail : null;
+  const preservedIdentityTimestamp = preserveIdentity ? identityUpdatedAt : null;
+  
   if (sessionId) {
-    endSession();
+    endSession(); // This clears identityUpdatedAt
   }
-  // Clear identity when reinitializing (will be set by identify() if needed)
-  userId = null;
-  userEmail = null;
-  identityUpdatedAt = null;
+  
+  // Restore preserved identity or clear stale identity from previous session
+  userId = preservedUserId;
+  userEmail = preservedUserEmail;
+  identityUpdatedAt = preservedIdentityTimestamp;
+  
   config = { ...c };
   warnIfMissingApiKey(config);
   getAnonymousId(); // ensure anonymous id exists and is persisted (browser) or set in memory (Node)

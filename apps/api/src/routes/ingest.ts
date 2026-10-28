@@ -226,11 +226,15 @@ export async function ingestRoutes(
     const startedAt = body.started_at ? new Date(body.started_at) : new Date();
     const endedAt = body.ended_at ? new Date(body.ended_at) : null;
     
-    // Identity timestamp: use provided identity_updated_at, or fall back to started_at if identity fields are present
-    const hasIdentity = body.user_id !== undefined || body.user_email !== undefined;
-    const identityUpdatedAt = body.identity_updated_at 
-      ? new Date(body.identity_updated_at)
-      : (hasIdentity ? startedAt : null);
+    // Identity timestamp: use provided identity_updated_at (no fallback to started_at).
+    // Clamp to server time (prevent future timestamps) and no earlier than started_at.
+    let identityUpdatedAt: Date | null = null;
+    if (body.identity_updated_at) {
+      const clientTimestamp = new Date(body.identity_updated_at);
+      const now = new Date();
+      const clamped = new Date(Math.min(clientTimestamp.getTime(), now.getTime()));
+      identityUpdatedAt = new Date(Math.max(clamped.getTime(), startedAt.getTime()));
+    }
     
     await prisma.$executeRaw`
       INSERT INTO "Session" (
@@ -258,20 +262,34 @@ export async function ingestRoutes(
       )
       ON CONFLICT (project_id, session_id, app) DO UPDATE SET
         user_id = CASE
-          WHEN EXCLUDED.identity_updated_at IS NOT NULL 
-            AND ("Session".identity_updated_at IS NULL OR EXCLUDED.identity_updated_at > "Session".identity_updated_at)
-          THEN COALESCE(EXCLUDED.user_id, "Session".user_id)
-          ELSE "Session".user_id
+          WHEN EXCLUDED.identity_updated_at IS NOT NULL AND "Session".identity_updated_at IS NOT NULL
+          THEN 
+            CASE 
+              WHEN EXCLUDED.identity_updated_at > "Session".identity_updated_at
+              THEN COALESCE(EXCLUDED.user_id, "Session".user_id)
+              ELSE "Session".user_id
+            END
+          ELSE COALESCE(EXCLUDED.user_id, "Session".user_id)
         END,
         user_email = CASE
-          WHEN EXCLUDED.identity_updated_at IS NOT NULL 
-            AND ("Session".identity_updated_at IS NULL OR EXCLUDED.identity_updated_at > "Session".identity_updated_at)
-          THEN COALESCE(EXCLUDED.user_email, "Session".user_email)
-          ELSE "Session".user_email
+          WHEN EXCLUDED.identity_updated_at IS NOT NULL AND "Session".identity_updated_at IS NOT NULL
+          THEN 
+            CASE 
+              WHEN EXCLUDED.identity_updated_at > "Session".identity_updated_at
+              THEN COALESCE(EXCLUDED.user_email, "Session".user_email)
+              ELSE "Session".user_email
+            END
+          ELSE COALESCE(EXCLUDED.user_email, "Session".user_email)
         END,
         identity_updated_at = CASE
-          WHEN EXCLUDED.identity_updated_at IS NOT NULL 
-            AND ("Session".identity_updated_at IS NULL OR EXCLUDED.identity_updated_at > "Session".identity_updated_at)
+          WHEN EXCLUDED.identity_updated_at IS NOT NULL AND "Session".identity_updated_at IS NOT NULL
+          THEN 
+            CASE 
+              WHEN EXCLUDED.identity_updated_at > "Session".identity_updated_at
+              THEN EXCLUDED.identity_updated_at
+              ELSE "Session".identity_updated_at
+            END
+          WHEN EXCLUDED.identity_updated_at IS NOT NULL
           THEN EXCLUDED.identity_updated_at
           ELSE "Session".identity_updated_at
         END,
