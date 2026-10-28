@@ -91,3 +91,235 @@ describe.skipIf(!runDbIntegration)("POST /ingest/event with API key (integration
     expect(count).toBe(1);
   });
 });
+
+describe.skipIf(!runDbIntegration)("POST /ingest/session concurrent requests (TT-031)", () => {
+  let app: FastifyInstance | undefined;
+  let organizationId: string | undefined;
+  let projectId: string | undefined;
+  let fullKey: string;
+
+  beforeAll(async () => {
+    const publicId = randomBytes(16).toString("hex");
+    const secret = randomBytes(16).toString("hex");
+    fullKey = `tt_live_${publicId}_${secret}`;
+
+    const org = await prisma.organization.create({
+      data: {
+        name: `Vitest session ${publicId.slice(0, 8)}`,
+        projects: {
+          create: {
+            name: "Vitest session project",
+            slug: `vitest-session-${publicId}`,
+            api_keys: {
+              create: {
+                public_id: publicId,
+                secret_hash: hashApiKeySecret(publicId, secret),
+              },
+            },
+          },
+        },
+      },
+    });
+    organizationId = org.id;
+    const project = await prisma.project.findFirst({
+      where: { organization_id: organizationId },
+    });
+    projectId = project!.id;
+
+    app = await createApp();
+  });
+
+  afterAll(async () => {
+    if (app) await app.close();
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    if (organizationId) {
+      await prisma.organization
+        .delete({ where: { id: organizationId } })
+        .catch(() => {});
+    }
+  });
+
+  it("prevents duplicate sessions when init() and identify() are concurrent", async () => {
+    const sessionId = randomBytes(16).toString("hex");
+    const appName = "test-app";
+    const startedAt = new Date().toISOString();
+
+    // Simulate SDK: init() starts session, identify() immediately updates with user info
+    const [initRes, identifyRes] = await Promise.all([
+      // init() call: POST session with session_id
+      app!.inject({
+        method: "POST",
+        url: "/ingest/session",
+        headers: {
+          authorization: `Bearer ${fullKey}`,
+          "content-type": "application/json",
+        },
+        payload: {
+          session_id: sessionId,
+          app: appName,
+          platform: "react-native",
+          anonymous_id: "anon-123",
+          started_at: startedAt,
+        },
+      }),
+      // identify() call: POST session with same session_id + user info
+      app!.inject({
+        method: "POST",
+        url: "/ingest/session",
+        headers: {
+          authorization: `Bearer ${fullKey}`,
+          "content-type": "application/json",
+        },
+        payload: {
+          session_id: sessionId,
+          app: appName,
+          platform: "react-native",
+          user_id: "user-456",
+          user_email: "test@example.com",
+          anonymous_id: "anon-123",
+          started_at: startedAt,
+        },
+      }),
+    ]);
+
+    expect(initRes.statusCode).toBe(204);
+    expect(identifyRes.statusCode).toBe(204);
+
+    // Verify only ONE session was created (not duplicate)
+    const sessions = await prisma.session.findMany({
+      where: {
+        project_id: projectId!,
+        session_id: sessionId,
+      },
+    });
+
+    expect(sessions).toHaveLength(1);
+    const session = sessions[0]!;
+
+    // Verify the session merged both requests' data
+    expect(session.app).toBe(appName);
+    expect(session.platform).toBe("react-native");
+    expect(session.anonymous_id).toBe("anon-123");
+    expect(session.user_id).toBe("user-456");
+    expect(session.user_email).toBe("test@example.com");
+    expect(session.ended_at).toBeNull();
+  });
+
+  it("handles triple concurrent session requests without duplicates", async () => {
+    const sessionId = randomBytes(16).toString("hex");
+    const appName = "test-app-triple";
+    const startedAt = new Date().toISOString();
+
+    // Simulate even more concurrent requests (e.g., init + identify + event with session)
+    const [res1, res2, res3] = await Promise.all([
+      app!.inject({
+        method: "POST",
+        url: "/ingest/session",
+        headers: {
+          authorization: `Bearer ${fullKey}`,
+          "content-type": "application/json",
+        },
+        payload: {
+          session_id: sessionId,
+          app: appName,
+          started_at: startedAt,
+        },
+      }),
+      app!.inject({
+        method: "POST",
+        url: "/ingest/session",
+        headers: {
+          authorization: `Bearer ${fullKey}`,
+          "content-type": "application/json",
+        },
+        payload: {
+          session_id: sessionId,
+          app: appName,
+          user_id: "user-789",
+          started_at: startedAt,
+        },
+      }),
+      app!.inject({
+        method: "POST",
+        url: "/ingest/session",
+        headers: {
+          authorization: `Bearer ${fullKey}`,
+          "content-type": "application/json",
+        },
+        payload: {
+          session_id: sessionId,
+          app: appName,
+          country: "US",
+          started_at: startedAt,
+        },
+      }),
+    ]);
+
+    expect(res1.statusCode).toBe(204);
+    expect(res2.statusCode).toBe(204);
+    expect(res3.statusCode).toBe(204);
+
+    const sessions = await prisma.session.findMany({
+      where: {
+        project_id: projectId!,
+        session_id: sessionId,
+      },
+    });
+
+    expect(sessions).toHaveLength(1);
+    const session = sessions[0]!;
+    expect(session.user_id).toBe("user-789");
+    expect(session.country).toBe("US");
+  });
+
+  it("preserves ended_at from any concurrent request", async () => {
+    const sessionId = randomBytes(16).toString("hex");
+    const appName = "test-app-ended";
+    const startedAt = new Date();
+    const endedAt = new Date(startedAt.getTime() + 5000);
+
+    // One request starts the session, another ends it concurrently
+    const [startRes, endRes] = await Promise.all([
+      app!.inject({
+        method: "POST",
+        url: "/ingest/session",
+        headers: {
+          authorization: `Bearer ${fullKey}`,
+          "content-type": "application/json",
+        },
+        payload: {
+          session_id: sessionId,
+          app: appName,
+          started_at: startedAt.toISOString(),
+        },
+      }),
+      app!.inject({
+        method: "POST",
+        url: "/ingest/session",
+        headers: {
+          authorization: `Bearer ${fullKey}`,
+          "content-type": "application/json",
+        },
+        payload: {
+          session_id: sessionId,
+          app: appName,
+          started_at: startedAt.toISOString(),
+          ended_at: endedAt.toISOString(),
+        },
+      }),
+    ]);
+
+    expect(startRes.statusCode).toBe(204);
+    expect(endRes.statusCode).toBe(204);
+
+    const sessions = await prisma.session.findMany({
+      where: {
+        project_id: projectId!,
+        session_id: sessionId,
+      },
+    });
+
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0]!.ended_at).toEqual(endedAt);
+  });
+});

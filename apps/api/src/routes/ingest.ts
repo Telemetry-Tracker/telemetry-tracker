@@ -193,7 +193,11 @@ export async function ingestRoutes(
     if (!assertIngestAppAllowed(request, app, reply)) return;
     const piiSettings = await loadProjectPiiScrubSettings(prisma, projectId);
     const scrubSessionEmail = piiSettings.scrubSessionUserEmail;
+    
+    // Check if session exists to determine if this counts as new telemetry
     const existing = await findIngestSession(prisma, projectId, body.session_id, app);
+    const isNewSession = !existing;
+    
     // Closing a session only sets `ended_at` — no new telemetry; must not be blocked by quota.
     if (existing && body.ended_at) {
       await prisma.session.update({
@@ -206,45 +210,55 @@ export async function ingestRoutes(
       });
       return reply.status(204).send();
     }
-    // Same session already recorded, no end time — update identity/context fields on retry.
-    if (existing && body.ended_at == null) {
-      const patch = sessionContextPatch(body, scrubSessionEmail);
-      if (Object.keys(patch).length > 0) {
-        await prisma.session.update({
-          where: { id: existing.id },
-          data: patch,
-        });
-      }
-      return reply.status(204).send();
+    
+    // For new sessions, check quota before proceeding
+    if (isNewSession) {
+      const planOk = await assertIngestPlanOrReply(prisma, projectId, 1, [app]);
+      if (!planOk.ok) return reply.status(planOk.status).send(planOk.body);
     }
-    const planOk = await assertIngestPlanOrReply(prisma, projectId, 1, [app]);
-    if (!planOk.ok) return reply.status(planOk.status).send(planOk.body);
-    if (!existing) {
-      const scrubbedEmail = scrubIngestSessionUserEmail(
-        body.user_email ?? null,
-        scrubSessionEmail
-      );
-      await prisma.session.create({
-        data: {
+    
+    // Use upsert to handle concurrent session creation atomically
+    const scrubbedEmail = scrubIngestSessionUserEmail(
+      body.user_email ?? null,
+      scrubSessionEmail
+    );
+    const createData = {
+      project_id: projectId,
+      session_id: body.session_id,
+      app,
+      platform: body.platform ?? null,
+      environment: normalizeIngestEnvironment(body.environment),
+      release: body.release ?? null,
+      user_id: body.user_id ?? null,
+      user_email: scrubbedEmail === undefined ? null : scrubbedEmail,
+      anonymous_id: body.anonymous_id ?? null,
+      country: body.country ?? null,
+      device_browser: body.device_browser ?? null,
+      device_os: body.device_os ?? null,
+      sdk_version: body.sdk_version ?? null,
+      started_at: body.started_at ? new Date(body.started_at) : undefined,
+    };
+    
+    await prisma.session.upsert({
+      where: {
+        project_id_session_id: {
           project_id: projectId,
           session_id: body.session_id,
-          app,
-          platform: body.platform ?? null,
-          environment: normalizeIngestEnvironment(body.environment),
-          release: body.release ?? null,
-          user_id: body.user_id ?? null,
-          user_email: scrubbedEmail === undefined ? null : scrubbedEmail,
-          anonymous_id: body.anonymous_id ?? null,
-          country: body.country ?? null,
-          device_browser: body.device_browser ?? null,
-          device_os: body.device_os ?? null,
-          sdk_version: body.sdk_version ?? null,
-          started_at: body.started_at ? new Date(body.started_at) : undefined,
         },
-      });
+      },
+      create: createData,
+      update: {
+        // On concurrent create, update identity/context fields but preserve started_at
+        ...sessionContextPatch(body, scrubSessionEmail),
+        // Include ended_at if provided to handle concurrent session end
+        ...(body.ended_at ? { ended_at: new Date(body.ended_at) } : {}),
+      },
+    });
+    
+    if (isNewSession) {
+      await recordFirstTelemetry(prisma, projectId);
+      await addIngestUnits(prisma, projectId, 1);
     }
-    await recordFirstTelemetry(prisma, projectId);
-    await addIngestUnits(prisma, projectId, 1);
     void maybeNotifyQuotaAlerts(prisma, projectId).catch(() => {});
     return reply.status(204).send();
   });
