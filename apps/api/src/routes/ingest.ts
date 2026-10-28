@@ -222,7 +222,23 @@ export async function ingestRoutes(
       body.user_email ?? null,
       scrubSessionEmail
     );
-    const createData = {
+    const createData: {
+      project_id: string;
+      session_id: string;
+      app: string;
+      platform: string | null;
+      environment: string | null;
+      release: string | null;
+      user_id: string | null;
+      user_email: string | null;
+      anonymous_id: string | null;
+      country: string | null;
+      device_browser: string | null;
+      device_os: string | null;
+      sdk_version: string | null;
+      started_at?: Date;
+      ended_at?: Date;
+    } = {
       project_id: projectId,
       session_id: body.session_id,
       app,
@@ -236,9 +252,14 @@ export async function ingestRoutes(
       device_browser: body.device_browser ?? null,
       device_os: body.device_os ?? null,
       sdk_version: body.sdk_version ?? null,
-      started_at: body.started_at ? new Date(body.started_at) : undefined,
-      ended_at: body.ended_at ? new Date(body.ended_at) : undefined,
     };
+    
+    if (body.started_at) {
+      createData.started_at = new Date(body.started_at);
+    }
+    if (body.ended_at) {
+      createData.ended_at = new Date(body.ended_at);
+    }
     
     await prisma.session.upsert({
       where: {
