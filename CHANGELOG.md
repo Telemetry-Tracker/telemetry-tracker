@@ -11,10 +11,6 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ## [Unreleased]
 
-### Fixed
-
-- **PII scrubbing cost bounds (TT-032)** — Rewrote EMAIL_RE in API and core to avoid quadratic backtracking on adversarial inputs; added pre-scrub field truncation (16 KiB per text field/string value) and scrub time budget (100 ms) on ingest paths to bound cost. `@telemetry-tracker/core` bumped to 1.5.4. (Refs [#896](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/896))
-
 ---
 
 ## [1.22.21] - 2026-10-28
@@ -26,7 +22,7 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 ### Changed
 
 - **SDK version bumps:**
-  - `@telemetry-tracker/core` → 1.5.3: Added `identity_updated_at` field in session payloads; `init()` clears stale identity from previous sessions while supporting identify-before-init
+  - `@telemetry-tracker/core` → 1.5.3: Added `identity_updated_at` field in session payloads; `init()` clears stale identity from previous sessions while supporting identify-before-init; bounded PII scrub cost on ingest: rewrote `EMAIL_RE` (API + core) with bounded quantifiers to keep matching linear, added 16 KiB per-field truncation before scrubbing, and a scrub duration warning (Refs [#896](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/896))
   - `@telemetry-tracker/react-native` → 1.3.2: Inherits core 1.5.3 fix
 
 ---

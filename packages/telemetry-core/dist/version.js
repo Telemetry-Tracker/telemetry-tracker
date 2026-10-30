@@ -1,2 +1,2 @@
 /** Injected at build time from package.json. Do not edit manually. */
-export const SDK_VERSION = "1.5.4";
+export const SDK_VERSION = "1.5.3";

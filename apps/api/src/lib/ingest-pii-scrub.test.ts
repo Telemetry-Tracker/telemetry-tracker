@@ -101,24 +101,24 @@ describe("scrubIngestErrorFields", () => {
     expect(Buffer.byteLength(scrubbed.stack!, "utf8")).toBeLessThanOrEqual(16 * 1024);
   });
 
-  it("scrubs large adversarial message without exponential cost", () => {
-    const adversarialMessage = "1-".repeat(100_000);
-    const start = Date.now();
-    const scrubbed = scrubIngestErrorFields({ message: adversarialMessage }, {});
-    const elapsed = Date.now() - start;
+  it("scrubs large message within time bound after truncation", () => {
+    const largeMessage = "1-".repeat(100_000);
+    const start = performance.now();
+    const scrubbed = scrubIngestErrorFields({ message: largeMessage }, {});
+    const elapsed = performance.now() - start;
     expect(elapsed).toBeLessThan(500);
     expect(scrubbed.message).toBeTruthy();
     expect(Buffer.byteLength(scrubbed.message, "utf8")).toBeLessThanOrEqual(16 * 1024);
   });
 
-  it("scrubs large adversarial stack without exponential cost", () => {
-    const adversarialStack = "a.".repeat(100_000) + "@test\n  at frame";
-    const start = Date.now();
+  it("scrubs large stack within time bound after truncation", () => {
+    const largeStack = "a.".repeat(100_000) + "@test\n  at frame";
+    const start = performance.now();
     const scrubbed = scrubIngestErrorFields(
-      { message: "Error", stack: adversarialStack },
+      { message: "Error", stack: largeStack },
       {}
     );
-    const elapsed = Date.now() - start;
+    const elapsed = performance.now() - start;
     expect(elapsed).toBeLessThan(500);
     expect(scrubbed.stack).toBeTruthy();
     expect(Buffer.byteLength(scrubbed.stack!, "utf8")).toBeLessThanOrEqual(16 * 1024);
@@ -173,14 +173,14 @@ describe("scrubIngestEventFields", () => {
     ).toBeLessThanOrEqual(16 * 1024);
   });
 
-  it("scrubs adversarial properties without exponential cost", () => {
-    const adversarial = "1-".repeat(100_000);
-    const start = Date.now();
+  it("scrubs large properties within time bound after truncation", () => {
+    const largeData = "1-".repeat(100_000);
+    const start = performance.now();
     const scrubbed = scrubIngestEventFields(
-      { properties: { data: adversarial } },
+      { properties: { data: largeData } },
       {}
     );
-    const elapsed = Date.now() - start;
+    const elapsed = performance.now() - start;
     expect(elapsed).toBeLessThan(500);
     expect(scrubbed.properties).toBeTruthy();
   });

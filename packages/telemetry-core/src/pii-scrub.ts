@@ -17,7 +17,7 @@ export type ClientPiiScrubOptions = {
 const DEFAULT_MAX_DEPTH = 8;
 const DEFAULT_MAX_NODES = 500;
 
-const EMAIL_RE = /\b\w+(?:[.+%-]\w+)*@\w+(?:[.-]\w+)*\.\w{2,}\b/gi;
+const EMAIL_RE = /\b[A-Z0-9._%+-]{1,64}@[A-Z0-9.-]{1,253}\.[A-Z]{2,63}\b/gi;
 const JWT_RE = /eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/g;
 const BEARER_RE = /\bBearer\s+[A-Za-z0-9._~+/=-]{4,}\b/gi;
 const API_KEY_RE =
@@ -25,7 +25,7 @@ const API_KEY_RE =
 const SENSITIVE_PARAM_RE =
   /([?&](?:password|token|secret|api[_-]?key|access[_-]?token|auth|session|cookie)=)[^&\s]+/gi;
 const SENSITIVE_ASSIGNMENT_RE =
-  /\b(?:password|token|secret|api[_-]?key|access[_-]?token|auth|session|cookie)\s*=\s*[^\s&]{1,200}/gi;
+  /\b(?:password|token|secret|api[_-]?key|access[_-]?token|auth|session|cookie)\s*=\s*[^\s&]+/gi;
 const COOKIE_HEADER_RE = /\b(cookie|set-cookie)\s*:\s*[^\n]+/gi;
 const AUTHORIZATION_HEADER_RE = /\bauthorization\s*:\s*[^\n]+/gi;
 
@@ -109,13 +109,10 @@ function passesLuhn(digits: string): boolean {
 
 function scrubPaymentCardNumbers(text: string): string {
   return text.replace(
-    /(?<![A-Za-z0-9])\d{4}[ -]?\d{4}[ -]?\d{4}[ -]?\d{3,7}(?![A-Za-z0-9])/g,
+    /(?<![A-Za-z0-9])(?:\d[ -]*?){13,19}(?![A-Za-z0-9])/g,
     (match) => {
       const digits = match.replace(/\D/g, "");
-      if (digits.length >= 13 && digits.length <= 19) {
-        return passesLuhn(digits) ? "[card]" : match;
-      }
-      return match;
+      return passesLuhn(digits) ? "[card]" : match;
     }
   );
 }
@@ -124,13 +121,9 @@ function scrubPhoneNumbers(text: string): string {
   let out = text;
   // Plus-prefixed: + and 7–15 digits with optional spaces/dashes between digits
   // Dots excluded so version-like 123.456.7890 is not treated as a phone.
-  // Use explicit patterns to avoid nested quantifiers
   out = out.replace(
-    /(?<![\w])\+[1-9][\d\s-]{6,25}(?![\d])/g,
-    (match) => {
-      const digits = match.replace(/\D/g, "");
-      return digits.length >= 7 && digits.length <= 15 ? "[phone]" : match;
-    }
+    /(?<![\w])\+[1-9](?:[\s-]*\d){6,14}(?![\d])/g,
+    "[phone]"
   );
   // North American style with separators (space/dash only; no dots)
   out = out.replace(

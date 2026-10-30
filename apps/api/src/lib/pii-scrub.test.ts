@@ -136,23 +136,64 @@ describe("scrubPiiText", () => {
     expect(scrubPiiText("test_user%123@domain.org")).toBe("[email]");
     expect(scrubPiiText("a@b.co")).toBe("[email]");
     expect(scrubPiiText("user@192.168.1.1.com")).toBe("[email]");
+    expect(scrubPiiText("first..last@x.com")).toBe("[email]");
   });
 
-  it("scrubs truncated adversarial input without exponential cost (16 KiB limit)", () => {
-    const adversarialPattern = "1-".repeat(8_000);
-    const start = Date.now();
-    const result = scrubPiiText(adversarialPattern);
-    const elapsed = Date.now() - start;
-    expect(elapsed).toBeLessThan(500);
-    expect(result).toBe(adversarialPattern);
+  it("redacts Amex and other payment card formats", () => {
+    expect(scrubPiiText("Amex 3782 822463 10005")).toBe("Amex [card]");
+    expect(scrubPiiText("card 4222222222222")).toBe("card [card]");
+    expect(scrubPiiText("4222 2222 22222")).toBe("[card]");
+    expect(scrubPiiText("Diners 3056 9309 0259 04")).toBe("Diners [card]");
+    expect(scrubPiiText("30569309025904")).toBe("[card]");
+    expect(scrubPiiText("4111  1111  1111  1111")).toBe("[card]");
+    expect(scrubPiiText("4111 - 1111 - 1111 - 1111")).toBe("[card]");
   });
 
-  it("scrubs mixed adversarial patterns quickly (16 KiB limit)", () => {
-    const adversarialPattern = "a.".repeat(8_000) + "@test";
-    const start = Date.now();
-    scrubPiiText(adversarialPattern);
-    const elapsed = Date.now() - start;
-    expect(elapsed).toBeLessThan(500);
+  it("preserves trailing text after phone numbers", () => {
+    const result = scrubPiiText("+386 40 123 456 today");
+    expect(result).toBe("[phone] today");
+    const resultNewline = scrubPiiText("+386 40 123 456\nnext line");
+    expect(resultNewline).toBe("[phone]\nnext line");
+  });
+
+  it("redacts long password values fully", () => {
+    const longPassword = "x".repeat(300);
+    const result = scrubPiiText(`password=${longPassword}`);
+    expect(result).toBe("password=[redacted]");
+    expect(result.includes(longPassword)).toBe(false);
+  });
+
+  it("scrubs large message within time bound (shape 1-)", () => {
+    const largeInput = "1-".repeat(100_000);
+    const start = performance.now();
+    const result = scrubPiiText(largeInput);
+    const elapsed = performance.now() - start;
+    expect(elapsed).toBeLessThan(50);
+    expect(result).toBe(largeInput);
+  });
+
+  it("scrubs large message within time bound (shape a. + @)", () => {
+    const largeInput = "a.".repeat(100_000) + "@test";
+    const start = performance.now();
+    scrubPiiText(largeInput);
+    const elapsed = performance.now() - start;
+    expect(elapsed).toBeLessThan(50);
+  });
+
+  it("scrubs large message within time bound (shape 1.)", () => {
+    const largeInput = "1.".repeat(100_000);
+    const start = performance.now();
+    scrubPiiText(largeInput);
+    const elapsed = performance.now() - start;
+    expect(elapsed).toBeLessThan(50);
+  });
+
+  it("scrubs large message within time bound (shape a@ + b.)", () => {
+    const largeInput = "a@" + "b.".repeat(100_000);
+    const start = performance.now();
+    scrubPiiText(largeInput);
+    const elapsed = performance.now() - start;
+    expect(elapsed).toBeLessThan(50);
   });
 });
 
