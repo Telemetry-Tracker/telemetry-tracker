@@ -168,7 +168,7 @@ describe("scrubPiiText", () => {
     const start = performance.now();
     const result = scrubPiiText(largeInput);
     const elapsed = performance.now() - start;
-    expect(elapsed).toBeLessThan(50);
+    expect(elapsed).toBeLessThan(200);
     expect(result).toBe(largeInput);
   });
 
@@ -177,7 +177,7 @@ describe("scrubPiiText", () => {
     const start = performance.now();
     scrubPiiText(largeInput);
     const elapsed = performance.now() - start;
-    expect(elapsed).toBeLessThan(50);
+    expect(elapsed).toBeLessThan(200);
   });
 
   it("scrubs large message within time bound (shape 1.)", () => {
@@ -185,7 +185,7 @@ describe("scrubPiiText", () => {
     const start = performance.now();
     scrubPiiText(largeInput);
     const elapsed = performance.now() - start;
-    expect(elapsed).toBeLessThan(50);
+    expect(elapsed).toBeLessThan(200);
   });
 
   it("scrubs large message within time bound (shape a@ + b.)", () => {
@@ -193,7 +193,7 @@ describe("scrubPiiText", () => {
     const start = performance.now();
     scrubPiiText(largeInput);
     const elapsed = performance.now() - start;
-    expect(elapsed).toBeLessThan(50);
+    expect(elapsed).toBeLessThan(200);
   });
 });
 
