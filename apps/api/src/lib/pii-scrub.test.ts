@@ -127,6 +127,33 @@ describe("scrubPiiText", () => {
       scrubPiiRecord({ email: "[email]", token: "[token]", x: "[redacted]" })
     ).toEqual({ email: "[email]", token: "[token]", x: "[redacted]" });
   });
+
+  it("still matches common email formats after regex rewrite", () => {
+    expect(scrubPiiText("contact user@example.com today")).toBe(
+      "contact [email] today"
+    );
+    expect(scrubPiiText("john.doe+tag@sub.example.co.uk")).toBe("[email]");
+    expect(scrubPiiText("test_user%123@domain.org")).toBe("[email]");
+    expect(scrubPiiText("a@b.co")).toBe("[email]");
+    expect(scrubPiiText("user@192.168.1.1.com")).toBe("[email]");
+  });
+
+  it("scrubs truncated adversarial input without exponential cost (16 KiB limit)", () => {
+    const adversarialPattern = "1-".repeat(8_000);
+    const start = Date.now();
+    const result = scrubPiiText(adversarialPattern);
+    const elapsed = Date.now() - start;
+    expect(elapsed).toBeLessThan(500);
+    expect(result).toBe(adversarialPattern);
+  });
+
+  it("scrubs mixed adversarial patterns quickly (16 KiB limit)", () => {
+    const adversarialPattern = "a.".repeat(8_000) + "@test";
+    const start = Date.now();
+    scrubPiiText(adversarialPattern);
+    const elapsed = Date.now() - start;
+    expect(elapsed).toBeLessThan(500);
+  });
 });
 
 describe("scrubPiiValue / scrubPiiRecord", () => {

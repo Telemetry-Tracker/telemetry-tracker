@@ -89,6 +89,40 @@ describe("scrubIngestErrorFields", () => {
       scrubIngestErrorFields(body, { TELEMETRY_INGEST_PII_SCRUB: "false" })
     ).toEqual(body);
   });
+
+  it("truncates message and stack before scrubbing to bound cost", () => {
+    const longMessage = "Error: ".repeat(10_000);
+    const longStack = "at frame\n".repeat(10_000);
+    const scrubbed = scrubIngestErrorFields(
+      { message: longMessage, stack: longStack },
+      {}
+    );
+    expect(Buffer.byteLength(scrubbed.message, "utf8")).toBeLessThanOrEqual(16 * 1024);
+    expect(Buffer.byteLength(scrubbed.stack!, "utf8")).toBeLessThanOrEqual(16 * 1024);
+  });
+
+  it("scrubs large adversarial message without exponential cost", () => {
+    const adversarialMessage = "1-".repeat(100_000);
+    const start = Date.now();
+    const scrubbed = scrubIngestErrorFields({ message: adversarialMessage }, {});
+    const elapsed = Date.now() - start;
+    expect(elapsed).toBeLessThan(500);
+    expect(scrubbed.message).toBeTruthy();
+    expect(Buffer.byteLength(scrubbed.message, "utf8")).toBeLessThanOrEqual(16 * 1024);
+  });
+
+  it("scrubs large adversarial stack without exponential cost", () => {
+    const adversarialStack = "a.".repeat(100_000) + "@test\n  at frame";
+    const start = Date.now();
+    const scrubbed = scrubIngestErrorFields(
+      { message: "Error", stack: adversarialStack },
+      {}
+    );
+    const elapsed = Date.now() - start;
+    expect(elapsed).toBeLessThan(500);
+    expect(scrubbed.stack).toBeTruthy();
+    expect(Buffer.byteLength(scrubbed.stack!, "utf8")).toBeLessThanOrEqual(16 * 1024);
+  });
 });
 
 describe("scrubIngestEventFields", () => {
@@ -126,6 +160,29 @@ describe("scrubIngestEventFields", () => {
   it("leaves events without properties unchanged", () => {
     const body = { name: "checkout_started" };
     expect(scrubIngestEventFields(body, {})).toEqual(body);
+  });
+
+  it("truncates string property values before scrubbing", () => {
+    const longValue = "x".repeat(20_000);
+    const scrubbed = scrubIngestEventFields(
+      { properties: { note: longValue } },
+      {}
+    );
+    expect(
+      Buffer.byteLength(scrubbed.properties!.note as string, "utf8")
+    ).toBeLessThanOrEqual(16 * 1024);
+  });
+
+  it("scrubs adversarial properties without exponential cost", () => {
+    const adversarial = "1-".repeat(100_000);
+    const start = Date.now();
+    const scrubbed = scrubIngestEventFields(
+      { properties: { data: adversarial } },
+      {}
+    );
+    const elapsed = Date.now() - start;
+    expect(elapsed).toBeLessThan(500);
+    expect(scrubbed.properties).toBeTruthy();
   });
 });
 

@@ -11,6 +11,10 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ## [Unreleased]
 
+### Fixed
+
+- **PII scrubbing cost bounds (TT-032)** — Rewrote EMAIL_RE in API and core to avoid quadratic backtracking on adversarial inputs; added pre-scrub field truncation (16 KiB per text field/string value) and scrub time budget (100 ms) on ingest paths to bound cost. `@telemetry-tracker/core` bumped to 1.5.4. (Refs [#896](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/896))
+
 ---
 
 ## [1.22.21] - 2026-10-28
