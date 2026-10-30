@@ -10,6 +10,7 @@ import {
 } from "@/lib/cookie-consent";
 import { buildGaPageViewParams, isMarketingAnalyticsPath } from "@/lib/google-analytics";
 import { disableGoogleAnalytics, enableGoogleAnalytics } from "@/lib/google-analytics-consent";
+import { qaTrafficParams } from "@/lib/qa-visit";
 
 type GoogleAnalyticsProps = {
   measurementId: string | null;
@@ -57,14 +58,17 @@ export function GoogleAnalytics({ measurementId, serverChoice = null }: GoogleAn
     if (typeof gtag !== "function") return;
     if (configuredId.current !== measurementId) {
       // Page views are sent explicitly below (one per route), never by config.
-      gtag("config", measurementId, { send_page_view: false });
+      gtag("config", measurementId, { send_page_view: false, ...qaTrafficParams() });
       configuredId.current = measurementId;
     }
     // Defer one task so the new route's URL and <title> are committed before we read them.
     const timer = window.setTimeout(() => {
       if (lastTrackedPath.current === pathname) return;
       lastTrackedPath.current = pathname;
-      gtag("event", "page_view", buildGaPageViewParams(window.location, document.title, pathname));
+      gtag("event", "page_view", {
+        ...buildGaPageViewParams(window.location, document.title, pathname),
+        ...qaTrafficParams(),
+      });
     }, 0);
     return () => window.clearTimeout(timer);
   }, [gtagReady, shouldTrack, measurementId, pathname]);

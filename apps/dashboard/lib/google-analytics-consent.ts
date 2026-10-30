@@ -6,13 +6,13 @@ export function gaDisableKey(measurementId: string): string {
   return `ga-disable-${measurementId}`;
 }
 
-/** Delete `_ga` and `_ga_*` cookies on this host and every parent domain. */
+/** Delete `_ga`, `_ga_*` and the QA marker `qa` cookies on this host and every parent domain. */
 export function clearGoogleAnalyticsCookies(): void {
   if (typeof document === "undefined") return;
   const parts = window.location.hostname.split(".");
   for (const cookie of document.cookie.split(";")) {
     const name = cookie.trim().split("=")[0];
-    if (!name || (name !== "_ga" && !name.startsWith("_ga_"))) continue;
+    if (!name || (name !== "_ga" && !name.startsWith("_ga_") && name !== "qa")) continue;
     document.cookie = `${name}=; Max-Age=0; Path=/`;
     for (let i = 0; i < parts.length; i++) {
       const domain = parts.slice(i).join(".");
