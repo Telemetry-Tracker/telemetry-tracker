@@ -1,5 +1,6 @@
 import { describe, expect, it, afterEach } from "vitest";
 import {
+  gaReferrerParams,
   isSensitiveQueryKey,
   sanitizeGaPageLocation,
   getGoogleAnalyticsMeasurementId,
@@ -93,3 +94,13 @@ describe("sanitizeGaPageLocation", () => {
   });
 });
 
+
+describe("gaReferrerParams", () => {
+  it("strips sensitive params from reset/invite referrers and is empty without a referrer", () => {
+    expect(gaReferrerParams("https://telemetry-tracker.com/reset-password?token=t&email=a%40b.c&ref=hn")).toEqual({
+      page_referrer: "https://telemetry-tracker.com/reset-password?ref=hn",
+    });
+    expect(gaReferrerParams("https://news.ycombinator.com/item?id=1")).toEqual({ page_referrer: "https://news.ycombinator.com/item?id=1" });
+    expect(gaReferrerParams("")).toEqual({});
+  });
+});

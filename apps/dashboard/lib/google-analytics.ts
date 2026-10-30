@@ -96,3 +96,11 @@ export function buildGaPageViewParams(
     page_title: title,
   };
 }
+
+/**
+ * Sanitized `page_referrer` (same rules as page_location). A full reload or link from e.g. /reset?token=…
+ * would otherwise reach GA as `dr` unchanged. Empty when there is no referrer.
+ */
+export function gaReferrerParams(referrer: string): { page_referrer?: string } {
+  return referrer ? { page_referrer: sanitizeGaPageLocation(referrer) } : {};
+}

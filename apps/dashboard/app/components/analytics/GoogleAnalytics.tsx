@@ -8,7 +8,7 @@ import {
   type CookieConsentChoice,
   readStoredCookieConsentChoice,
 } from "@/lib/cookie-consent";
-import { buildGaPageViewParams, isMarketingAnalyticsPath } from "@/lib/google-analytics";
+import { buildGaPageViewParams, gaReferrerParams, isMarketingAnalyticsPath } from "@/lib/google-analytics";
 import { disableGoogleAnalytics, enableGoogleAnalytics } from "@/lib/google-analytics-consent";
 import { qaTrafficParams } from "@/lib/qa-visit";
 
@@ -62,7 +62,10 @@ export function GoogleAnalytics({ measurementId, serverChoice = null }: GoogleAn
     if (typeof gtag !== "function") return;
     if (configuredId.current !== measurementId) {
       // Page views are sent explicitly below (one per route), never by config.
-      gtag("config", measurementId, { send_page_view: false, ...qaTrafficParams() });
+      // gtag would otherwise read `dr` from the raw document.referrer.
+      const referrer = gaReferrerParams(document.referrer);
+      gtag("set", referrer);
+      gtag("config", measurementId, { send_page_view: false, ...referrer, ...qaTrafficParams() });
       configuredId.current = measurementId;
     }
     // Wait for the new route's <title>: Next applies route metadata after the URL commits. If the title
@@ -80,8 +83,9 @@ export function GoogleAnalytics({ measurementId, serverChoice = null }: GoogleAn
       const params = buildGaPageViewParams(window.location, document.title, pathname);
       lastTrackedTitle.current = params.page_title;
       // `set` so later events on this page (scroll, clicks) also use the sanitized location.
-      gtag("set", { page_location: params.page_location });
-      gtag("event", "page_view", { ...params, ...qaTrafficParams() });
+      const referrer = gaReferrerParams(document.referrer);
+      gtag("set", { page_location: params.page_location, ...referrer });
+      gtag("event", "page_view", { ...params, ...referrer, ...qaTrafficParams() });
     };
     const timer = window.setTimeout(() => {
       if (lastTrackedPath.current === null || document.title !== lastTrackedTitle.current) {
