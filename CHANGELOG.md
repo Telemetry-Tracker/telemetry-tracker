@@ -11,6 +11,10 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ## [Unreleased]
 
+---
+
+## [1.22.24] - 2026-10-30
+
 ### Fixed
 
 - **GA4 page_referrer sanitized** — `page_referrer` (GA `dr`) now gets the same sensitive-param stripping as `page_location` on config and every page_view, so a full reload or link from e.g. `/reset?token=…` no longer sends the token, email or code to GA.
