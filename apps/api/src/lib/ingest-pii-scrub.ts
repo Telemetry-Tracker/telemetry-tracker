@@ -10,6 +10,13 @@ import {
   type PiiScrubOptions,
 } from "./pii-scrub.js";
 
+const MAX_TEXT_FIELD_BYTES = 16 * 1024;
+const SCRUB_TIME_BUDGET_MS = 100;
+const BUDGET_WARNING_THROTTLE_MS = 60_000;
+
+let lastBudgetWarningMs = 0;
+let suppressedWarningCount = 0;
+
 function parsePositiveInt(raw: string | undefined, fallback: number): number {
   if (!raw?.trim()) return fallback;
   const n = Number.parseInt(raw.trim(), 10);
@@ -40,6 +47,82 @@ export function resolveIngestPiiScrubOptions(
   };
 }
 
+function truncateString(str: string, maxBytes: number): string {
+  if (Buffer.byteLength(str, "utf8") <= maxBytes) return str;
+  const buf = Buffer.from(str, "utf8");
+  let truncated = buf.subarray(0, maxBytes).toString("utf8");
+  while (truncated.endsWith("\uFFFD") && truncated.length > 0) {
+    const shortened = Buffer.from(truncated, "utf8");
+    truncated = shortened.subarray(0, shortened.length - 1).toString("utf8");
+  }
+  return truncated;
+}
+
+function scrubPiiTextWithBudget(text: string, budgetMs: number): string {
+  const start = Date.now();
+  try {
+    const result = scrubPiiText(text);
+    const elapsed = Date.now() - start;
+    if (elapsed > budgetMs) {
+      const now = Date.now();
+      if (now - lastBudgetWarningMs >= BUDGET_WARNING_THROTTLE_MS) {
+        if (suppressedWarningCount > 0) {
+          console.warn(
+            `[scrub-budget] Text scrub took ${elapsed}ms (budget ${budgetMs}ms); ` +
+            `${suppressedWarningCount} warning(s) suppressed in last ${BUDGET_WARNING_THROTTLE_MS / 1000}s`
+          );
+          suppressedWarningCount = 0;
+        } else {
+          console.warn(`[scrub-budget] Text scrub took ${elapsed}ms (budget ${budgetMs}ms)`);
+        }
+        lastBudgetWarningMs = now;
+      } else {
+        suppressedWarningCount += 1;
+      }
+    }
+    return result;
+  } catch (err) {
+    const e = err as Error;
+    console.error(`[scrub-budget] Scrub threw: ${e.name}: ${e.message}`);
+    return "[scrub-error]";
+  }
+}
+
+function scrubPiiRecordWithBudget(
+  record: Record<string, unknown> | undefined,
+  options: PiiScrubOptions,
+  budgetMs: number
+): Record<string, unknown> | undefined {
+  if (record == null) return undefined;
+  const start = Date.now();
+  try {
+    const result = scrubPiiRecord(record, options);
+    const elapsed = Date.now() - start;
+    if (elapsed > budgetMs) {
+      const now = Date.now();
+      if (now - lastBudgetWarningMs >= BUDGET_WARNING_THROTTLE_MS) {
+        if (suppressedWarningCount > 0) {
+          console.warn(
+            `[scrub-budget] Record scrub took ${elapsed}ms (budget ${budgetMs}ms); ` +
+            `${suppressedWarningCount} warning(s) suppressed in last ${BUDGET_WARNING_THROTTLE_MS / 1000}s`
+          );
+          suppressedWarningCount = 0;
+        } else {
+          console.warn(`[scrub-budget] Record scrub took ${elapsed}ms (budget ${budgetMs}ms)`);
+        }
+        lastBudgetWarningMs = now;
+      } else {
+        suppressedWarningCount += 1;
+      }
+    }
+    return result;
+  } catch (err) {
+    const e = err as Error;
+    console.error(`[scrub-budget] Record scrub threw: ${e.name}: ${e.message}`);
+    return { error: "[scrub-error]" };
+  }
+}
+
 export type IngestErrorFields = {
   message: string;
   stack?: string;
@@ -60,18 +143,59 @@ export function scrubIngestErrorFields<T extends IngestErrorFields>(
   env: NodeJS.ProcessEnv = process.env,
   extras?: IngestScrubExtras
 ): T {
-  if (!isIngestPiiScrubEnabled(env)) return body;
+  const truncatedMessage = truncateString(body.message, MAX_TEXT_FIELD_BYTES);
+  const truncatedStack = body.stack !== undefined
+    ? truncateString(body.stack, MAX_TEXT_FIELD_BYTES)
+    : undefined;
+  const truncatedContext = body.context !== undefined
+    ? (truncateRecordStrings(body.context, MAX_TEXT_FIELD_BYTES, { n: 0 }) as Record<string, unknown>)
+    : undefined;
+
+  if (!isIngestPiiScrubEnabled(env)) {
+    return {
+      ...body,
+      message: truncatedMessage,
+      ...(truncatedStack !== undefined ? { stack: truncatedStack } : {}),
+      ...(truncatedContext !== undefined ? { context: truncatedContext } : {}),
+    };
+  }
+
   const options = resolveIngestPiiScrubOptions(env, extras);
   return {
     ...body,
-    message: scrubPiiText(body.message),
-    ...(body.stack !== undefined
-      ? { stack: scrubPiiText(body.stack) }
+    message: scrubPiiTextWithBudget(truncatedMessage, SCRUB_TIME_BUDGET_MS),
+    ...(truncatedStack !== undefined
+      ? { stack: scrubPiiTextWithBudget(truncatedStack, SCRUB_TIME_BUDGET_MS) }
       : {}),
-    ...(body.context !== undefined
-      ? { context: scrubPiiRecord(body.context, options) }
+    ...(truncatedContext !== undefined
+      ? { context: scrubPiiRecordWithBudget(truncatedContext, options, SCRUB_TIME_BUDGET_MS) }
       : {}),
   };
+}
+
+function truncateRecordStrings(
+  value: unknown,
+  maxBytes: number,
+  nodeCount = { n: 0 }
+): unknown {
+  nodeCount.n += 1;
+  if (nodeCount.n > 10_000) {
+    return typeof value === "string" ? truncateString(value, maxBytes) : "[truncated]";
+  }
+  if (typeof value === "string") {
+    return truncateString(value, maxBytes);
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => truncateRecordStrings(item, maxBytes, nodeCount));
+  }
+  if (value && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+      out[key] = truncateRecordStrings(child, maxBytes, nodeCount);
+    }
+    return out;
+  }
+  return value;
 }
 
 /** Scrub event properties before persistence. */
@@ -80,12 +204,24 @@ export function scrubIngestEventFields<T extends IngestEventFields>(
   env: NodeJS.ProcessEnv = process.env,
   extras?: IngestScrubExtras
 ): T {
-  if (!isIngestPiiScrubEnabled(env)) return body;
   if (body.properties === undefined) return body;
+  const truncated = truncateRecordStrings(
+    body.properties,
+    MAX_TEXT_FIELD_BYTES,
+    { n: 0 }
+  ) as Record<string, unknown>;
+
+  if (!isIngestPiiScrubEnabled(env)) {
+    return {
+      ...body,
+      properties: truncated,
+    };
+  }
+
   const options = resolveIngestPiiScrubOptions(env, extras);
   return {
     ...body,
-    properties: scrubPiiRecord(body.properties, options),
+    properties: scrubPiiRecordWithBudget(truncated, options, SCRUB_TIME_BUDGET_MS),
   };
 }
 
