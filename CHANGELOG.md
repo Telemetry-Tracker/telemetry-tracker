@@ -11,6 +11,10 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ## [Unreleased]
 
+### Fixed
+
+- **GA4 page views on client navigation** — the marketing site now configures GA4 with `send_page_view: false` and sends exactly one explicit `page_view` per route (current `page_location`, `page_path`, `page_title`), including the first in-site navigation. Previously in-app navigations sent no page view or one attributed to the previous URL.
+
 ---
 
 ## [1.22.21] - 2026-10-28

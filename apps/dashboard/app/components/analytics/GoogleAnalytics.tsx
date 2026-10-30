@@ -2,13 +2,13 @@
 
 import Script from "next/script";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   COOKIE_CONSENT_CHANGED_EVENT,
   type CookieConsentChoice,
   readStoredCookieConsentChoice,
 } from "@/lib/cookie-consent";
-import { isMarketingAnalyticsPath } from "@/lib/google-analytics";
+import { buildGaPageViewParams, isMarketingAnalyticsPath } from "@/lib/google-analytics";
 
 type GoogleAnalyticsProps = {
   measurementId: string | null;
@@ -42,9 +42,30 @@ export function GoogleAnalytics({ measurementId, serverChoice = null }: GoogleAn
     return () => window.removeEventListener(COOKIE_CONSENT_CHANGED_EVENT, onConsentChanged);
   }, [serverChoice]);
 
+  // Last path a page_view was sent for; cleared when tracking stops so a later accept / return counts again.
+  const lastTrackedPath = useRef<string | null>(null);
+  const configuredId = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!shouldTrack) lastTrackedPath.current = null;
+  }, [shouldTrack]);
+
   useEffect(() => {
     if (!gtagReady || !shouldTrack || !measurementId || !pathname) return;
-    window.gtag?.("config", measurementId, { page_path: pathname });
+    const gtag = window.gtag;
+    if (typeof gtag !== "function") return;
+    if (configuredId.current !== measurementId) {
+      // Page views are sent explicitly below (one per route), never by config.
+      gtag("config", measurementId, { send_page_view: false });
+      configuredId.current = measurementId;
+    }
+    // Defer one task so the new route's URL and <title> are committed before we read them.
+    const timer = window.setTimeout(() => {
+      if (lastTrackedPath.current === pathname) return;
+      lastTrackedPath.current = pathname;
+      gtag("event", "page_view", buildGaPageViewParams(window.location, document.title, pathname));
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [gtagReady, shouldTrack, measurementId, pathname]);
 
   useEffect(() => {

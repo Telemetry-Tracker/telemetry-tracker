@@ -25,3 +25,22 @@ export function isMarketingAnalyticsPath(pathname: string | null | undefined): b
   if (!pathname) return false;
   return !pathname.startsWith("/dashboard");
 }
+
+export type GaPageViewParams = {
+  page_location: string;
+  page_path: string;
+  page_title: string;
+};
+
+/** Params for an explicit GA4 `page_view` built from the current (already committed) location. */
+export function buildGaPageViewParams(
+  location: Pick<Location, "href" | "pathname">,
+  title: string,
+  pathname?: string | null
+): GaPageViewParams {
+  return {
+    page_location: location.href,
+    page_path: pathname || location.pathname,
+    page_title: title,
+  };
+}
