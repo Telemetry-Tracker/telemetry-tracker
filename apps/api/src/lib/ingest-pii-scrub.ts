@@ -148,7 +148,7 @@ export function scrubIngestErrorFields<T extends IngestErrorFields>(
     ? truncateString(body.stack, MAX_TEXT_FIELD_BYTES)
     : undefined;
   const truncatedContext = body.context !== undefined
-    ? (truncateRecordStrings(body.context, MAX_TEXT_FIELD_BYTES) as Record<string, unknown>)
+    ? (truncateRecordStrings(body.context, MAX_TEXT_FIELD_BYTES, { n: 0 }) as Record<string, unknown>)
     : undefined;
 
   if (!isIngestPiiScrubEnabled(env)) {
@@ -176,19 +176,22 @@ export function scrubIngestErrorFields<T extends IngestErrorFields>(
 function truncateRecordStrings(
   value: unknown,
   maxBytes: number,
-  depth = 0
+  nodeCount = { n: 0 }
 ): unknown {
+  nodeCount.n += 1;
+  if (nodeCount.n > 10_000) {
+    return typeof value === "string" ? truncateString(value, maxBytes) : "[truncated]";
+  }
   if (typeof value === "string") {
     return truncateString(value, maxBytes);
   }
-  if (depth > 8) return value;
   if (Array.isArray(value)) {
-    return value.map((item) => truncateRecordStrings(item, maxBytes, depth + 1));
+    return value.map((item) => truncateRecordStrings(item, maxBytes, nodeCount));
   }
   if (value && typeof value === "object") {
     const out: Record<string, unknown> = {};
     for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
-      out[key] = truncateRecordStrings(child, maxBytes, depth + 1);
+      out[key] = truncateRecordStrings(child, maxBytes, nodeCount);
     }
     return out;
   }
@@ -204,7 +207,8 @@ export function scrubIngestEventFields<T extends IngestEventFields>(
   if (body.properties === undefined) return body;
   const truncated = truncateRecordStrings(
     body.properties,
-    MAX_TEXT_FIELD_BYTES
+    MAX_TEXT_FIELD_BYTES,
+    { n: 0 }
   ) as Record<string, unknown>;
 
   if (!isIngestPiiScrubEnabled(env)) {
