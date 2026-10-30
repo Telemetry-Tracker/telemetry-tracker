@@ -13,6 +13,18 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ---
 
+## [1.22.23] - 2026-10-30
+
+### Fixed
+
+- **Bounded PII scrubbing cost on ingest** — the email pattern used by PII scrubbing (API and `@telemetry-tracker/core`) now uses bounded quantifiers so matching stays linear in input length; free-text fields and string values (error `message`, `stack`, `context`, event `properties`, at any depth) are truncated to 16 KiB before scrubbing and storage; slow scrubs log a throttled duration warning. ([#897](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/897), Refs [#896](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/896))
+
+### Changed
+
+- `@telemetry-tracker/core` 1.5.3 (not yet published) also includes the bounded email pattern.
+
+---
+
 ## [1.22.22] - 2026-10-30
 
 ### Fixed

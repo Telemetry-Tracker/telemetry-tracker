@@ -89,6 +89,90 @@ describe("scrubIngestErrorFields", () => {
       scrubIngestErrorFields(body, { TELEMETRY_INGEST_PII_SCRUB: "false" })
     ).toEqual(body);
   });
+
+  it("truncates message and stack before scrubbing to bound cost", () => {
+    const longMessage = "Error: ".repeat(10_000);
+    const longStack = "at frame\n".repeat(10_000);
+    const scrubbed = scrubIngestErrorFields(
+      { message: longMessage, stack: longStack },
+      {}
+    );
+    expect(Buffer.byteLength(scrubbed.message, "utf8")).toBeLessThanOrEqual(16 * 1024);
+    expect(Buffer.byteLength(scrubbed.stack!, "utf8")).toBeLessThanOrEqual(16 * 1024);
+  });
+
+  it("scrubs large message within time bound after truncation", () => {
+    const largeMessage = "1-".repeat(100_000);
+    const start = performance.now();
+    const scrubbed = scrubIngestErrorFields({ message: largeMessage }, {});
+    const elapsed = performance.now() - start;
+    expect(elapsed).toBeLessThan(200);
+    expect(scrubbed.message).toBeTruthy();
+    expect(Buffer.byteLength(scrubbed.message, "utf8")).toBeLessThanOrEqual(16 * 1024);
+  });
+
+  it("scrubs large stack within time bound after truncation", () => {
+    const largeStack = "a.".repeat(100_000) + "@test\n  at frame";
+    const start = performance.now();
+    const scrubbed = scrubIngestErrorFields(
+      { message: "Error", stack: largeStack },
+      {}
+    );
+    const elapsed = performance.now() - start;
+    expect(elapsed).toBeLessThan(200);
+    expect(scrubbed.stack).toBeTruthy();
+    expect(Buffer.byteLength(scrubbed.stack!, "utf8")).toBeLessThanOrEqual(16 * 1024);
+  });
+
+  it("truncates deeply nested context strings with scrubbing enabled", () => {
+    const largeString = "x".repeat(20_000);
+    let nested: Record<string, unknown> = { value: largeString };
+    for (let i = 0; i < 11; i++) {
+      nested = { level: nested };
+    }
+    const scrubbed = scrubIngestErrorFields(
+      { message: "Error", context: nested },
+      {}
+    );
+    expect(scrubbed.context).toBeTruthy();
+    const extractValue = (obj: unknown, depth: number): string | null => {
+      if (depth === 0 && obj && typeof obj === "object" && "value" in obj) {
+        return obj.value as string;
+      }
+      if (obj && typeof obj === "object" && "level" in obj) {
+        return extractValue(obj.level, depth - 1);
+      }
+      return null;
+    };
+    const value = extractValue(scrubbed.context, 11);
+    expect(value).toBeTruthy();
+    expect(Buffer.byteLength(value!, "utf8")).toBeLessThanOrEqual(16 * 1024);
+  });
+
+  it("truncates deeply nested context strings with scrubbing disabled", () => {
+    const largeString = "x".repeat(20_000);
+    let nested: Record<string, unknown> = { value: largeString };
+    for (let i = 0; i < 11; i++) {
+      nested = { level: nested };
+    }
+    const scrubbed = scrubIngestErrorFields(
+      { message: "Error", context: nested },
+      { TELEMETRY_INGEST_PII_SCRUB: "false" }
+    );
+    expect(scrubbed.context).toBeTruthy();
+    const extractValue = (obj: unknown, depth: number): string | null => {
+      if (depth === 0 && obj && typeof obj === "object" && "value" in obj) {
+        return obj.value as string;
+      }
+      if (obj && typeof obj === "object" && "level" in obj) {
+        return extractValue(obj.level, depth - 1);
+      }
+      return null;
+    };
+    const value = extractValue(scrubbed.context, 11);
+    expect(value).toBeTruthy();
+    expect(Buffer.byteLength(value!, "utf8")).toBeLessThanOrEqual(16 * 1024);
+  });
 });
 
 describe("scrubIngestEventFields", () => {
@@ -126,6 +210,79 @@ describe("scrubIngestEventFields", () => {
   it("leaves events without properties unchanged", () => {
     const body = { name: "checkout_started" };
     expect(scrubIngestEventFields(body, {})).toEqual(body);
+  });
+
+  it("truncates string property values before scrubbing", () => {
+    const longValue = "x".repeat(20_000);
+    const scrubbed = scrubIngestEventFields(
+      { properties: { note: longValue } },
+      {}
+    );
+    expect(
+      Buffer.byteLength(scrubbed.properties!.note as string, "utf8")
+    ).toBeLessThanOrEqual(16 * 1024);
+  });
+
+  it("scrubs large properties within time bound after truncation", () => {
+    const largeData = "1-".repeat(100_000);
+    const start = performance.now();
+    const scrubbed = scrubIngestEventFields(
+      { properties: { data: largeData } },
+      {}
+    );
+    const elapsed = performance.now() - start;
+    expect(elapsed).toBeLessThan(200);
+    expect(scrubbed.properties).toBeTruthy();
+  });
+
+  it("truncates deeply nested property strings with scrubbing enabled", () => {
+    const largeString = "x".repeat(20_000);
+    let nested: Record<string, unknown> = { value: largeString };
+    for (let i = 0; i < 11; i++) {
+      nested = { level: nested };
+    }
+    const scrubbed = scrubIngestEventFields(
+      { properties: nested },
+      {}
+    );
+    expect(scrubbed.properties).toBeTruthy();
+    const extractValue = (obj: unknown, depth: number): string | null => {
+      if (depth === 0 && obj && typeof obj === "object" && "value" in obj) {
+        return obj.value as string;
+      }
+      if (obj && typeof obj === "object" && "level" in obj) {
+        return extractValue(obj.level, depth - 1);
+      }
+      return null;
+    };
+    const value = extractValue(scrubbed.properties, 11);
+    expect(value).toBeTruthy();
+    expect(Buffer.byteLength(value!, "utf8")).toBeLessThanOrEqual(16 * 1024);
+  });
+
+  it("truncates deeply nested property strings with scrubbing disabled", () => {
+    const largeString = "x".repeat(20_000);
+    let nested: Record<string, unknown> = { value: largeString };
+    for (let i = 0; i < 11; i++) {
+      nested = { level: nested };
+    }
+    const scrubbed = scrubIngestEventFields(
+      { properties: nested },
+      { TELEMETRY_INGEST_PII_SCRUB: "false" }
+    );
+    expect(scrubbed.properties).toBeTruthy();
+    const extractValue = (obj: unknown, depth: number): string | null => {
+      if (depth === 0 && obj && typeof obj === "object" && "value" in obj) {
+        return obj.value as string;
+      }
+      if (obj && typeof obj === "object" && "level" in obj) {
+        return extractValue(obj.level, depth - 1);
+      }
+      return null;
+    };
+    const value = extractValue(scrubbed.properties, 11);
+    expect(value).toBeTruthy();
+    expect(Buffer.byteLength(value!, "utf8")).toBeLessThanOrEqual(16 * 1024);
   });
 });
 
