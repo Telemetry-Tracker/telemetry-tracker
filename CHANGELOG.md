@@ -11,6 +11,10 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ## [Unreleased]
 
+### Fixed
+
+- **GA4 QA tagging after reject → accept** — a `?qa=1` / `utm_source=qa` signal seen when the site loads is kept in memory (nothing stored before consent), so if the visitor rejects first and accepts later on the same page load, hits still carry `traffic_type=internal`; the QA flag is persisted only after consent.
+
 ---
 
 ## [1.22.22] - 2026-10-30

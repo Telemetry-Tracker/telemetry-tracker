@@ -20,9 +20,16 @@ export function qaCookieString(hostname: string, protocol: string): string {
   return `${QA_COOKIE_NAME}=1; Max-Age=${QA_COOKIE_MAX_AGE_SECONDS}; Path=/; SameSite=Lax${secure}${domain}`;
 }
 
+/**
+ * QA signal seen when the app loaded, kept in memory only (nothing is stored before consent). If the visitor
+ * rejects first and accepts later, ?qa=1 may already be gone from the URL after client navigation; this keeps
+ * the hits internal and the flag is persisted only then, from isQaVisit() after consent.
+ */
+const qaAtLoad = typeof window !== "undefined" && isQaSignal(window.location.search, navigator.userAgent);
+
 export function isQaVisit(): boolean {
   if (typeof window === "undefined") return false;
-  const qa = isQaSignal(window.location.search, navigator.userAgent);
+  const qa = qaAtLoad || isQaSignal(window.location.search, navigator.userAgent);
   if (qa) {
     try {
       document.cookie = qaCookieString(window.location.hostname, window.location.protocol);
