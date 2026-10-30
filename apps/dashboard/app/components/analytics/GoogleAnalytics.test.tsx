@@ -109,6 +109,34 @@ describe("GoogleAnalytics page views", () => {
     expect(JSON.stringify(gtag.mock.calls)).not.toMatch(/abc|a%40b|zzz/);
   });
 
+  it("sanitizes page_referrer on config, set and every page_view (full reload from a reset link, then client nav)", async () => {
+    const ref = vi.spyOn(document, "referrer", "get").mockReturnValue(
+      "http://localhost:3000/reset?token=RST123&email=a%40b.c&code=XYZ&utm_source=x#access_token=FRAG"
+    );
+    try {
+      go("/login?token=T2&next=/docs", "Login");
+      const { rerender } = render(<GoogleAnalytics measurementId={ID} serverChoice="accepted" />);
+      await flush();
+      const clean = "http://localhost:3000/reset?utm_source=x";
+      expect(gtag.mock.calls.filter((c) => c[0] === "config")[0]![2]).toMatchObject({ page_referrer: clean });
+      expect(pageViews()[0]![2]).toMatchObject({ page_referrer: clean, page_location: "http://localhost:3000/login?next=%2Fdocs" });
+      go("/docs", "Docs");
+      rerender(<GoogleAnalytics measurementId={ID} serverChoice="accepted" />);
+      await flush();
+      expect(pageViews()[1]![2]).toMatchObject({ page_referrer: clean });
+      expect(gtag).toHaveBeenCalledWith("set", expect.objectContaining({ page_referrer: clean }));
+      expect(JSON.stringify(gtag.mock.calls)).not.toMatch(/RST123|a%40b|XYZ|FRAG|T2/);
+    } finally {
+      ref.mockRestore();
+    }
+  });
+
+  it("omits page_referrer when there is none", async () => {
+    render(<GoogleAnalytics measurementId={ID} serverChoice="accepted" />);
+    await flush();
+    expect("page_referrer" in pageViews()[0]![2]).toBe(false);
+  });
+
   it("sends nothing without consent", async () => {
     render(<GoogleAnalytics measurementId={ID} serverChoice="rejected" />);
     await flush();
