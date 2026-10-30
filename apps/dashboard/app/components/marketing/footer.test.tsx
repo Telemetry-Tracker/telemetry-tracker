@@ -20,3 +20,8 @@ it("does not advertise a stale version if build metadata is unavailable", () => 
   render(<Footer />);
   expect(screen.queryByText(/^v\d/)).toBeNull();
 });
+
+it("offers a persistent Cookie settings control to change or withdraw consent", () => {
+  render(<Footer />);
+  expect(screen.getByRole("button", { name: "Cookie settings" })).toBeTruthy();
+});
