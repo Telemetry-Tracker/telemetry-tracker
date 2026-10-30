@@ -306,3 +306,158 @@ describe("scrubIngestSessionUserEmail", () => {
     ).toBe("a@b.co");
   });
 });
+
+describe("truncateString UTF-8 boundary handling", () => {
+  const MAX_BYTES = 16 * 1024;
+
+  function hasReplacementChar(str: string): boolean {
+    return str.includes("\uFFFD");
+  }
+
+  function testTruncation(prefix: string, char: string, charName: string) {
+    it(`handles ${charName} (${char.length}-byte) with prefix length ${prefix.length} at 16 KiB boundary`, () => {
+      const repeatCount = Math.ceil((MAX_BYTES - prefix.length) / Buffer.byteLength(char, "utf8"));
+      const input = prefix + char.repeat(repeatCount);
+      
+      const start = performance.now();
+      const scrubbed = scrubIngestErrorFields({ message: input }, {});
+      const elapsed = performance.now() - start;
+
+      expect(elapsed).toBeLessThan(10);
+      expect(Buffer.byteLength(scrubbed.message, "utf8")).toBeLessThanOrEqual(MAX_BYTES);
+      expect(hasReplacementChar(scrubbed.message)).toBe(false);
+    }, 100);
+  }
+
+  describe("1-byte character (a)", () => {
+    for (let prefixLen = 0; prefixLen <= 3; prefixLen++) {
+      const prefix = "x".repeat(prefixLen);
+      testTruncation(prefix, "a", "1-byte");
+    }
+  });
+
+  describe("2-byte character (č)", () => {
+    for (let prefixLen = 0; prefixLen <= 3; prefixLen++) {
+      const prefix = "x".repeat(prefixLen);
+      testTruncation(prefix, "č", "2-byte");
+    }
+  });
+
+  describe("3-byte character (日)", () => {
+    for (let prefixLen = 0; prefixLen <= 3; prefixLen++) {
+      const prefix = "x".repeat(prefixLen);
+      testTruncation(prefix, "日", "3-byte");
+    }
+  });
+
+  describe("4-byte character (🚀)", () => {
+    for (let prefixLen = 0; prefixLen <= 3; prefixLen++) {
+      const prefix = "x".repeat(prefixLen);
+      testTruncation(prefix, "🚀", "4-byte");
+    }
+  });
+
+  it("handles the original bug repro: QA core153 emoji r12 with 4100 rockets", () => {
+    const input = "QA core153 emoji r12 " + "🚀".repeat(4100);
+    
+    const start = performance.now();
+    const scrubbed = scrubIngestErrorFields({ message: input }, {});
+    const elapsed = performance.now() - start;
+
+    expect(elapsed).toBeLessThan(10);
+    expect(Buffer.byteLength(scrubbed.message, "utf8")).toBeLessThanOrEqual(MAX_BYTES);
+    expect(hasReplacementChar(scrubbed.message)).toBe(false);
+  }, 100);
+
+  it("handles 9000 2-byte chars with limit 16383", () => {
+    const input = "č".repeat(9000);
+    
+    const start = performance.now();
+    const scrubbed = scrubIngestErrorFields({ message: input }, {});
+    const elapsed = performance.now() - start;
+
+    expect(elapsed).toBeLessThan(10);
+    expect(Buffer.byteLength(scrubbed.message, "utf8")).toBeLessThanOrEqual(MAX_BYTES);
+    expect(hasReplacementChar(scrubbed.message)).toBe(false);
+  }, 100);
+
+  it("handles 6000 3-byte chars", () => {
+    const input = "日".repeat(6000);
+    
+    const start = performance.now();
+    const scrubbed = scrubIngestErrorFields({ message: input }, {});
+    const elapsed = performance.now() - start;
+
+    expect(elapsed).toBeLessThan(10);
+    expect(Buffer.byteLength(scrubbed.message, "utf8")).toBeLessThanOrEqual(MAX_BYTES);
+    expect(hasReplacementChar(scrubbed.message)).toBe(false);
+  }, 100);
+
+  it("handles emoji payload through scrubIngestErrorFields with scrubbing on", () => {
+    const emojiPayload = "QA core153 emoji r12 " + "🚀".repeat(4100);
+    
+    const start = performance.now();
+    const scrubbed = scrubIngestErrorFields(
+      { message: emojiPayload, stack: "Error\n  at frame" },
+      {}
+    );
+    const elapsed = performance.now() - start;
+
+    expect(elapsed).toBeLessThan(10);
+    expect(Buffer.byteLength(scrubbed.message, "utf8")).toBeLessThanOrEqual(MAX_BYTES);
+    expect(hasReplacementChar(scrubbed.message)).toBe(false);
+    expect(scrubbed.stack).toBeTruthy();
+  }, 100);
+
+  it("handles emoji payload through scrubIngestErrorFields with scrubbing off", () => {
+    const emojiPayload = "QA core153 emoji r12 " + "🚀".repeat(4100);
+    
+    const start = performance.now();
+    const scrubbed = scrubIngestErrorFields(
+      { message: emojiPayload, stack: "Error\n  at frame" },
+      { TELEMETRY_INGEST_PII_SCRUB: "false" }
+    );
+    const elapsed = performance.now() - start;
+
+    expect(elapsed).toBeLessThan(10);
+    expect(Buffer.byteLength(scrubbed.message, "utf8")).toBeLessThanOrEqual(MAX_BYTES);
+    expect(hasReplacementChar(scrubbed.message)).toBe(false);
+    expect(scrubbed.stack).toBeTruthy();
+  }, 100);
+
+  it("handles emoji payload through scrubIngestEventFields with scrubbing on", () => {
+    const emojiPayload = "QA core153 emoji r12 " + "🚀".repeat(4100);
+    
+    const start = performance.now();
+    const scrubbed = scrubIngestEventFields(
+      { properties: { message: emojiPayload, note: "test" } },
+      {}
+    );
+    const elapsed = performance.now() - start;
+
+    expect(elapsed).toBeLessThan(10);
+    expect(scrubbed.properties).toBeTruthy();
+    expect(
+      Buffer.byteLength(scrubbed.properties!.message as string, "utf8")
+    ).toBeLessThanOrEqual(MAX_BYTES);
+    expect(hasReplacementChar(scrubbed.properties!.message as string)).toBe(false);
+  }, 100);
+
+  it("handles emoji payload through scrubIngestEventFields with scrubbing off", () => {
+    const emojiPayload = "QA core153 emoji r12 " + "🚀".repeat(4100);
+    
+    const start = performance.now();
+    const scrubbed = scrubIngestEventFields(
+      { properties: { message: emojiPayload, note: "test" } },
+      { TELEMETRY_INGEST_PII_SCRUB: "false" }
+    );
+    const elapsed = performance.now() - start;
+
+    expect(elapsed).toBeLessThan(10);
+    expect(scrubbed.properties).toBeTruthy();
+    expect(
+      Buffer.byteLength(scrubbed.properties!.message as string, "utf8")
+    ).toBeLessThanOrEqual(MAX_BYTES);
+    expect(hasReplacementChar(scrubbed.properties!.message as string)).toBe(false);
+  }, 100);
+});

@@ -48,14 +48,13 @@ export function resolveIngestPiiScrubOptions(
 }
 
 function truncateString(str: string, maxBytes: number): string {
-  if (Buffer.byteLength(str, "utf8") <= maxBytes) return str;
   const buf = Buffer.from(str, "utf8");
-  let truncated = buf.subarray(0, maxBytes).toString("utf8");
-  while (truncated.endsWith("\uFFFD") && truncated.length > 0) {
-    const shortened = Buffer.from(truncated, "utf8");
-    truncated = shortened.subarray(0, shortened.length - 1).toString("utf8");
+  if (buf.length <= maxBytes) return str;
+  let end = maxBytes;
+  while (end > 0 && (buf[end] & 0xC0) === 0x80) {
+    end--;
   }
-  return truncated;
+  return buf.subarray(0, end).toString("utf8");
 }
 
 function scrubPiiTextWithBudget(text: string, budgetMs: number): string {
