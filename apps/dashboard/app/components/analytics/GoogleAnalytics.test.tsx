@@ -146,4 +146,21 @@ describe("GoogleAnalytics page views", () => {
     window.localStorage.clear();
     delete (window as unknown as Record<string, unknown>)[`ga-disable-${ID}`];
   });
+
+  it("QA visits (?qa=1) tag config and every page_view with traffic_type=internal", async () => {
+    go("/?qa=1", "Home");
+    const { rerender } = render(<GoogleAnalytics measurementId={ID} serverChoice="accepted" />);
+    await flush();
+    expect(gtag.mock.calls.find((c) => c[0] === "config")).toEqual([
+      "config",
+      ID,
+      { send_page_view: false, traffic_type: "internal" },
+    ]);
+    go("/docs", "Docs");
+    rerender(<GoogleAnalytics measurementId={ID} serverChoice="accepted" />);
+    await flush();
+    expect(pageViews().map((c) => c[2].traffic_type)).toEqual(["internal", "internal"]);
+    document.cookie = "qa=; Max-Age=0; Path=/";
+    sessionStorage.clear();
+  });
 });

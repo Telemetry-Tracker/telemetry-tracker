@@ -10,6 +10,7 @@ import {
 } from "@/lib/cookie-consent";
 import { buildGaPageViewParams, isMarketingAnalyticsPath } from "@/lib/google-analytics";
 import { disableGoogleAnalytics, enableGoogleAnalytics } from "@/lib/google-analytics-consent";
+import { qaTrafficParams } from "@/lib/qa-visit";
 
 /** Upper bound for waiting on the new route's <title> before sending page_view anyway. */
 const TITLE_WAIT_MS = 1000;
@@ -61,7 +62,7 @@ export function GoogleAnalytics({ measurementId, serverChoice = null }: GoogleAn
     if (typeof gtag !== "function") return;
     if (configuredId.current !== measurementId) {
       // Page views are sent explicitly below (one per route), never by config.
-      gtag("config", measurementId, { send_page_view: false });
+      gtag("config", measurementId, { send_page_view: false, ...qaTrafficParams() });
       configuredId.current = measurementId;
     }
     // Wait for the new route's <title>: Next applies route metadata after the URL commits. If the title
@@ -80,7 +81,7 @@ export function GoogleAnalytics({ measurementId, serverChoice = null }: GoogleAn
       lastTrackedTitle.current = params.page_title;
       // `set` so later events on this page (scroll, clicks) also use the sanitized location.
       gtag("set", { page_location: params.page_location });
-      gtag("event", "page_view", params);
+      gtag("event", "page_view", { ...params, ...qaTrafficParams() });
     };
     const timer = window.setTimeout(() => {
       if (lastTrackedPath.current === null || document.title !== lastTrackedTitle.current) {

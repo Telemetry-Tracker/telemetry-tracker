@@ -15,6 +15,7 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 - **GA4 page views on client navigation** — the marketing site now configures GA4 with `send_page_view: false` and sends exactly one explicit `page_view` per route (current `page_location`, `page_path`, `page_title`), including the first in-site navigation. Previously in-app navigations sent no page view or one attributed to the previous URL. `page_title` is read after the new route's title is applied (waits up to 1 s), and sensitive query params (token, code, state, invite, reset, email, password, key/secret, otp, signature, session, auth, …) plus `key=value` URL fragments are stripped from `page_location` before it reaches GA.
 - **Cookie consent can be withdrawn** — a persistent **Cookie settings** control (footer and `/cookies`) reopens the banner after Accept. Reject / withdrawal immediately sets `ga-disable-<id>`, sends `consent update analytics_storage: denied`, and deletes `_ga` / `_ga_*` cookies without a reload.
+- **QA visits tagged as internal in GA4** — visits with `?qa=1`, `utm_source=qa…` or a `TackoQA` user agent (remembered with a first-party `qa=1` cookie for 30 days, set only after Accept) send `traffic_type=internal` on the GA4 config and every `page_view`, same rules as tacko.io. Listed in the cookie policy. Withdrawing consent also deletes the `qa` cookie and the tab's `tt-qa` session flag.
 
 ---
 

@@ -47,6 +47,12 @@ const rows: Row[] = [
     retention: "Up to 2 years (Google)",
   },
   {
+    name: "qa",
+    purpose: "Marks our own test visits (only when the link contains ?qa=1 or utm_source=qa, after you accept cookies) so they are excluded from analytics.",
+    type: "Analytics",
+    retention: "30 days",
+  },
+  {
     name: "tt_signup_attribution",
     purpose: "Remembers how you first arrived (UTM campaign tags, coarse acquisition channel, first landing path with only source/medium/campaign query tags, and the referring website's hostname) so it can be saved with your account if you sign up. Set only after you accept cookies; deleted if you reject.",
     type: "Analytics",
