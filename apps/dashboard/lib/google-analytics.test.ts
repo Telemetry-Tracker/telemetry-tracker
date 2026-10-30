@@ -1,5 +1,7 @@
 import { describe, expect, it, afterEach } from "vitest";
 import {
+  isSensitiveQueryKey,
+  sanitizeGaPageLocation,
   getGoogleAnalyticsMeasurementId,
   HOSTED_CLOUD_GA_ID,
   isMarketingAnalyticsPath,
@@ -67,3 +69,27 @@ describe("isMarketingAnalyticsPath", () => {
     expect(isMarketingAnalyticsPath("")).toBe(false);
   });
 });
+
+describe("sanitizeGaPageLocation", () => {
+  it("removes credential, reset, invite and email params and keeps the rest", () => {
+    expect(
+      sanitizeGaPageLocation(
+        "https://telemetry-tracker.com/reset-password?token=t&code=c&reset=1&Email=x@y.z&invite=i&ref=hn&utm_source=x"
+      )
+    ).toBe("https://telemetry-tracker.com/reset-password?ref=hn&utm_source=x");
+    expect(sanitizeGaPageLocation("https://telemetry-tracker.com/a?invite_token=1&reset-code=2&api_key=3&page=2")).toBe(
+      "https://telemetry-tracker.com/a?page=2"
+    );
+  });
+  it("drops key=value fragments but keeps anchors", () => {
+    expect(sanitizeGaPageLocation("https://t.com/cb#access_token=x&state=y")).toBe("https://t.com/cb");
+    expect(sanitizeGaPageLocation("https://t.com/docs#install")).toBe("https://t.com/docs#install");
+  });
+  it("does not strip harmless keys that merely contain a sensitive word", () => {
+    expect(isSensitiveQueryKey("tokenizer")).toBe(false);
+    expect(isSensitiveQueryKey("postcode")).toBe(false);
+    expect(isSensitiveQueryKey("utm_source")).toBe(false);
+    expect(isSensitiveQueryKey("magic_link")).toBe(true);
+  });
+});
+

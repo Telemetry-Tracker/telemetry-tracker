@@ -71,3 +71,11 @@ export const PREFERENCE_COOKIES_REQUIRED_MSG =
 
 export const PREFERENCE_COOKIES_REJECTED_MSG =
   "Optional analytics cookies are off. Your selected organization and project are still saved.";
+
+/** Window event that reopens the cookie banner (footer / cookie policy "Cookie settings"). */
+export const COOKIE_SETTINGS_OPEN_EVENT = "tt-cookie-settings-open";
+
+export function openCookieSettings(): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(COOKIE_SETTINGS_OPEN_EVENT));
+}
