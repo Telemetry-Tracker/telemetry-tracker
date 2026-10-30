@@ -11,6 +11,18 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ## [Unreleased]
 
+---
+
+## [1.22.25] - 2026-10-30
+
+### Fixed
+
+- **Ingest string truncation on UTF-8 boundaries** — the 16 KiB per-field truncation added in 1.22.23 now cuts strings on a UTF-8 character boundary with a bounded backtrack, so multi-byte text (accents, CJK, emoji) longer than 16 KiB is truncated correctly. ([#907](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/907), Refs [#906](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/906))
+
+---
+
+## [1.22.24] - 2026-10-30
+
 ### Fixed
 
 - **GA4 page_referrer sanitized** — `page_referrer` (GA `dr`) now gets the same sensitive-param stripping as `page_location` on config and every page_view, so a full reload or link from e.g. `/reset?token=…` no longer sends the token, email or code to GA.
