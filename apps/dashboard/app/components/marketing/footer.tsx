@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getBuildPlatformVersion } from "@/lib/platform-version";
+import { CookieSettingsButton } from "./cookie-settings-button";
 import { Logo } from "./logo";
 import { MarketingSubscribeForm } from "./MarketingSubscribeForm";
 import { AFFILIATE_COMMISSION_PERCENT, isAffiliateProgramEnabled } from "@/lib/affiliate-program";
@@ -115,6 +116,11 @@ export function Footer() {
                     )}
                   </li>
                 ))}
+                {c.heading === "Company" ? (
+                  <li>
+                    <CookieSettingsButton />
+                  </li>
+                ) : null}
               </ul>
             </div>
           ))}

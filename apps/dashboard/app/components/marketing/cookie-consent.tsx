@@ -5,6 +5,7 @@ import { useEffect, useState, useTransition } from "react";
 import { restoreCookieConsentAction, syncCookieConsentAction } from "@/app/cookie-consent/actions";
 import {
   COOKIE_CONSENT_CHANGED_EVENT,
+  COOKIE_SETTINGS_OPEN_EVENT,
   type CookieConsentChoice,
   readStoredCookieConsentChoice,
 } from "@/lib/cookie-consent";
@@ -53,6 +54,12 @@ export function CookieConsent({ serverChoice = null }: CookieConsentProps) {
     }
   }, [serverChoice]);
 
+  useEffect(() => {
+    const open = () => setExpanded(true);
+    window.addEventListener(COOKIE_SETTINGS_OPEN_EVENT, open);
+    return () => window.removeEventListener(COOKIE_SETTINGS_OPEN_EVENT, open);
+  }, []);
+
   function decide(next: CookieConsentChoice) {
     try {
       syncClientCookieConsentStorage(next);
@@ -68,7 +75,7 @@ export function CookieConsent({ serverChoice = null }: CookieConsentProps) {
   }
 
   if (!ready) return null;
-  if (choice === "accepted") return null;
+  if (choice === "accepted" && !expanded) return null;
 
   if (choice === "rejected" && !expanded && noticeDismissed) return null;
 
@@ -148,7 +155,7 @@ export function CookieConsent({ serverChoice = null }: CookieConsentProps) {
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2 sm:justify-end">
-            {choice === "rejected" ? (
+            {choice !== null ? (
               <button
                 type="button"
                 onClick={() => setExpanded(false)}
