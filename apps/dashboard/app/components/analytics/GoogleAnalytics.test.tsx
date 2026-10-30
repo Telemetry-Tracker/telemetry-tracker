@@ -66,6 +66,48 @@ describe("GoogleAnalytics page views", () => {
     expect(gtag.mock.calls.filter((c) => c[0] === "config")).toHaveLength(1);
   });
 
+  it("waits for the new route's title when it is applied after the URL commits", async () => {
+    const { rerender } = render(<GoogleAnalytics measurementId={ID} serverChoice="accepted" />);
+    await flush();
+    // URL changes first; Next applies the new <title> a moment later.
+    window.history.pushState({}, "", "/pricing");
+    pathnameMock.mockReturnValue("/pricing");
+    rerender(<GoogleAnalytics measurementId={ID} serverChoice="accepted" />);
+    await flush();
+    expect(pageViews()).toHaveLength(1);
+    document.title = "Pricing";
+    await flush();
+    expect(pageViews()).toHaveLength(2);
+    expect(pageViews()[1]![2]).toMatchObject({ page_path: "/pricing", page_title: "Pricing" });
+  });
+
+  it("still sends once (after the wait) when two routes share a title", async () => {
+    vi.useFakeTimers();
+    try {
+      const { rerender } = render(<GoogleAnalytics measurementId={ID} serverChoice="accepted" />);
+      await act(async () => { await vi.advanceTimersByTimeAsync(5); });
+      go("/same", "Home");
+      rerender(<GoogleAnalytics measurementId={ID} serverChoice="accepted" />);
+      await act(async () => { await vi.advanceTimersByTimeAsync(50); });
+      expect(pageViews()).toHaveLength(1);
+      await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+      expect(pageViews()).toHaveLength(2);
+      expect(pageViews()[1]![2]).toMatchObject({ page_path: "/same", page_title: "Home" });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("strips sensitive query params from page_location and sets it for later events", async () => {
+    go("/invite/accept?token=abc&email=a%40b.c&utm_source=x&invite_code=1#access_token=zzz", "Invite");
+    render(<GoogleAnalytics measurementId={ID} serverChoice="accepted" />);
+    await flush();
+    const loc = "http://localhost:3000/invite/accept?utm_source=x";
+    expect(pageViews()[0]![2]).toMatchObject({ page_location: loc, page_path: "/invite/accept" });
+    expect(gtag).toHaveBeenCalledWith("set", { page_location: loc });
+    expect(JSON.stringify(gtag.mock.calls)).not.toMatch(/abc|a%40b|zzz/);
+  });
+
   it("sends nothing without consent", async () => {
     render(<GoogleAnalytics measurementId={ID} serverChoice="rejected" />);
     await flush();
