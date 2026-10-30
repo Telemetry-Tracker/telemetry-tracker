@@ -12,6 +12,9 @@ import { buildGaPageViewParams, isMarketingAnalyticsPath } from "@/lib/google-an
 import { disableGoogleAnalytics, enableGoogleAnalytics } from "@/lib/google-analytics-consent";
 import { qaTrafficParams } from "@/lib/qa-visit";
 
+/** Upper bound for waiting on the new route's <title> before sending page_view anyway. */
+const TITLE_WAIT_MS = 1000;
+
 type GoogleAnalyticsProps = {
   measurementId: string | null;
   serverChoice?: CookieConsentChoice | null;
@@ -47,6 +50,7 @@ export function GoogleAnalytics({ measurementId, serverChoice = null }: GoogleAn
   // Last path a page_view was sent for; cleared when tracking stops so a later accept / return counts again.
   const lastTrackedPath = useRef<string | null>(null);
   const configuredId = useRef<string | null>(null);
+  const lastTrackedTitle = useRef<string | null>(null);
 
   useEffect(() => {
     if (!shouldTrack) lastTrackedPath.current = null;
@@ -61,16 +65,42 @@ export function GoogleAnalytics({ measurementId, serverChoice = null }: GoogleAn
       gtag("config", measurementId, { send_page_view: false, ...qaTrafficParams() });
       configuredId.current = measurementId;
     }
-    // Defer one task so the new route's URL and <title> are committed before we read them.
-    const timer = window.setTimeout(() => {
+    // Wait for the new route's <title>: Next applies route metadata after the URL commits. If the title
+    // still equals the one sent with the previous page_view, wait (max TITLE_WAIT_MS) for it to change.
+    let sent = false;
+    let observer: MutationObserver | null = null;
+    let fallback: number | undefined;
+    const send = () => {
+      if (sent) return;
+      sent = true;
+      observer?.disconnect();
+      window.clearTimeout(fallback);
       if (lastTrackedPath.current === pathname) return;
       lastTrackedPath.current = pathname;
-      gtag("event", "page_view", {
-        ...buildGaPageViewParams(window.location, document.title, pathname),
-        ...qaTrafficParams(),
-      });
+      const params = buildGaPageViewParams(window.location, document.title, pathname);
+      lastTrackedTitle.current = params.page_title;
+      // `set` so later events on this page (scroll, clicks) also use the sanitized location.
+      gtag("set", { page_location: params.page_location });
+      gtag("event", "page_view", { ...params, ...qaTrafficParams() });
+    };
+    const timer = window.setTimeout(() => {
+      if (lastTrackedPath.current === null || document.title !== lastTrackedTitle.current) {
+        send();
+        return;
+      }
+      if (typeof MutationObserver === "function") {
+        observer = new MutationObserver(() => {
+          if (document.title !== lastTrackedTitle.current) send();
+        });
+        observer.observe(document.head, { subtree: true, childList: true, characterData: true });
+      }
+      fallback = window.setTimeout(send, TITLE_WAIT_MS);
     }, 0);
-    return () => window.clearTimeout(timer);
+    return () => {
+      window.clearTimeout(timer);
+      window.clearTimeout(fallback);
+      observer?.disconnect();
+    };
   }, [gtagReady, shouldTrack, measurementId, pathname]);
 
   useEffect(() => {

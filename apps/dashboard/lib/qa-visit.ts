@@ -39,6 +39,15 @@ export function isQaVisit(): boolean {
   }
 }
 
+/** Withdrawal: forget the tab-level QA flag (the `qa` cookie is deleted with the GA cookies). */
+export function clearQaVisitFlag(): void {
+  try {
+    sessionStorage.removeItem(QA_SESSION_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 /** Extra GA4 params for QA visits; spread into `config` and every event. */
 export function qaTrafficParams(): { traffic_type?: "internal" } {
   return isQaVisit() ? { traffic_type: "internal" } : {};

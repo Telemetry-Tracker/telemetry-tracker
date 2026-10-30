@@ -53,3 +53,14 @@ describe("google-analytics-consent", () => {
     expect(gtag).toHaveBeenLastCalledWith("consent", "update", { analytics_storage: "granted" });
   });
 });
+
+describe("disableGoogleAnalytics clears QA markers", () => {
+  it("removes the tt-qa sessionStorage flag so later pages are no longer tagged internal", async () => {
+    const { isQaVisit } = await import("@/lib/qa-visit");
+    sessionStorage.setItem("tt-qa", "1");
+    expect(isQaVisit()).toBe(true);
+    disableGoogleAnalytics("G-TEST");
+    expect(sessionStorage.getItem("tt-qa")).toBeNull();
+    expect(isQaVisit()).toBe(false);
+  });
+});

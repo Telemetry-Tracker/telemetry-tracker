@@ -1,5 +1,7 @@
 /** Client-only GA4 consent helpers: stop collection immediately on reject / withdrawal (no reload). */
 
+import { clearQaVisitFlag } from "@/lib/qa-visit";
+
 type GaWindow = Record<string, unknown> & { gtag?: (...args: unknown[]) => void };
 
 export function gaDisableKey(measurementId: string): string {
@@ -22,13 +24,14 @@ export function clearGoogleAnalyticsCookies(): void {
   }
 }
 
-/** Reject / withdraw: disable the tag, deny analytics storage, delete GA cookies. */
+/** Reject / withdraw: disable the tag, deny analytics storage, delete GA + QA cookies and the tab QA flag. */
 export function disableGoogleAnalytics(measurementId: string | null | undefined): void {
   if (typeof window === "undefined") return;
   const w = window as unknown as GaWindow;
   if (measurementId) w[gaDisableKey(measurementId)] = true;
   w.gtag?.("consent", "update", { analytics_storage: "denied" });
   clearGoogleAnalyticsCookies();
+  clearQaVisitFlag();
 }
 
 /** Accept (incl. after an earlier withdrawal on the same page): re-enable the tag. */
