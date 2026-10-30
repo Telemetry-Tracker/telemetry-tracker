@@ -9,6 +9,7 @@ import {
   readStoredCookieConsentChoice,
 } from "@/lib/cookie-consent";
 import { buildGaPageViewParams, isMarketingAnalyticsPath } from "@/lib/google-analytics";
+import { disableGoogleAnalytics, enableGoogleAnalytics } from "@/lib/google-analytics-consent";
 
 type GoogleAnalyticsProps = {
   measurementId: string | null;
@@ -70,13 +71,17 @@ export function GoogleAnalytics({ measurementId, serverChoice = null }: GoogleAn
 
   useEffect(() => {
     if (!consentAccepted) {
+      // Reject / withdrawal: stop the already-loaded tag right away and drop its cookies (no reload).
+      // Skip the first render before the stored choice is read, so accepted visitors keep their GA cookies.
+      if (readStoredCookieConsentChoice() !== "accepted") disableGoogleAnalytics(measurementId);
       setGtagReady(false);
       return;
     }
+    enableGoogleAnalytics(measurementId);
     if (shouldTrack && typeof window.gtag === "function") {
       setGtagReady(true);
     }
-  }, [consentAccepted, shouldTrack]);
+  }, [consentAccepted, shouldTrack, measurementId]);
 
   if (!shouldTrack) return null;
 

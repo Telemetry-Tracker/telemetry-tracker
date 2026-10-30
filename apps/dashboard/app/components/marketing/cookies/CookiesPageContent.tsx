@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { ContactEmailLink } from "@/app/components/legal/ContactEmailLink";
+import { CookieSettingsButton } from "@/app/components/marketing/cookie-settings-button";
 import { Footer } from "@/app/components/marketing/footer";
 import { Nav } from "@/app/components/marketing/nav";
 import { COOKIE_CONSENT_STORAGE_KEY } from "@/lib/cookie-consent";
@@ -210,6 +211,11 @@ export function CookiesPageContent() {
                 visit. You can also clear your browser storage at any time to be re-prompted. Most
                 browsers let you block cookies entirely — doing so may break dashboard sign-in.
               </p>
+              <p>
+                You can change or withdraw your choice at any time. Withdrawing stops Google
+                Analytics immediately and deletes its cookies.
+              </p>
+              <CookieSettingsButton className="rounded-full border border-border px-4 py-1.5 text-sm text-foreground transition-colors hover:bg-surface-elevated" />
             </Section>
 
             <Section id="third" title="Third parties">

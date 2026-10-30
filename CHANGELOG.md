@@ -14,6 +14,7 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 ### Fixed
 
 - **GA4 page views on client navigation** — the marketing site now configures GA4 with `send_page_view: false` and sends exactly one explicit `page_view` per route (current `page_location`, `page_path`, `page_title`), including the first in-site navigation. Previously in-app navigations sent no page view or one attributed to the previous URL.
+- **Cookie consent can be withdrawn** — a persistent **Cookie settings** control (footer and `/cookies`) reopens the banner after Accept. Reject / withdrawal immediately sets `ga-disable-<id>`, sends `consent update analytics_storage: denied`, and deletes `_ga` / `_ga_*` cookies without a reload.
 
 ---
 

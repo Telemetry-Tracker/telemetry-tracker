@@ -2,6 +2,7 @@ import { act, cleanup, render } from "@testing-library/react";
 import { useEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GoogleAnalytics } from "./GoogleAnalytics";
+import { COOKIE_CONSENT_CHANGED_EVENT, COOKIE_CONSENT_STORAGE_KEY } from "@/lib/cookie-consent";
 
 const pathnameMock = vi.fn(() => "/");
 vi.mock("next/navigation", () => ({ usePathname: () => pathnameMock() }));
@@ -69,7 +70,7 @@ describe("GoogleAnalytics page views", () => {
   it("sends nothing without consent", async () => {
     render(<GoogleAnalytics measurementId={ID} serverChoice="rejected" />);
     await flush();
-    expect(gtag).not.toHaveBeenCalled();
+    expect(gtag.mock.calls.filter((c) => c[0] === "config" || c[0] === "event")).toHaveLength(0);
   });
 
   it("does not track dashboard routes", async () => {
@@ -77,5 +78,30 @@ describe("GoogleAnalytics page views", () => {
     render(<GoogleAnalytics measurementId={ID} serverChoice="accepted" />);
     await flush();
     expect(pageViews()).toHaveLength(0);
+  });
+
+  it("withdrawal without reload: ga-disable, consent denied, _ga cookies deleted, no further page_view", async () => {
+    window.localStorage.setItem(COOKIE_CONSENT_STORAGE_KEY, "accepted");
+    document.cookie = "_ga=GA1.1.1; Path=/";
+    document.cookie = "_ga_TEST123=GS1; Path=/";
+    const { rerender } = render(<GoogleAnalytics measurementId={ID} />);
+    await flush();
+    expect(pageViews()).toHaveLength(1);
+    expect(document.cookie).toMatch(/_ga=/);
+
+    window.localStorage.setItem(COOKIE_CONSENT_STORAGE_KEY, "rejected");
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent(COOKIE_CONSENT_CHANGED_EVENT, { detail: "rejected" }));
+    });
+    expect((window as unknown as Record<string, unknown>)[`ga-disable-${ID}`]).toBe(true);
+    expect(gtag).toHaveBeenCalledWith("consent", "update", { analytics_storage: "denied" });
+    expect(document.cookie).not.toMatch(/_ga/);
+
+    go("/docs", "Docs");
+    rerender(<GoogleAnalytics measurementId={ID} />);
+    await flush();
+    expect(pageViews()).toHaveLength(1);
+    window.localStorage.clear();
+    delete (window as unknown as Record<string, unknown>)[`ga-disable-${ID}`];
   });
 });
