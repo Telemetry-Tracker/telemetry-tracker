@@ -48,6 +48,7 @@ const ANON_STORAGE_KEY = "tacko_telemetry_anon_id";
 
 /** In-flight ingest promises so a later fatal flush can await trackError(e); throw e. */
 const inFlightIngest = new WeakMap<object, Promise<void>>();
+const pendingErrors = new Set<Promise<void>>();
 /** Completed error reports — WeakSet so we never mutate frozen/sealed Error objects. */
 const reportedErrors = new WeakSet<object>();
 
@@ -511,19 +512,29 @@ function flushEvents(): void {
 /** Batch requests still in flight, so flush() can await them. */
 const inFlightBatches = new Set<Promise<unknown>>();
 
-/** Number of events queued but not yet sent. */
+/** Queued events plus pending error requests (used by Node exit handlers). */
 export function pendingEventCount(): number {
-  return eventQueue.length;
+  return eventQueue.length + pendingErrors.size;
 }
 
 /**
- * Send all queued events now and resolve once every in-flight batch request
- * has settled. Never rejects. Batching for long-running processes is unchanged.
+ * Send queued events and await in-flight batches and errors, for up to 2 seconds.
+ * Never rejects. A timeout does not cancel requests still in progress.
  */
 export async function flush(): Promise<void> {
   flushEvents();
-  while (inFlightBatches.size > 0) {
-    await Promise.allSettled([...inFlightBatches]);
+  if (inFlightBatches.size === 0 && pendingErrors.size === 0) return;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<void>((resolve) => { timer = setTimeout(resolve, 2000); });
+  const drain = async () => {
+    while (inFlightBatches.size > 0 || pendingErrors.size > 0) {
+      await Promise.allSettled([...inFlightBatches, ...pendingErrors]);
+    }
+  };
+  try {
+    await Promise.race([drain(), timeout]);
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -675,9 +686,11 @@ export function ingestError(
       .catch(() => {})
       .finally(() => {
         inFlightIngest.delete(err);
+        pendingErrors.delete(pending);
       });
 
     inFlightIngest.set(err, pending);
+    pendingErrors.add(pending);
     return pending;
   } catch {
     // Never let telemetry-internal failures escape into the caller's crash path.
