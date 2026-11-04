@@ -23,7 +23,8 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.test.json",
+    "test": "tsc -p tsconfig.test.json && vitest run",
     "prepublishOnly": "node ../../scripts/assert-sdk-publish-context.mjs && pnpm run build"
   },
   "keywords": [

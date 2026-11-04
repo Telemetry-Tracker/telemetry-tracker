@@ -148,6 +148,13 @@ describe("Nest middleware URL (#921)", () => {
   });
 });
 
+// Compile-time check (pnpm --filter @telemetry-tracker/node typecheck): the SDK types must fit
+// Nest's own interfaces, otherwise `app.useGlobalInterceptors(new TelemetryInterceptor())` fails
+// to compile in user apps.
+import type { ArgumentsHost, NestInterceptor } from "@nestjs/common";
+export const _typecheckInterceptor: NestInterceptor = new TelemetryInterceptor();
+export const _typecheckFilter = (e: unknown, host: ArgumentsHost) => captureNestException(e, host);
+
 describe("captureNestException", () => {
   it("never throws and honours shouldReport", () => {
     expect(() => captureNestException(new Error("x"), { getType: () => { throw new Error("bad host"); } })).not.toThrow();

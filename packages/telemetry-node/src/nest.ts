@@ -113,10 +113,11 @@ export class TelemetryInterceptor {
     this.options = options;
   }
 
-  intercept(context: NestContextLike, next: { handle(): ObservableLike }): ObservableLike {
-    const source = next.handle();
+  // Generic so the instance satisfies Nest's `NestInterceptor` (returns rxjs `Observable`).
+  intercept<T>(context: NestContextLike, next: { handle(): T }): T {
+    const source = next.handle() as unknown as ObservableLike;
     const Ctor = (source as { constructor?: unknown })?.constructor as ObservableCtor | undefined;
-    if (typeof Ctor !== "function" || typeof source?.subscribe !== "function") return source;
+    if (typeof Ctor !== "function" || typeof source?.subscribe !== "function") return source as unknown as T;
     const options = this.options;
     return new Ctor((subscriber) => {
       const sub = source.subscribe({
@@ -128,6 +129,6 @@ export class TelemetryInterceptor {
         complete: () => subscriber.complete(),
       });
       return () => sub.unsubscribe();
-    });
+    }) as unknown as T;
   }
 }
