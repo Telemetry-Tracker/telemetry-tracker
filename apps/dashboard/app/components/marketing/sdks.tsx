@@ -56,7 +56,7 @@ app.use(middleware());`,
     install: "pnpm add @telemetry-tracker/node",
     docHref: "/docs/nestjs",
     code: `import { NestFactory } from "@nestjs/core";
-import { init } from "@telemetry-tracker/node";
+import { init, TelemetryInterceptor } from "@telemetry-tracker/node";
 
 async function bootstrap() {
   init({
@@ -65,6 +65,7 @@ async function bootstrap() {
     apiKey: process.env.TELEMETRY_API_KEY,
   });
   const app = await NestFactory.create(AppModule);
+  app.useGlobalInterceptors(new TelemetryInterceptor());
   await app.listen(3000);
 }`,
   },
