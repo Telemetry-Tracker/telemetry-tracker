@@ -18,7 +18,8 @@ export default function DocsVuePage() {
           Use <code>@telemetry-tracker/core</code> in Vue 3 SPAs (Vite, webpack, or similar). Call{" "}
           <code>init()</code> once at app startup and hook <code>router.afterEach</code> for page
           views. After <code>init()</code>, uncaught errors and unhandled promise rejections in the
-          browser are reported automatically. For Nuxt, see the{" "}
+          browser are reported automatically; call <code>installVueErrorHandler(app)</code> so errors
+          thrown inside components (render, hooks, event handlers) are reported too. For Nuxt, see the{" "}
           <Link href="/docs/nuxt" className="text-brand hover:underline">
             Nuxt guide
           </Link>
@@ -52,7 +53,7 @@ VITE_TELEMETRY_API_KEY=tt_live_<publicId>_<secret>`}
         code={`import { createApp } from "vue";
 import App from "./App.vue";
 import router from "./router";
-import { init, screen } from "@telemetry-tracker/core";
+import { init, installVueErrorHandler, screen } from "@telemetry-tracker/core";
 
 init({
   ingestUrl: import.meta.env.VITE_TELEMETRY_INGEST_URL,
@@ -67,8 +68,22 @@ router.afterEach((to) => {
   screen(to.fullPath || "/");
 });
 
-createApp(App).use(router).mount("#app");`}
+const app = createApp(App);
+// Vue catches component errors itself (they never reach window.onerror),
+// so hook app.config.errorHandler. An existing handler is kept and chained.
+installVueErrorHandler(app);
+app.use(router).mount("#app");`}
       />
+
+      <h2>Component errors</h2>
+      <p>
+        Vue handles errors thrown in render functions, lifecycle hooks, watchers and event handlers
+        (including async ones) through <code>app.config.errorHandler</code>, so in production builds
+        they only reach <code>console.error</code>. <code>installVueErrorHandler(app)</code> reports
+        them with <code>source: &quot;vue&quot;</code>, the component name and Vue&apos;s error info.
+        If you set your own <code>errorHandler</code>, install it first: it is still called after
+        reporting. Requires <code>@telemetry-tracker/core</code> 1.6.0 or later.
+      </p>
 
       <h2>Optional: plugin</h2>
       <p>
@@ -77,12 +92,13 @@ createApp(App).use(router).mount("#app");`}
       <CodeBlock
         code={`// plugins/telemetry.ts
 import type { App } from "vue";
-import { init, type TelemetryConfig } from "@telemetry-tracker/core";
+import { init, installVueErrorHandler, type TelemetryConfig } from "@telemetry-tracker/core";
 
 export function telemetryPlugin(config: TelemetryConfig) {
   return {
-    install(_app: App) {
+    install(app: App) {
       init(config);
+      installVueErrorHandler(app);
     },
   };
 }
@@ -109,8 +125,8 @@ identify(user.id);  // after login`}
       />
 
       <p>
-        Use <code>trackError()</code> in component <code>onErrorCaptured</code> or Pinia action
-        catch blocks when you want extra context beyond the global handlers.
+        Use <code>trackError()</code> in Pinia action catch blocks or other try/catch code when you
+        want extra context beyond the global and component handlers.
       </p>
     </DocsArticle>
   );

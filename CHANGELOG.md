@@ -11,6 +11,11 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ## [Unreleased]
 
+### Fixed
+
+- **Vue and Nuxt component errors reported** — `@telemetry-tracker/core` 1.6.0 adds `installVueErrorHandler(app)`, which reports errors Vue catches in render functions, hooks, watchers and (async) event handlers via `app.config.errorHandler`, chaining any existing handler. The Vue and Nuxt guides now install it. (Closes [#919](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/919))
+- **Nuxt guide paths for Nuxt 4** — the Nuxt guide and examples now use `app/plugins/` and `app/middleware/` (Nuxt 4 ignores the root folders), with the Nuxt 3 root paths noted, and `import.meta.dev` instead of the deprecated `process.dev`. (Closes [#922](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/922))
+
 ---
 
 ## [1.22.25] - 2026-10-30

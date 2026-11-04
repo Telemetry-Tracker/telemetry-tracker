@@ -1,6 +1,6 @@
 {
   "name": "@telemetry-tracker/core",
-  "version": "1.5.3",
+  "version": "1.6.0",
   "description": "Lightweight telemetry client: events, errors, sessions. Framework-agnostic core.",
   "license": "MIT",
   "repository": {
@@ -35,7 +35,8 @@
   ],
   "devDependencies": {
     "typescript": "^5.6.3",
-    "vitest": "^3.2.6"
+    "vitest": "^3.2.6",
+    "vue": "^3.5"
   },
   "dependencies": {
     "web-vitals": "^4.2.4"

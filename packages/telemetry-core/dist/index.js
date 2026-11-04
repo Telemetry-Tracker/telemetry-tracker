@@ -7,6 +7,7 @@ import { toReportableError } from "./to-reportable-error.js";
 export { SDK_VERSION };
 export { toReportableError } from "./to-reportable-error.js";
 export { scrubPiiText, scrubPiiRecord } from "./pii-scrub.js";
+export { installVueErrorHandler } from "./vue.js";
 export { WEB_VITAL_EVENT_NAME, installWebVitals, rateWebVital, buildWebVitalProperties, setWebVitalsCaptureEnabled, isWebVitalsCaptureEnabled, } from "./web-vitals.js";
 export { SANITIZED_GLOBAL_ERROR_DEDUPE_WINDOW_MS, SANITIZED_GLOBAL_ERROR_MAX_PER_WINDOW, isSanitizedBrowserScriptError, sanitizedGlobalErrorDedupeKey, shouldReportSanitizedGlobalError, clearSanitizedGlobalErrorDedupe, createSanitizedGlobalErrorDedupeStore, buildSanitizedScriptErrorContext, } from "./sanitized-script-error.js";
 const ANON_STORAGE_KEY = "tacko_telemetry_anon_id";
