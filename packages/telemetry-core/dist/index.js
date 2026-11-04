@@ -13,6 +13,7 @@ export { SANITIZED_GLOBAL_ERROR_DEDUPE_WINDOW_MS, SANITIZED_GLOBAL_ERROR_MAX_PER
 const ANON_STORAGE_KEY = "tacko_telemetry_anon_id";
 /** In-flight ingest promises so a later fatal flush can await trackError(e); throw e. */
 const inFlightIngest = new WeakMap();
+const pendingErrors = new Set();
 /** Completed error reports — WeakSet so we never mutate frozen/sealed Error objects. */
 const reportedErrors = new WeakSet();
 let anonymousId = null;
@@ -404,18 +405,30 @@ function flushEvents() {
 }
 /** Batch requests still in flight, so flush() can await them. */
 const inFlightBatches = new Set();
-/** Number of events queued but not yet sent. */
+/** Queued events plus pending error requests (used by Node exit handlers). */
 export function pendingEventCount() {
-    return eventQueue.length;
+    return eventQueue.length + pendingErrors.size;
 }
 /**
- * Send all queued events now and resolve once every in-flight batch request
- * has settled. Never rejects. Batching for long-running processes is unchanged.
+ * Send queued events and await in-flight batches and errors, for up to 2 seconds.
+ * Never rejects. A timeout does not cancel requests still in progress.
  */
 export async function flush() {
     flushEvents();
-    while (inFlightBatches.size > 0) {
-        await Promise.allSettled([...inFlightBatches]);
+    if (inFlightBatches.size === 0 && pendingErrors.size === 0)
+        return;
+    let timer;
+    const timeout = new Promise((resolve) => { timer = setTimeout(resolve, 2000); });
+    const drain = async () => {
+        while (inFlightBatches.size > 0 || pendingErrors.size > 0) {
+            await Promise.allSettled([...inFlightBatches, ...pendingErrors]);
+        }
+    };
+    try {
+        await Promise.race([drain(), timeout]);
+    }
+    finally {
+        clearTimeout(timer);
     }
 }
 /** Flush queued events with keepalive for tab hide / unload (CLS and short visits). */
@@ -549,8 +562,10 @@ export function ingestError(error, context) {
             .catch(() => { })
             .finally(() => {
             inFlightIngest.delete(err);
+            pendingErrors.delete(pending);
         });
         inFlightIngest.set(err, pending);
+        pendingErrors.add(pending);
         return pending;
     }
     catch {
