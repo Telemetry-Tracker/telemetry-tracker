@@ -17,7 +17,8 @@ export default function DocsNuxtPage() {
           Nuxt is Vue-based, so use <code>@telemetry-tracker/core</code> directly (there is no
           telemetry-nuxt package). Add a client plugin to init and a global middleware to track page
           views. After <code>init()</code>, uncaught errors and unhandled promise rejections in the
-          browser are reported automatically.
+          browser are reported automatically, and <code>installVueErrorHandler()</code> reports
+          errors thrown inside components.
         </p>
       }
     >
@@ -44,28 +45,42 @@ npm install @telemetry-tracker/core`}
 });`}
       />
 
+      <h2>Where the files go</h2>
+      <p>
+        Nuxt 4 reads plugins and route middleware from the <code>app/</code> source directory:{" "}
+        <code>app/plugins/</code> and <code>app/middleware/</code>. Files in a root{" "}
+        <code>plugins/</code> or <code>middleware/</code> folder are ignored, so nothing is sent.
+        On Nuxt 3 (or Nuxt 4 with <code>srcDir: &quot;.&quot;</code>), use{" "}
+        <code>plugins/</code> and <code>middleware/</code> at the project root instead. The file
+        contents are the same.
+      </p>
+
       <h2>Plugin (client-only)</h2>
       <p>
-        Create <code>plugins/telemetry.client.ts</code>:
+        Create <code>app/plugins/telemetry.client.ts</code> (Nuxt 3:{" "}
+        <code>plugins/telemetry.client.ts</code>):
       </p>
       <CodeBlock
-        code={`import { init } from "@telemetry-tracker/core";
+        code={`import { init, installVueErrorHandler } from "@telemetry-tracker/core";
 
-export default defineNuxtPlugin(() => {
+export default defineNuxtPlugin((nuxtApp) => {
   const config = useRuntimeConfig();
   init({
     ingestUrl: config.public.telemetryIngestUrl as string,
     app: config.public.telemetryApp as string,
     apiKey: config.public.telemetryApiKey as string,
     platform: "web",
-    environment: process.dev ? "development" : "production",
+    environment: import.meta.dev ? "development" : "production",
   });
+  // Report errors thrown inside components (Vue catches them before window.onerror).
+  installVueErrorHandler(nuxtApp.vueApp);
 });`}
       />
 
       <h2>Page tracking</h2>
       <p>
-        Create <code>middleware/telemetry.global.ts</code> to send a screen event on each route:
+        Create <code>app/middleware/telemetry.global.ts</code> (Nuxt 3:{" "}
+        <code>middleware/telemetry.global.ts</code>) to send a screen event on each route:
       </p>
       <CodeBlock
         code={`import { screen } from "@telemetry-tracker/core";
@@ -87,7 +102,8 @@ trackError(new Error("Something broke"), { page: "/checkout" });`}
 
       <p>
         Core registers <code>window.onerror</code> and <code>unhandledrejection</code> after{" "}
-        <code>init()</code>, so uncaught errors and promise rejections are reported automatically.
+        <code>init()</code>, so uncaught errors and promise rejections are reported automatically;
+        component errors are reported by <code>installVueErrorHandler()</code> (core 1.6.0+).
         Use <code>trackError()</code> in try/catch for extra context.
       </p>
 

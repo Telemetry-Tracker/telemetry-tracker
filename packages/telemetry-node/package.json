@@ -1,6 +1,6 @@
 {
   "name": "@telemetry-tracker/node",
-  "version": "1.4.2",
+  "version": "1.5.0",
   "description": "Telemetry Tracker SDK for Node.js: global error handlers, request middleware.",
   "license": "MIT",
   "repository": {
@@ -23,7 +23,8 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.test.json",
+    "test": "tsc -p tsconfig.test.json && vitest run",
     "prepublishOnly": "node ../../scripts/assert-sdk-publish-context.mjs && pnpm run build"
   },
   "keywords": [
@@ -37,7 +38,12 @@
     "@telemetry-tracker/core": "workspace:*"
   },
   "devDependencies": {
+    "@nestjs/common": "^11",
+    "@nestjs/core": "^11",
+    "@nestjs/platform-express": "^11",
     "@types/node": "^22.9.0",
+    "reflect-metadata": "^0.2",
+    "rxjs": "^7.8",
     "typescript": "^5.6.3",
     "vitest": "^3.2.6"
   }

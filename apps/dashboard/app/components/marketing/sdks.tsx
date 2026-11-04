@@ -56,7 +56,7 @@ app.use(middleware());`,
     install: "pnpm add @telemetry-tracker/node",
     docHref: "/docs/nestjs",
     code: `import { NestFactory } from "@nestjs/core";
-import { init } from "@telemetry-tracker/node";
+import { init, TelemetryInterceptor } from "@telemetry-tracker/node";
 
 async function bootstrap() {
   init({
@@ -65,6 +65,7 @@ async function bootstrap() {
     apiKey: process.env.TELEMETRY_API_KEY,
   });
   const app = await NestFactory.create(AppModule);
+  app.useGlobalInterceptors(new TelemetryInterceptor());
   await app.listen(3000);
 }`,
   },
@@ -73,16 +74,17 @@ async function bootstrap() {
     label: "Nuxt",
     install: "pnpm add @telemetry-tracker/core",
     docHref: "/docs/nuxt",
-    code: `// plugins/telemetry.client.ts
-import { init } from "@telemetry-tracker/core";
+    code: `// app/plugins/telemetry.client.ts (Nuxt 4; plugins/ on Nuxt 3)
+import { init, installVueErrorHandler } from "@telemetry-tracker/core";
 
-export default defineNuxtPlugin(() => {
+export default defineNuxtPlugin((nuxtApp) => {
   const config = useRuntimeConfig();
   init({
     ingestUrl: config.public.telemetryIngestUrl,
     app: config.public.telemetryApp,
     apiKey: config.public.telemetryApiKey,
   });
+  installVueErrorHandler(nuxtApp.vueApp);
 });`,
   },
   {
@@ -91,7 +93,7 @@ export default defineNuxtPlugin(() => {
     install: "pnpm add @telemetry-tracker/core",
     docHref: "/docs/vue",
     code: `import { createApp } from "vue";
-import { init, screen } from "@telemetry-tracker/core";
+import { init, installVueErrorHandler, screen } from "@telemetry-tracker/core";
 import router from "./router";
 
 init({
@@ -101,7 +103,9 @@ init({
 });
 
 router.afterEach((to) => screen(to.fullPath));
-createApp(App).use(router).mount("#app");`,
+const app = createApp(App);
+installVueErrorHandler(app); // report component errors
+app.use(router).mount("#app");`,
   },
   {
     id: "web",
