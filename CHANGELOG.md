@@ -11,6 +11,10 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ## [Unreleased]
 
+### Fixed
+
+- **Node SDK: handled errors lost after flush and process.exit** — `@telemetry-tracker/node` 1.5.1 with `@telemetry-tracker/core` 1.6.1 now waits for pending handled `trackError()` requests as well as event batches, bounded to two seconds. Pending errors also trigger the exit warning. Updated short-lived job documentation and regression tests ([#851](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/851)). Packages are unpublished; maintainer publication is required.
+
 ---
 
 ## [1.22.27] - 2026-11-04

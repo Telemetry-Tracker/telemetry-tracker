@@ -189,3 +189,57 @@ describe("flush() (#843)", () => {
     vi.unstubAllGlobals();
   });
 });
+
+describe("flush handled errors (#851)", () => {
+  afterEach(() => { shutdown(); vi.unstubAllGlobals(); vi.useRealTimers(); });
+
+  it("waits for a delayed handled error and batch together, then clears pending errors", async () => {
+    const core = await import("./index.js");
+    const completed: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      completed.push(url);
+      return new Response("{}", { status: 200 });
+    }));
+    init({ app: "t", ingestUrl: "http://x", batchInterval: 60000 });
+    const error = new Error("handled");
+    trackError(error);
+    trackError(error); // Dedupe must not double-count pending requests.
+    trackEvent("done");
+    expect(core.pendingEventCount()).toBe(2);
+    const pending = core.flush();
+    expect(completed).toHaveLength(0);
+    await pending;
+    expect(completed.filter((url) => !url.endsWith("/ingest/session")).sort()).toEqual(["http://x/ingest/batch", "http://x/ingest/error"]);
+    expect(core.pendingEventCount()).toBe(0);
+  });
+
+  it.each(["error", "batch"])("resolves after 2 seconds when a %s request never settles", async (kind) => {
+    const core = await import("./index.js");
+    vi.useFakeTimers();
+    let release!: (response: Response) => void;
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((resolve) => { release = resolve; })));
+    init({ app: "t", ingestUrl: "http://x", batchInterval: 60000 });
+    if (kind === "error") trackError(new Error("stalled"));
+    else trackEvent("stalled");
+    let done = false;
+    const pending = core.flush().then(() => { done = true; });
+    await vi.advanceTimersByTimeAsync(1999);
+    expect(done).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    await pending;
+    expect(core.pendingEventCount()).toBe(kind === "error" ? 1 : 0);
+    release(new Response("{}", { status: 200 }));
+    await core.flush();
+    expect(core.pendingEventCount()).toBe(0);
+  });
+
+  it("settles failed error sends without rejecting or retaining pending errors", async () => {
+    const core = await import("./index.js");
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+    init({ app: "t", ingestUrl: "http://x" });
+    trackError(new Error("handled offline"));
+    await expect(core.flush()).resolves.toBeUndefined();
+    expect(core.pendingEventCount()).toBe(0);
+  });
+});

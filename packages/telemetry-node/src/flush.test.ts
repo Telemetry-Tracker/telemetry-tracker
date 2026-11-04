@@ -28,7 +28,7 @@ describe("createExitHandler", () => {
     createExitHandler({ pending: () => 0, warn })();
     expect(warn).not.toHaveBeenCalled();
     createExitHandler({ pending: () => 3, warn })();
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining("3 queued event(s)"));
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("3 pending event(s) or error(s)"));
   });
 });
 
@@ -45,6 +45,13 @@ describe("short-lived process delivery (#843)", () => {
       req.on("end", () => {
         if (req.url === "/ingest/batch") {
           for (const e of JSON.parse(body).events) received.push(e.name);
+        }
+        if (req.url === "/ingest/error") {
+          setTimeout(() => {
+            received.push(JSON.parse(body).message);
+            res.writeHead(200).end("{}");
+          }, 150);
+          return;
         }
         res.writeHead(200, { "Content-Type": "application/json" }).end("{}");
       });
@@ -84,6 +91,20 @@ process.exit(0);
 `;
     expect(await run(script, "explicit_flush")).toBe(0);
     expect(received).toContain("explicit_flush");
+  }, 20000);
+
+  it("handled error + flush + process.exit(1) delivers 2/2 delayed errors (#851)", async () => {
+    const script = `import { init, trackError, flush } from "__ENTRY__";
+init({ app: "qa", apiKey: "k", environment: "test", ingestUrl: "__URL__" });
+try { throw new Error("__NAME__"); } catch (error) {
+  trackError(error);
+  await flush();
+  process.exit(1);
+}`;
+    for (const name of ["handled_1", "handled_2"]) {
+      expect(await run(script, name)).toBe(1);
+      expect(received).toContain(name);
+    }
   }, 20000);
 
   it("long-running process keeps batching (nothing sent before the interval)", async () => {
