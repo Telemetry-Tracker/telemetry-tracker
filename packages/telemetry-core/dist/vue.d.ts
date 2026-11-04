@@ -1,7 +1,7 @@
 /** Minimal shape of a Vue 3 app (`createApp()` / Nuxt `nuxtApp.vueApp`). No Vue dependency. */
 export type VueAppLike = {
     config: {
-        errorHandler?: ((err: unknown, instance: unknown, info: string) => unknown) | null | undefined;
+        errorHandler?: ((err: unknown, instance: any, info: string) => unknown) | null | undefined;
     };
 };
 /**

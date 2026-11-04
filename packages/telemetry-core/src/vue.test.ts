@@ -3,6 +3,10 @@ import { createSSRApp, defineComponent, h } from "vue";
 import { renderToString } from "vue/server-renderer";
 import { init, shutdown, installVueErrorHandler, type VueAppLike } from "./index.js";
 
+// Compile-time check (`pnpm typecheck`): a real Vue `App` must be accepted.
+import type { App } from "vue";
+export const _typecheckVueApp = (app: App) => installVueErrorHandler(app);
+
 // Regression for TT-034 (#919): Vue swallows component errors in production builds
 // (console.error only), so window.onerror never sees them and nothing was reported.
 describe("installVueErrorHandler (#919)", () => {
