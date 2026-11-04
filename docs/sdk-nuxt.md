@@ -24,28 +24,34 @@ export default defineNuxtConfig({
 });
 ```
 
+## Where the files go
+
+Nuxt 4 reads plugins and route middleware from the `app/` source directory (`app/plugins/`, `app/middleware/`); root `plugins/` and `middleware/` folders are ignored, so nothing is sent. On Nuxt 3 (or Nuxt 4 with `srcDir: "."`), use root `plugins/` and `middleware/`. The file contents are identical.
+
 ## Client plugin
 
-Create `plugins/telemetry.client.ts`:
+Create `app/plugins/telemetry.client.ts` (Nuxt 3: `plugins/telemetry.client.ts`):
 
 ```ts
-import { init } from "@telemetry-tracker/core";
+import { init, installVueErrorHandler } from "@telemetry-tracker/core";
 
-export default defineNuxtPlugin(() => {
+export default defineNuxtPlugin((nuxtApp) => {
   const config = useRuntimeConfig();
   init({
     ingestUrl: config.public.telemetryIngestUrl as string,
     app: config.public.telemetryApp as string,
     apiKey: config.public.telemetryApiKey as string,
     platform: "web",
-    environment: process.dev ? "development" : "production",
+    environment: import.meta.dev ? "development" : "production",
   });
+  // Component errors never reach window.onerror; report them via app.config.errorHandler.
+  installVueErrorHandler(nuxtApp.vueApp);
 });
 ```
 
 ## Page tracking
 
-Create `middleware/telemetry.global.ts`:
+Create `app/middleware/telemetry.global.ts` (Nuxt 3: `middleware/telemetry.global.ts`):
 
 ```ts
 import { screen } from "@telemetry-tracker/core";

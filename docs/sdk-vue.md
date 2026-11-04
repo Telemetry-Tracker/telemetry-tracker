@@ -24,7 +24,7 @@ Initialize in `main.ts` before mounting, then track route changes:
 import { createApp } from "vue";
 import App from "./App.vue";
 import router from "./router";
-import { init, screen } from "@telemetry-tracker/core";
+import { init, installVueErrorHandler, screen } from "@telemetry-tracker/core";
 
 init({
   ingestUrl: import.meta.env.VITE_TELEMETRY_INGEST_URL,
@@ -38,12 +38,18 @@ router.afterEach((to) => {
   screen(to.fullPath || "/");
 });
 
-createApp(App).use(router).mount("#app");
+const app = createApp(App);
+installVueErrorHandler(app); // component errors (render, hooks, event handlers)
+app.use(router).mount("#app");
 ```
+
+## Component errors
+
+Vue catches errors thrown in render functions, lifecycle hooks, watchers and event handlers (including async ones) and passes them to `app.config.errorHandler`; in production builds they otherwise only reach `console.error` and never `window.onerror`. `installVueErrorHandler(app)` (core 1.6.0+) reports them with `context.source = "vue"`, the component name and Vue's `info`. An existing `errorHandler` is chained (install yours first); without one, the error is still logged to the console.
 
 ## API
 
-Same as [telemetry-core](sdk-core.md): `init`, `trackEvent`, `trackError`, `screen`, `identify`, `getSessionId`, `endSession`.
+Same as [telemetry-core](sdk-core.md): `init`, `installVueErrorHandler`, `trackEvent`, `trackError`, `screen`, `identify`, `getSessionId`, `endSession`.
 
 After `init()`, the core SDK registers `window.onerror` and `unhandledrejection` in the browser.
 

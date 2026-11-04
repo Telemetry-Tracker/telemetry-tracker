@@ -22,6 +22,7 @@ import { toReportableError } from "./to-reportable-error.js";
 export { SDK_VERSION };
 export { toReportableError } from "./to-reportable-error.js";
 export { scrubPiiText, scrubPiiRecord } from "./pii-scrub.js";
+export { installVueErrorHandler, type VueAppLike } from "./vue.js";
 export {
   WEB_VITAL_EVENT_NAME,
   installWebVitals,
