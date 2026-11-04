@@ -60,23 +60,37 @@ ENV NEXT_PUBLIC_AFFILIATES_ENABLED=$NEXT_PUBLIC_AFFILIATES_ENABLED \
 # Rebuild workspace packages so dashboard never relies on incomplete committed dist.
 # `.next/cache` is the build-time webpack cache (~1.2 GB measured on v1.22.6); `next start`
 # does not read it, and recreates the directory for runtime caches when needed.
+# Standalone output (same switch selfhost/dashboard.Dockerfile uses): the runner below
+# ships only .next/standalone + static + public instead of the whole workspace.
+ENV NEXT_OUTPUT=standalone \
+    NEXT_TELEMETRY_DISABLED=1
+
 RUN pnpm --filter @telemetry-tracker/core build && \
     pnpm --filter @telemetry-tracker/next build && \
     pnpm --filter dashboard build && \
     rm -rf apps/dashboard/.next/cache
 
-FROM base AS runner
+FROM node:${NODE_VERSION}-slim AS runner
 
-ENV NODE_ENV=production
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    HOSTNAME=0.0.0.0 \
+    PORT=3000
 
-# Copy the built workspace (node_modules compiled with build-essential, plus
-# `.next`). Do not reinstall here: a production-only `pnpm install` in this
-# stage first ran on Railway in v1.17.7 (v1.17.6 skipped the dashboard watch
-# paths) and the deploy failed, leaving telemetry-tracker.com on Cloudflare 502.
-COPY --from=build /app /app
+WORKDIR /app
 
-WORKDIR /app/apps/dashboard
+# Only the traced standalone server (includes the node_modules it needs, sharp included),
+# static assets and public files. No reinstall in this stage (see v1.17.7 incident note
+# in git history): everything comes from the build stage.
+COPY --from=build --chown=node:node /app/apps/dashboard/.next/standalone ./
+COPY --from=build --chown=node:node /app/apps/dashboard/.next/static ./apps/dashboard/.next/static
+COPY --from=build --chown=node:node /app/apps/dashboard/public ./apps/dashboard/public
+# lib/changelog.ts reads CHANGELOG.md at runtime relative to cwd (apps/dashboard -> ../../).
+COPY --from=build --chown=node:node /app/CHANGELOG.md ./CHANGELOG.md
+
+USER node
 
 EXPOSE 3000
 
-CMD ["pnpm", "start"]
+# Railway injects PORT; server.js honours PORT and HOSTNAME.
+CMD ["node", "apps/dashboard/server.js"]
