@@ -13,6 +13,15 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ---
 
+## [1.22.26] - 2026-11-04
+
+### Changed
+
+- **Node.js error tracking guide** — `/error-tracking/nodejs` now covers which Node.js failures are reported (uncaught exceptions, unhandled rejections, Express route errors, handled errors, cron jobs), how crash flushing works, environment/release/user context, `withCheckIn`, `flush()` for scripts, limits and an FAQ with FAQPage JSON-LD. Marketing content only. ([#924](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/924), Closes [#923](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/923))
+- **Dashboard runtime image** — standalone Next.js build and a slimmer runtime image (already on `main` since 2026-10-31, now tagged). ([#910](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/910))
+
+---
+
 ## [1.22.25] - 2026-10-30
 
 ### Fixed
