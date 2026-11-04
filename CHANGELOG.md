@@ -11,6 +11,11 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ## [Unreleased]
 
+### Fixed
+
+- **NestJS controller exceptions reported** — `@telemetry-tracker/node` 1.5.0 adds `TelemetryInterceptor` (global interceptor that reports controller/provider exceptions and rethrows them, so Nest's responses are unchanged; 4xx HTTP exceptions skipped by default) and `captureNestException()` for custom filters. The NestJS guide now registers it. (Closes [#920](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/920))
+- **Request URL in Nest/Express middleware** — `$request.url` now uses `req.originalUrl` (falling back to `req.url`), so Nest middleware and mounted Express routers no longer record every request as `/`. (Closes [#921](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/921))
+
 ---
 
 ## [1.22.25] - 2026-10-30

@@ -18,6 +18,7 @@ export type TelemetryNodeConfig = TelemetryConfig & {
     fatalFlushTimeoutMs?: number;
 };
 export { FATAL_FLUSH_TIMEOUT_MS, flushFatalError } from "./fatal.js";
+export { TelemetryInterceptor, captureNestException, type TelemetryInterceptorOptions, } from "./nest.js";
 /** @internal Exported for unit tests. */
 export declare function createUncaughtExceptionHandler(deps: {
     ingest: (error: Error, context: Record<string, unknown>) => Promise<void>;
@@ -63,6 +64,7 @@ export declare function middleware(opts?: {
 }): (req: {
     method?: string;
     url?: string;
+    originalUrl?: string;
     body?: unknown;
 }, res: MaybeEmitter | unknown, next: () => void) => void;
 /** Run a job with start/ok/fail signals (header authentication by default). Check-in network errors
