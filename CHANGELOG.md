@@ -11,12 +11,18 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ## [Unreleased]
 
+---
+
+## [1.22.27] - 2026-11-04
+
 ### Fixed
 
 - **Vue and Nuxt component errors reported** — `@telemetry-tracker/core` 1.6.0 adds `installVueErrorHandler(app)`, which reports errors Vue catches in render functions, hooks, watchers and (async) event handlers via `app.config.errorHandler`, chaining any existing handler. The Vue and Nuxt guides now install it. (Closes [#919](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/919))
 - **Nuxt guide paths for Nuxt 4** — the Nuxt guide and examples now use `app/plugins/` and `app/middleware/` (Nuxt 4 ignores the root folders), with the Nuxt 3 root paths noted, and `import.meta.dev` instead of the deprecated `process.dev`. (Closes [#922](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/922))
 - **NestJS controller exceptions reported** — `@telemetry-tracker/node` 1.5.0 adds `TelemetryInterceptor` (global interceptor that reports controller/provider exceptions and rethrows them, so Nest's responses are unchanged; 4xx HTTP exceptions skipped by default) and `captureNestException()` for custom filters. The NestJS guide now registers it. (Closes [#920](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/920))
 - **Request URL in Nest/Express middleware** — `$request.url` now uses `req.originalUrl` (falling back to `req.url`), so Nest middleware and mounted Express routers no longer record every request as `/`. (Closes [#921](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/921))
+
+SDKs: `@telemetry-tracker/core` 1.6.0 and `@telemetry-tracker/node` 1.5.0 (backward compatible, opt-in). API/dashboard: docs only. No migrations, no new env vars.
 
 ---
 
