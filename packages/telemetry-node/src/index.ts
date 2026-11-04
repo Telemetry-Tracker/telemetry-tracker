@@ -32,6 +32,11 @@ export type TelemetryNodeConfig = TelemetryConfig & {
 };
 
 export { FATAL_FLUSH_TIMEOUT_MS, flushFatalError } from "./fatal.js";
+export {
+  TelemetryInterceptor,
+  captureNestException,
+  type TelemetryInterceptorOptions,
+} from "./nest.js";
 
 let installed = false;
 let exitOnUnhandledRejection = true;
@@ -170,7 +175,7 @@ type MaybeEmitter = {
 export function middleware(opts?: { trackRequestBody?: boolean }) {
   const trackRequestBody = opts?.trackRequestBody ?? false;
   return function telemetryMiddleware(
-    req: { method?: string; url?: string; body?: unknown },
+    req: { method?: string; url?: string; originalUrl?: string; body?: unknown },
     res: MaybeEmitter | unknown,
     next: () => void
   ): void {
@@ -181,7 +186,9 @@ export function middleware(opts?: { trackRequestBody?: boolean }) {
     }
     const start = Date.now();
     const method = req.method ?? "GET";
-    const url = req.url ?? "";
+    // Express/Nest rewrite req.url inside mounted routers and Nest middleware (forRoutes("*")
+    // sees "/"). originalUrl keeps the full request URL; plain node http has only req.url.
+    const url = req.originalUrl || req.url || "";
     let finished = false;
     const done = () => {
       if (finished) return;

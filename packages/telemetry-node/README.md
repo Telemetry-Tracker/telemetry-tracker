@@ -22,6 +22,8 @@ init({
 app.use(middleware()); // Express / Connect style (req, res, next)
 ```
 
+NestJS: `app.useGlobalInterceptors(new TelemetryInterceptor())` reports controller exceptions (Nest catches them before the process handlers). See [sdk-nestjs.md](https://github.com/Telemetry-Tracker/telemetry-tracker/blob/main/docs/sdk-nestjs.md).
+
 Full guide: [sdk-node.md](https://github.com/Telemetry-Tracker/telemetry-tracker/blob/main/docs/sdk-node.md)
 
 License: see the [repository](https://github.com/Telemetry-Tracker/telemetry-tracker).

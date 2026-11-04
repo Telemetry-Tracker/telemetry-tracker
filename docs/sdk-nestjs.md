@@ -14,7 +14,7 @@ Call `init()` in `main.ts` before `NestFactory.create`:
 
 ```ts
 import { NestFactory } from "@nestjs/core";
-import { init } from "@telemetry-tracker/node";
+import { init, TelemetryInterceptor } from "@telemetry-tracker/node";
 import { AppModule } from "./app.module";
 
 async function bootstrap() {
@@ -27,15 +27,40 @@ async function bootstrap() {
   });
 
   const app = await NestFactory.create(AppModule);
+  // Report controller/provider exceptions (Nest catches them before Node's global handlers).
+  app.useGlobalInterceptors(new TelemetryInterceptor());
   await app.listen(process.env.PORT ?? 3000);
 }
 
 bootstrap();
 ```
 
+## Controller exceptions
+
+Nest's exception layer catches errors thrown in controllers and the providers they call and turns them into HTTP responses, so they never reach `uncaughtException`. `TelemetryInterceptor` (node 1.5.0+) reports them with `context.source = "nestjs"`, method, path (query string stripped) and handler (`Controller.method`), then rethrows the original error, so Nest's response and your filters are unchanged. HTTP exceptions with status < 500 are skipped by default; override with `new TelemetryInterceptor({ shouldReport: (err) => boolean })`.
+
+Errors thrown in guards or middleware happen before interceptors run. To cover those, report from your own global filter instead (use the filter or the interceptor, not both):
+
+```ts
+import { ArgumentsHost, Catch } from "@nestjs/common";
+import { BaseExceptionFilter } from "@nestjs/core";
+import { captureNestException } from "@telemetry-tracker/node";
+
+@Catch()
+export class ReportingFilter extends BaseExceptionFilter {
+  catch(exception: unknown, host: ArgumentsHost) {
+    captureNestException(exception, host);
+    super.catch(exception, host);
+  }
+}
+// main.ts
+// const { httpAdapter } = app.get(HttpAdapterHost);
+// app.useGlobalFilters(new ReportingFilter(httpAdapter));
+```
+
 ## Request middleware
 
-Wrap the generic Node middleware in a Nest `NestMiddleware`:
+Wrap the generic Node middleware in a Nest `NestMiddleware`. `$request.url` is the full request URL (`req.originalUrl`, node 1.5.0+; earlier versions recorded `/` here):
 
 ```ts
 // telemetry.middleware.ts
@@ -76,6 +101,8 @@ export class AppModule implements NestModule {
 | `trackEvent(name, properties?)` | Send a named event. |
 | `trackError(error, context?)` | Report an error (e.g. in catch blocks). |
 | `middleware(opts?)` | HTTP `$request` tracking middleware. |
+| `TelemetryInterceptor` | Global Nest interceptor: reports controller exceptions (≥ 500 / non-HTTP) and rethrows. |
+| `captureNestException(err, host?, opts?)` | Report from a custom exception filter. |
 
 Config extends [telemetry-core](sdk-core.md#initconfig).
 
