@@ -11,6 +11,10 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ## [Unreleased]
 
+### Added
+
+- Unpublished Expo Router ErrorBoundary reporting guide (refs #917), with noindex/nofollow; publication awaits Android device verification and approval.
+
 ---
 
 ## [1.22.27] - 2026-11-04
