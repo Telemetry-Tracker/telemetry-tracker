@@ -30,3 +30,8 @@ export function rateLimitMaxPublic(isTest: boolean): number {
 export function rateLimitMaxMcp(isTest: boolean): number {
   return parsePositiveInt("RATE_LIMIT_MAX_MCP", isTest ? 100_000 : 300);
 }
+
+/** Stripe webhook POSTs — signature verify is cheap but unbounded abuse still wastes CPU. */
+export function rateLimitMaxStripeWebhook(isTest: boolean): number {
+  return isTest ? 100_000 : parsePositiveInt("RATE_LIMIT_STRIPE_WEBHOOK_MAX", 120);
+}

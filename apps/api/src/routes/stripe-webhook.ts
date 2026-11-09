@@ -1,8 +1,14 @@
 import type { FastifyInstance } from "fastify";
 import type { Prisma } from "@prisma/client";
+import rateLimit from "@fastify/rate-limit";
 import Stripe from "stripe";
 import { PlanTier } from "@prisma/client";
+import { clientIpKeyGenerator } from "../lib/client-ip.js";
 import { prisma } from "../lib/db.js";
+import {
+  RATE_LIMIT_WINDOW_MS,
+  rateLimitMaxStripeWebhook,
+} from "../lib/rate-limit-env.js";
 import {
   parsePlanTierMetadata,
   subscriptionToOrgSyncPatch,
@@ -44,16 +50,24 @@ function isUniqueConstraintError(e: unknown): boolean {
  * so plan changes sync (see docs/ENTITLEMENTS.md).
  */
 export async function registerStripeWebhookIfConfigured(
-  app: FastifyInstance
+  app: FastifyInstance,
+  opts: { isTest?: boolean } = {}
 ): Promise<void> {
   const secret = process.env.STRIPE_WEBHOOK_SECRET?.trim();
   const key = process.env.STRIPE_SECRET_KEY?.trim();
   if (!secret || !key) return;
 
   const stripe = new Stripe(key);
+  const isTest = opts.isTest ?? process.env.NODE_ENV === "test";
 
   await app.register(
     async function stripeScope(f) {
+      await f.register(rateLimit, {
+        max: rateLimitMaxStripeWebhook(isTest),
+        timeWindow: RATE_LIMIT_WINDOW_MS,
+        keyGenerator: clientIpKeyGenerator,
+      });
+
       f.addContentTypeParser(
         "application/json",
         { parseAs: "buffer" },
