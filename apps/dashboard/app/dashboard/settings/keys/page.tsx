@@ -41,7 +41,7 @@ export default async function ApiKeysSettingsPage() {
       <>
         <SettingsPageHeader
           title="API keys"
-          description="Keys belong to the project selected in the header. Telemetry sent with a key is stored in that project only."
+          description="Keys authenticate ingest for the project selected in the header (not a separate application). Optionally scope a key to one app name. Connect apps under Connect application."
         />
         <ErrorState message={loaded.message} />
       </>
@@ -52,7 +52,7 @@ export default async function ApiKeysSettingsPage() {
     <>
       <SettingsPageHeader
         title="API keys"
-        description="Keys belong to the project selected in the header. Telemetry sent with a key is stored in that project only."
+        description="Keys authenticate ingest for the project selected in the header (not a separate application). Optionally scope a key to one app name. Connect apps under Connect application."
       />
       <ApiKeysClient keys={loaded.keys} />
     </>

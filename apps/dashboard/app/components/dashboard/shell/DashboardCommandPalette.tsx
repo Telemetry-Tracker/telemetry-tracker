@@ -22,6 +22,7 @@ import {
   Search,
   Settings,
   Users,
+  Workflow,
 } from "lucide-react";
 import { ORGANIZATION_SETTINGS_NEW_PROJECT_URL } from "@/app/components/OrganizationSettingsNewProjectParam";
 import { searchInputClassName } from "@/lib/input-classes";
@@ -105,6 +106,14 @@ const COMMANDS: CommandItem[] = [
     href: "/dashboard/settings/keys",
     group: "Settings",
     icon: Key,
+  },
+  {
+    id: "connect-app",
+    label: "Connect application",
+    href: "/dashboard/apps/connect",
+    group: "Actions",
+    keywords: ["sdk", "setup", "ingest", "app"],
+    icon: Workflow,
   },
   {
     id: "create-project",

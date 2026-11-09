@@ -32,6 +32,7 @@ type Action = {
 
 const ACTIONS: Action[] = [
   { id: "project", label: "Create project", icon: FolderPlus, href: ORGANIZATION_SETTINGS_NEW_PROJECT_URL },
+  { id: "connect-app", label: "Connect application", icon: Workflow, href: "/dashboard/apps/connect" },
   { id: "invite", label: "Invite team member", icon: UserPlus, href: "/dashboard/settings/team" },
   { id: "key", label: "Generate API key", icon: Key, href: "/dashboard/settings/keys" },
   { id: "dashboard", label: "Create dashboard", icon: LayoutDashboard, comingSoon: true },

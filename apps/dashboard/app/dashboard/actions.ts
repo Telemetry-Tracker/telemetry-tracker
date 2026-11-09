@@ -511,8 +511,7 @@ export async function createDashboardApiKey(
     body: JSON.stringify(payload),
   });
   if (!res.ok) {
-    const t = await res.text();
-    return { ok: false, error: t.slice(0, 400) || res.statusText };
+    return { ok: false, error: await readApiError(res) };
   }
   const data = (await res.json()) as {
     key: string;
@@ -520,6 +519,7 @@ export async function createDashboardApiKey(
     name: string | null;
   };
   revalidatePath("/dashboard/settings/keys");
+  revalidatePath("/dashboard/apps/connect");
   return {
     ok: true,
     key: data.key,
@@ -533,6 +533,53 @@ export async function createFirstDashboardApiKey(): Promise<CreateApiKeyResult> 
   const formData = new FormData();
   formData.set("name", "Local development");
   return createDashboardApiKey(null, formData);
+}
+
+export type ProjectAppDto = {
+  id: string;
+  name: string;
+  framework: string | null;
+  createdAt: string;
+  firstEventAt: string | null;
+  connected: boolean;
+};
+
+export type RegisterProjectAppResult =
+  | { ok: true; app: ProjectAppDto; created: boolean }
+  | { ok: false; error: string };
+
+export async function registerDashboardProjectApp(input: {
+  name: string;
+  framework?: string | null;
+}): Promise<RegisterProjectAppResult> {
+  const res = await dashboardApiFetch("/api/project/apps", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name: input.name,
+      framework: input.framework ?? undefined,
+    }),
+  });
+  if (!res.ok) {
+    return { ok: false, error: await readApiError(res) };
+  }
+  const data = (await res.json()) as { app: ProjectAppDto; created: boolean };
+  revalidatePath("/dashboard", "layout");
+  revalidatePath("/dashboard/apps/connect");
+  return { ok: true, app: data.app, created: data.created };
+}
+
+export async function fetchDashboardProjectAppStatus(
+  appName: string
+): Promise<{ ok: true; app: ProjectAppDto } | { ok: false; error: string }> {
+  const name = appName.trim();
+  if (!name) return { ok: false, error: "App name required" };
+  const res = await dashboardApiFetch(`/api/project/apps/${encodeURIComponent(name)}`);
+  if (!res.ok) {
+    return { ok: false, error: await readApiError(res) };
+  }
+  const data = (await res.json()) as { app: ProjectAppDto };
+  return { ok: true, app: data.app };
 }
 
 export async function renameProjectAction(

@@ -47,6 +47,11 @@ export function canCreateApiKey(role: OrgRole | null): boolean {
   return role === OrgRole.OWNER || role === OrgRole.EDITOR;
 }
 
+/** Register / update ProjectApp rows (connect application flow). */
+export function canRegisterProjectApp(role: OrgRole | null): boolean {
+  return canCreateApiKey(role);
+}
+
 export function canRevokeApiKey(role: OrgRole | null): boolean {
   return role === OrgRole.OWNER;
 }

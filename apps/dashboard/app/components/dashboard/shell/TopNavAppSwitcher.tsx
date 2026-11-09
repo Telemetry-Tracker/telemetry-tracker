@@ -234,8 +234,8 @@ export function TopNavAppSwitcher({
 
             {apps.length === 0 ? (
               <p className="px-4 py-6 text-[12px] leading-relaxed text-muted-foreground">
-                Apps appear when your SDK sends an <code className="text-foreground">app</code>{" "}
-                field on ingest.
+                No applications yet. Connect one to this project — you do not need to wait for
+                telemetry first.
               </p>
             ) : null}
 
@@ -252,12 +252,12 @@ export function TopNavAppSwitcher({
 
           <div className="border-t border-border p-1.5">
             <Link
-              href="/docs/sdk"
+              href="/dashboard/apps/connect"
               onClick={close}
               className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-surface hover:text-foreground"
             >
               <Plus className="h-3.5 w-3.5" />
-              Configure app in SDK
+              Connect application
             </Link>
           </div>
         </div>

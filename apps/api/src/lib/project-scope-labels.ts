@@ -1,22 +1,13 @@
 import type { PrismaClient } from "@prisma/client";
 import { Prisma } from "@prisma/client";
+import { distinctAppsForProject as distinctAppsFromRegistry } from "./project-apps.js";
 
-/** Distinct SDK app labels across Event, ErrorGroup, and Session (one UNION scan). */
+/** Distinct SDK app labels: ProjectApp registry UNION Event / ErrorGroup / Session. */
 export async function distinctAppsForProject(
   prisma: PrismaClient,
   projectId: string
 ): Promise<string[]> {
-  const rows = await prisma.$queryRaw<{ app: string }[]>(Prisma.sql`
-    SELECT DISTINCT app FROM (
-      SELECT app FROM "Event" WHERE project_id = ${projectId}
-      UNION
-      SELECT app FROM "ErrorGroup" WHERE project_id = ${projectId}
-      UNION
-      SELECT app FROM "Session" WHERE project_id = ${projectId}
-    ) t
-    ORDER BY app ASC
-  `);
-  return rows.map((row) => row.app);
+  return distinctAppsFromRegistry(prisma, projectId);
 }
 
 /** Distinct non-empty environments, optionally filtered by app (one UNION scan). */

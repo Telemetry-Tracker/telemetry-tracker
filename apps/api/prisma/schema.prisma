@@ -270,6 +270,8 @@ model Project {
   events          Event[]
   sessions        Session[]
   error_groups    ErrorGroup[]
+  /// Explicitly registered SDK apps (visible before first telemetry).
+  apps            ProjectApp[]
   alert_settings  Json?          @map("alert_settings")
   /// Project deny-list keys for ingest PII scrubbing (see docs/PII-SCRUBBING.md).
   pii_scrub_settings Json?       @map("pii_scrub_settings")
@@ -284,6 +286,26 @@ model Project {
   @@unique([organization_id, slug])
   @@index([organization_id])
   @@index([deleted_at])
+}
+
+/// Registered SDK application for a project (connect-before-telemetry).
+/// `name` is the SDK `app` string. Auto-discovered on ingest when missing.
+model ProjectApp {
+  id             String    @id @default(uuid())
+  project_id     String    @map("project_id")
+  project        Project   @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  /// SDK `app` label (trimmed). Must match ingest `app` for filtering / keys.
+  name           String
+  /// Optional framework hint for setup instructions (nextjs, node, vue, …).
+  framework      String?
+  created_at     DateTime  @default(now()) @map("created_at")
+  updated_at     DateTime  @updatedAt @map("updated_at")
+  /// Set when the first Event/Session/ErrorGroup for this app is ingested (or backfilled).
+  first_event_at DateTime? @map("first_event_at")
+  deleted_at     DateTime? @map("deleted_at")
+
+  @@unique([project_id, name])
+  @@index([project_id, deleted_at])
 }
 
 
