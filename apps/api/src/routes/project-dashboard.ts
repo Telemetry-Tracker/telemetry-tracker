@@ -4,8 +4,16 @@ import { OrgRole, Prisma } from "@prisma/client";
 import { prisma } from "../lib/db.js";
 import {
   createProjectWithPlanLimitCheck,
+  loadPlanContextForProject,
 } from "../lib/plan-enforcement.js";
 import { createProjectApiKey } from "../lib/create-project-api-key.js";
+import {
+  listProjectApps,
+  PROJECT_APP_FRAMEWORKS,
+  registerProjectApp,
+  softDeleteProjectApp,
+  toProjectAppView,
+} from "../lib/project-apps.js";
 import { getSessionUser, requireSessionUser } from "../lib/auth-session.js";
 import { getProjectNavSummaries } from "../lib/project-nav-summary.js";
 import { loadNavScopeForProject, loadWorkspaceMetaForUser } from "../lib/workspace-meta.js";
@@ -40,6 +48,7 @@ import {
   canManageMembers,
   canArchiveOrganization,
   canArchiveProject,
+  canRegisterProjectApp,
   canRevokeApiKey,
   getMembershipRoleForOrganization,
   getMembershipRoleForProject,
@@ -1707,6 +1716,80 @@ export async function projectDashboardRoutes(
     }
     return reply.send({ ok: true, httpStatus: result.httpStatus });
   });
+
+  app.get("/project/apps", async (request, reply) => {
+    const projectId = await resolveReadProjectId(request, reply);
+    if (projectId === null) return;
+    const apps = await listProjectApps(prisma, projectId);
+    return reply.send({ apps, frameworks: PROJECT_APP_FRAMEWORKS });
+  });
+
+  app.post("/project/apps", async (request, reply) => {
+    const session = await requireSessionUser(request, reply);
+    if (!session) return;
+    const projectId = await resolveReadProjectIdWithSession(request, reply, session);
+    if (projectId === null) return;
+    const projRole = await getMembershipRoleForProject(session.userId, projectId);
+    if (!canRegisterProjectApp(projRole)) {
+      return reply.status(403).send({ error: "Forbidden" });
+    }
+    const body = (request.body ?? {}) as { name?: string; framework?: string };
+    const planCtx = await loadPlanContextForProject(prisma, projectId);
+    if (!planCtx) {
+      return reply.status(403).send({ error: "Project not found or organization inactive." });
+    }
+    const result = await registerProjectApp(
+      prisma,
+      projectId,
+      {
+        name: typeof body.name === "string" ? body.name : "",
+        framework: typeof body.framework === "string" ? body.framework : null,
+      },
+      { maxAppsPerProject: planCtx.limits.maxAppsPerProject }
+    );
+    if (!result.ok) {
+      const status = result.code === "max_apps_per_project" ? 403 : 400;
+      return reply.status(status).send({ error: result.error, code: result.code });
+    }
+    return reply.status(result.created ? 201 : 200).send({
+      app: toProjectAppView(result.app),
+      created: result.created,
+    });
+  });
+
+  app.get<{ Params: { name: string } }>(
+    "/project/apps/:name",
+    async (request, reply) => {
+      const projectId = await resolveReadProjectId(request, reply);
+      if (projectId === null) return;
+      const name = decodeURIComponent(request.params.name).trim();
+      if (!name) return reply.status(400).send({ error: "App name required" });
+      const row = await prisma.projectApp.findFirst({
+        where: { project_id: projectId, name, deleted_at: null },
+      });
+      if (!row) return reply.status(404).send({ error: "App not found" });
+      return reply.send({ app: toProjectAppView(row) });
+    }
+  );
+
+  app.delete<{ Params: { name: string } }>(
+    "/project/apps/:name",
+    async (request, reply) => {
+      const session = await requireSessionUser(request, reply);
+      if (!session) return;
+      const projectId = await resolveReadProjectIdWithSession(request, reply, session);
+      if (projectId === null) return;
+      const projRole = await getMembershipRoleForProject(session.userId, projectId);
+      if (!canRegisterProjectApp(projRole)) {
+        return reply.status(403).send({ error: "Forbidden" });
+      }
+      const name = decodeURIComponent(request.params.name).trim();
+      if (!name) return reply.status(400).send({ error: "App name required" });
+      const removed = await softDeleteProjectApp(prisma, projectId, name);
+      if (!removed) return reply.status(404).send({ error: "App not found" });
+      return reply.status(204).send();
+    }
+  );
 
   app.get("/project/api-keys", async (request, reply) => {
     const projectId = await resolveReadProjectId(request, reply);

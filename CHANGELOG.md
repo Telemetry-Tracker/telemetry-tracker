@@ -11,6 +11,10 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ## [Unreleased]
 
+### Added
+
+- **Connect application flow** — register SDK apps on a project before telemetry arrives (`ProjectApp` registry), with framework-specific setup, API key step, and first-event detection. Apps still auto-appear from ingest. APP dropdown and overview empty states link to `/dashboard/apps/connect`. Human-readable API key limit errors.
+
 ---
 
 ## [1.22.31] - 2026-11-09

@@ -28,15 +28,23 @@ export function OverviewIngestSetupBanner({
       <div className="min-w-0 text-sm">
         <p className="font-medium text-foreground">{title}</p>
         <p className="mt-1 text-muted-foreground">
-          Data is shown by recency when no date filter is set. To send new events from your SDK,
-          create an API key for the active project.
+          Connect an application to this project, create an API key, and install the SDK. You can
+          register the app before any telemetry arrives.
         </p>
-        <Link
-          href="/dashboard/settings/keys"
-          className="mt-2 inline-block font-medium text-foreground underline-offset-4 hover:underline"
-        >
-          Set up API keys →
-        </Link>
+        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+          <Link
+            href="/dashboard/apps/connect"
+            className="inline-block font-medium text-foreground underline-offset-4 hover:underline"
+          >
+            Connect application →
+          </Link>
+          <Link
+            href="/dashboard/settings/keys"
+            className="inline-block font-medium text-muted-foreground underline-offset-4 hover:underline"
+          >
+            API keys
+          </Link>
+        </div>
       </div>
     </div>
   );
