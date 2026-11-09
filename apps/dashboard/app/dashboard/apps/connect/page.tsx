@@ -45,7 +45,12 @@ async function load(): Promise<
   return {
     ok: true,
     apps: appsData.apps ?? [],
-    keys: keysData.keys ?? [],
+    keys: (keysData.keys ?? []).map((k) => ({
+      publicId: k.publicId,
+      name: k.name,
+      allowedApp: k.allowedApp ?? null,
+      revokedAt: k.revokedAt,
+    })),
   };
 }
 
