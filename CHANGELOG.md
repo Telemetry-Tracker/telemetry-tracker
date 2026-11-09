@@ -13,6 +13,17 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ---
 
+## [1.22.28] - 2026-11-09
+
+### Fixed
+
+- **Session list no longer returns bearer secrets** — `GET /api/auth/sessions` and `DELETE /api/auth/sessions/:id` now use opaque `UserSession.public_id` values. The cookie/`Authorization` secret remains `UserSession.id` and is not listed. Existing sessions keep working (migration only adds `public_id`). ([#933](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/933))
+- **Dashboard bootstrap debug no longer logs raw session ids** — coalesce/debug logs record `hasSession` / scope flags only.
+
+Migration: `20261109140000_user_session_public_id` (additive; does not invalidate active sessions).
+
+---
+
 ## [1.22.27] - 2026-11-04
 
 ### Fixed

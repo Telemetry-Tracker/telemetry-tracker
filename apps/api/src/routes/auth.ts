@@ -694,6 +694,7 @@ export async function authRoutes(
       orderBy: { created_at: "desc" },
       select: {
         id: true,
+        public_id: true,
         created_at: true,
         expires_at: true,
         device_browser: true,
@@ -702,7 +703,7 @@ export async function authRoutes(
     });
     return reply.send({
       sessions: rows.map((row) => ({
-        id: row.id,
+        id: row.public_id,
         createdAt: row.created_at.toISOString(),
         expiresAt: row.expires_at.toISOString(),
         deviceBrowser: row.device_browser,
@@ -746,22 +747,23 @@ export async function authRoutes(
     if (!sessionId) {
       return reply.status(400).send({ error: "sessionId required" });
     }
-    if (sessionId === currentToken) {
-      return reply.status(400).send({ error: "Cannot revoke the current session" });
-    }
+    // Revoke by opaque public_id only — never treat the bearer secret as a list/revoke id.
     const row = await prisma.userSession.findFirst({
-      where: { id: sessionId, user_id: session.userId },
-      select: { id: true },
+      where: { public_id: sessionId, user_id: session.userId },
+      select: { id: true, public_id: true },
     });
     if (!row) {
       return reply.status(404).send({ error: "Session not found" });
+    }
+    if (row.id === currentToken) {
+      return reply.status(400).send({ error: "Cannot revoke the current session" });
     }
     await prisma.userSession.delete({ where: { id: row.id } });
     void recordUserAuditEvents(
       prisma,
       session.userId,
       AUDIT_ACTIONS.AUTH_SESSION_REVOKE,
-      sessionId.slice(0, 8)
+      row.public_id.slice(0, 8)
     );
     return reply.status(204).send();
   });
