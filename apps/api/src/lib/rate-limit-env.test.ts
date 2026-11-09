@@ -13,9 +13,9 @@ describe("rateLimitMaxStripeWebhook", () => {
     expect(rateLimitMaxStripeWebhook(true)).toBe(100_000);
   });
 
-  it("defaults to 120 outside tests", () => {
+  it("defaults to a high ceiling outside tests so Stripe bursts/retries are not blocked", () => {
     delete process.env.RATE_LIMIT_STRIPE_WEBHOOK_MAX;
-    expect(rateLimitMaxStripeWebhook(false)).toBe(120);
+    expect(rateLimitMaxStripeWebhook(false)).toBe(3000);
   });
 
   it("honors RATE_LIMIT_STRIPE_WEBHOOK_MAX", () => {
