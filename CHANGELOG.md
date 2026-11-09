@@ -11,9 +11,15 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ## [Unreleased]
 
+---
+
+## [1.22.32] - 2026-11-09
+
 ### Added
 
-- **Connect application flow** — register SDK apps on a project before telemetry arrives (`ProjectApp` registry), with framework-specific setup, API key step, and first-event detection. Apps still auto-appear from ingest. APP dropdown and overview empty states link to `/dashboard/apps/connect`. Human-readable API key limit errors.
+- **Connect application flow** — register SDK apps on a project before telemetry arrives (`ProjectApp` registry), with framework-specific setup, API key step, and first-event detection. Apps still auto-appear from ingest. APP dropdown and overview empty states link to `/dashboard/apps/connect`. Human-readable API key limit errors. ([#946](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/946))
+
+Migration: `20261109160000_project_app_registry` (additive; backfills from existing Event/Session/ErrorGroup apps).
 
 ---
 
