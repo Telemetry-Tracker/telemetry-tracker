@@ -41,13 +41,13 @@ function resetStripeMocks() {
     return {
       id: `cs_${Date.now()}`,
       url: "https://checkout.stripe.com/test",
-      customer: params.customer || `cus_${Date.now()}`,
+      customer: params.customer || `cus_${Date.now()}_${Math.random().toString(36).slice(2)}`,
       subscription: `sub_${Date.now()}`,
       metadata: params.metadata,
     };
   });
   mockCustomersCreate = vi.fn().mockImplementation(async (params) => ({
-    id: `cus_${Date.now()}`,
+    id: `cus_${Date.now()}_${Math.random().toString(36).slice(2)}`,
     metadata: params?.metadata ?? {},
   }));
   mockCustomersRetrieve = vi.fn().mockImplementation(async (id) => ({
@@ -80,21 +80,23 @@ function resetStripeMocks() {
 resetStripeMocks();
 
 vi.mock("stripe", () => {
-  const mockStripe = vi.fn().mockImplementation(() => ({
-    checkout: { sessions: { create: (...args: unknown[]) => mockCheckoutSessionsCreate(...args) } },
-    customers: {
-      create: (...args: unknown[]) => mockCustomersCreate(...args),
-      retrieve: (...args: unknown[]) => mockCustomersRetrieve(...args),
-      update: (...args: unknown[]) => mockCustomersUpdate(...args),
-    },
-    subscriptions: { retrieve: (...args: unknown[]) => mockSubscriptionsRetrieve(...args) },
-    charges: { retrieve: (...args: unknown[]) => mockChargesRetrieve(...args) },
-    invoicePayments: { list: (...args: unknown[]) => mockInvoicePaymentsList(...args) },
-    webhooks: {
-      constructEvent: (payload: Buffer | string) =>
-        JSON.parse(typeof payload === "string" ? payload : payload.toString()),
-    },
-  }));
+  const mockStripe = vi.fn().mockImplementation(function MockStripe() {
+    return {
+      checkout: { sessions: { create: (...args: unknown[]) => mockCheckoutSessionsCreate(...args) } },
+      customers: {
+        create: (...args: unknown[]) => mockCustomersCreate(...args),
+        retrieve: (...args: unknown[]) => mockCustomersRetrieve(...args),
+        update: (...args: unknown[]) => mockCustomersUpdate(...args),
+      },
+      subscriptions: { retrieve: (...args: unknown[]) => mockSubscriptionsRetrieve(...args) },
+      charges: { retrieve: (...args: unknown[]) => mockChargesRetrieve(...args) },
+      invoicePayments: { list: (...args: unknown[]) => mockInvoicePaymentsList(...args) },
+      webhooks: {
+        constructEvent: (payload: Buffer | string) =>
+          JSON.parse(typeof payload === "string" ? payload : payload.toString()),
+      },
+    };
+  });
   return { default: mockStripe };
 });
 

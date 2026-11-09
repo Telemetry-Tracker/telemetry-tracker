@@ -3,6 +3,91 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { hashApiKeySecret } from "./lib/api-key-auth.js";
 import { prisma } from "./lib/db.js";
 
+
+/** TEMP tables are connection-scoped; keep CREATE/UPDATE/DELETE on one Prisma connection. */
+async function applySessionsToKeepMigrationSteps(): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe("DROP TABLE IF EXISTS sessions_to_keep");
+    await tx.$executeRawUnsafe(`
+      CREATE TEMP TABLE sessions_to_keep AS
+      SELECT id
+      FROM (
+        SELECT 
+          id,
+          ROW_NUMBER() OVER (
+            PARTITION BY project_id, session_id, app 
+            ORDER BY started_at ASC, id ASC
+          ) AS rn
+        FROM "Session"
+      ) ranked
+      WHERE rn = 1
+    `);
+    await tx.$executeRawUnsafe(`
+      WITH duplicates AS (
+        SELECT 
+          s.project_id,
+          s.session_id,
+          s.app,
+          (array_agg(s.user_id ORDER BY s.started_at DESC, s.id DESC) FILTER (WHERE s.user_id IS NOT NULL))[1] AS latest_user_id,
+          (array_agg(s.user_email ORDER BY s.started_at DESC, s.id DESC) FILTER (WHERE s.user_email IS NOT NULL))[1] AS latest_user_email,
+          (array_agg(s.anonymous_id ORDER BY s.started_at DESC, s.id DESC) FILTER (WHERE s.anonymous_id IS NOT NULL))[1] AS latest_anonymous_id,
+          (array_agg(s.country ORDER BY s.started_at DESC, s.id DESC) FILTER (WHERE s.country IS NOT NULL))[1] AS latest_country,
+          (array_agg(s.device_browser ORDER BY s.started_at DESC, s.id DESC) FILTER (WHERE s.device_browser IS NOT NULL))[1] AS latest_device_browser,
+          (array_agg(s.device_os ORDER BY s.started_at DESC, s.id DESC) FILTER (WHERE s.device_os IS NOT NULL))[1] AS latest_device_os,
+          (array_agg(s.sdk_version ORDER BY s.started_at DESC, s.id DESC) FILTER (WHERE s.sdk_version IS NOT NULL))[1] AS latest_sdk_version,
+          (array_agg(s.platform ORDER BY s.started_at DESC, s.id DESC) FILTER (WHERE s.platform IS NOT NULL))[1] AS latest_platform,
+          (array_agg(s.environment ORDER BY s.started_at DESC, s.id DESC) FILTER (WHERE s.environment IS NOT NULL))[1] AS latest_environment,
+          (array_agg(s.release ORDER BY s.started_at DESC, s.id DESC) FILTER (WHERE s.release IS NOT NULL))[1] AS latest_release,
+          MAX(s.ended_at) AS latest_ended_at
+        FROM "Session" s
+        WHERE EXISTS (
+          SELECT 1 
+          FROM "Session" s2 
+          WHERE s2.project_id = s.project_id 
+            AND s2.session_id = s.session_id 
+            AND s2.app = s.app 
+            AND s2.id != s.id
+        )
+        GROUP BY s.project_id, s.session_id, s.app
+      ),
+      kept_rows AS (
+        SELECT s.id, d.*
+        FROM "Session" s
+        INNER JOIN duplicates d 
+          ON s.project_id = d.project_id 
+          AND s.session_id = d.session_id
+          AND s.app = d.app
+        WHERE s.id IN (SELECT id FROM sessions_to_keep)
+      )
+      UPDATE "Session" s
+      SET 
+        user_id = COALESCE(k.latest_user_id, s.user_id),
+        user_email = COALESCE(k.latest_user_email, s.user_email),
+        anonymous_id = COALESCE(k.latest_anonymous_id, s.anonymous_id),
+        country = COALESCE(k.latest_country, s.country),
+        device_browser = COALESCE(k.latest_device_browser, s.device_browser),
+        device_os = COALESCE(k.latest_device_os, s.device_os),
+        sdk_version = COALESCE(k.latest_sdk_version, s.sdk_version),
+        platform = COALESCE(k.latest_platform, s.platform),
+        environment = COALESCE(k.latest_environment, s.environment),
+        release = COALESCE(k.latest_release, s.release),
+        ended_at = COALESCE(k.latest_ended_at, s.ended_at)
+      FROM kept_rows k
+      WHERE s.id = k.id
+    `);
+    await tx.$executeRawUnsafe(`
+      DELETE FROM "Session"
+      WHERE id NOT IN (SELECT id FROM sessions_to_keep)
+        AND (project_id, session_id, app) IN (
+          SELECT project_id, session_id, app
+          FROM "Session"
+          GROUP BY project_id, session_id, app
+          HAVING COUNT(*) > 1
+        )
+    `);
+  });
+}
+
 /** Opt-in so local `pnpm test` does not require a reachable DB; CI sets this in the Test step. */
 const runDbIntegration = process.env.RUN_DB_INTEGRATION_TESTS === "true";
 
@@ -119,88 +204,9 @@ describe.skipIf(!runDbIntegration)("Session dedupe migration (TT-031)", () => {
       'DROP INDEX IF EXISTS "Session_project_id_session_id_key"'
     );
 
-    // Statement 2: CREATE TEMP TABLE
-    await prisma.$executeRawUnsafe(`
-      CREATE TEMP TABLE sessions_to_keep AS
-      SELECT id
-      FROM (
-        SELECT 
-          id,
-          ROW_NUMBER() OVER (
-            PARTITION BY project_id, session_id, app 
-            ORDER BY started_at ASC, id ASC
-          ) AS rn
-        FROM "Session"
-      ) ranked
-      WHERE rn = 1
-    `);
+    // Statements 2–4: TEMP keep-set + merge + delete (one connection)
+    await applySessionsToKeepMigrationSteps();
 
-    // Statement 3: CTE + UPDATE (single statement!)
-    await prisma.$executeRawUnsafe(`
-      WITH duplicates AS (
-        SELECT 
-          s.project_id,
-          s.session_id,
-          s.app,
-          (array_agg(s.user_id ORDER BY s.started_at DESC, s.id DESC) FILTER (WHERE s.user_id IS NOT NULL))[1] AS latest_user_id,
-          (array_agg(s.user_email ORDER BY s.started_at DESC, s.id DESC) FILTER (WHERE s.user_email IS NOT NULL))[1] AS latest_user_email,
-          (array_agg(s.anonymous_id ORDER BY s.started_at DESC, s.id DESC) FILTER (WHERE s.anonymous_id IS NOT NULL))[1] AS latest_anonymous_id,
-          (array_agg(s.country ORDER BY s.started_at DESC, s.id DESC) FILTER (WHERE s.country IS NOT NULL))[1] AS latest_country,
-          (array_agg(s.device_browser ORDER BY s.started_at DESC, s.id DESC) FILTER (WHERE s.device_browser IS NOT NULL))[1] AS latest_device_browser,
-          (array_agg(s.device_os ORDER BY s.started_at DESC, s.id DESC) FILTER (WHERE s.device_os IS NOT NULL))[1] AS latest_device_os,
-          (array_agg(s.sdk_version ORDER BY s.started_at DESC, s.id DESC) FILTER (WHERE s.sdk_version IS NOT NULL))[1] AS latest_sdk_version,
-          (array_agg(s.platform ORDER BY s.started_at DESC, s.id DESC) FILTER (WHERE s.platform IS NOT NULL))[1] AS latest_platform,
-          (array_agg(s.environment ORDER BY s.started_at DESC, s.id DESC) FILTER (WHERE s.environment IS NOT NULL))[1] AS latest_environment,
-          (array_agg(s.release ORDER BY s.started_at DESC, s.id DESC) FILTER (WHERE s.release IS NOT NULL))[1] AS latest_release,
-          MAX(s.ended_at) AS latest_ended_at
-        FROM "Session" s
-        WHERE EXISTS (
-          SELECT 1 
-          FROM "Session" s2 
-          WHERE s2.project_id = s.project_id 
-            AND s2.session_id = s.session_id 
-            AND s2.app = s.app 
-            AND s2.id != s.id
-        )
-        GROUP BY s.project_id, s.session_id, s.app
-      ),
-      kept_rows AS (
-        SELECT s.id, d.*
-        FROM "Session" s
-        INNER JOIN duplicates d 
-          ON s.project_id = d.project_id 
-          AND s.session_id = d.session_id
-          AND s.app = d.app
-        WHERE s.id IN (SELECT id FROM sessions_to_keep)
-      )
-      UPDATE "Session" s
-      SET 
-        user_id = COALESCE(k.latest_user_id, s.user_id),
-        user_email = COALESCE(k.latest_user_email, s.user_email),
-        anonymous_id = COALESCE(k.latest_anonymous_id, s.anonymous_id),
-        country = COALESCE(k.latest_country, s.country),
-        device_browser = COALESCE(k.latest_device_browser, s.device_browser),
-        device_os = COALESCE(k.latest_device_os, s.device_os),
-        sdk_version = COALESCE(k.latest_sdk_version, s.sdk_version),
-        platform = COALESCE(k.latest_platform, s.platform),
-        environment = COALESCE(k.latest_environment, s.environment),
-        release = COALESCE(k.latest_release, s.release),
-        ended_at = COALESCE(k.latest_ended_at, s.ended_at)
-      FROM kept_rows k
-      WHERE s.id = k.id
-    `);
-
-    // Statement 4: DELETE duplicates
-    await prisma.$executeRawUnsafe(`
-      DELETE FROM "Session"
-      WHERE id NOT IN (SELECT id FROM sessions_to_keep)
-        AND (project_id, session_id, app) IN (
-          SELECT project_id, session_id, app
-          FROM "Session"
-          GROUP BY project_id, session_id, app
-          HAVING COUNT(*) > 1
-        )
-    `);
 
     // Statement 5: CREATE UNIQUE INDEX
     await prisma.$executeRawUnsafe(
@@ -305,91 +311,9 @@ describe.skipIf(!runDbIntegration)("Session dedupe migration (TT-031)", () => {
     // Execute the actual migration SQL statement by statement
     // Statement 1: DROP INDEX (already done above)
     
-    // Clean up temp table from previous test if it exists
-    await prisma.$executeRawUnsafe('DROP TABLE IF EXISTS sessions_to_keep');
-    
-    // Statement 2: CREATE TEMP TABLE
-    await prisma.$executeRawUnsafe(`
-      CREATE TEMP TABLE sessions_to_keep AS
-      SELECT id
-      FROM (
-        SELECT 
-          id,
-          ROW_NUMBER() OVER (
-            PARTITION BY project_id, session_id, app 
-            ORDER BY started_at ASC, id ASC
-          ) AS rn
-        FROM "Session"
-      ) ranked
-      WHERE rn = 1
-    `);
+    // Statements 2–4: TEMP keep-set + merge + delete (one connection)
+    await applySessionsToKeepMigrationSteps();
 
-    // Statement 3: CTE + UPDATE (single statement!)
-    await prisma.$executeRawUnsafe(`
-      WITH duplicates AS (
-        SELECT 
-          s.project_id,
-          s.session_id,
-          s.app,
-          (array_agg(s.user_id ORDER BY s.started_at DESC, s.id DESC) FILTER (WHERE s.user_id IS NOT NULL))[1] AS latest_user_id,
-          (array_agg(s.user_email ORDER BY s.started_at DESC, s.id DESC) FILTER (WHERE s.user_email IS NOT NULL))[1] AS latest_user_email,
-          (array_agg(s.anonymous_id ORDER BY s.started_at DESC, s.id DESC) FILTER (WHERE s.anonymous_id IS NOT NULL))[1] AS latest_anonymous_id,
-          (array_agg(s.country ORDER BY s.started_at DESC, s.id DESC) FILTER (WHERE s.country IS NOT NULL))[1] AS latest_country,
-          (array_agg(s.device_browser ORDER BY s.started_at DESC, s.id DESC) FILTER (WHERE s.device_browser IS NOT NULL))[1] AS latest_device_browser,
-          (array_agg(s.device_os ORDER BY s.started_at DESC, s.id DESC) FILTER (WHERE s.device_os IS NOT NULL))[1] AS latest_device_os,
-          (array_agg(s.sdk_version ORDER BY s.started_at DESC, s.id DESC) FILTER (WHERE s.sdk_version IS NOT NULL))[1] AS latest_sdk_version,
-          (array_agg(s.platform ORDER BY s.started_at DESC, s.id DESC) FILTER (WHERE s.platform IS NOT NULL))[1] AS latest_platform,
-          (array_agg(s.environment ORDER BY s.started_at DESC, s.id DESC) FILTER (WHERE s.environment IS NOT NULL))[1] AS latest_environment,
-          (array_agg(s.release ORDER BY s.started_at DESC, s.id DESC) FILTER (WHERE s.release IS NOT NULL))[1] AS latest_release,
-          MAX(s.ended_at) AS latest_ended_at
-        FROM "Session" s
-        WHERE EXISTS (
-          SELECT 1 
-          FROM "Session" s2 
-          WHERE s2.project_id = s.project_id 
-            AND s2.session_id = s.session_id 
-            AND s2.app = s.app 
-            AND s2.id != s.id
-        )
-        GROUP BY s.project_id, s.session_id, s.app
-      ),
-      kept_rows AS (
-        SELECT s.id, d.*
-        FROM "Session" s
-        INNER JOIN duplicates d 
-          ON s.project_id = d.project_id 
-          AND s.session_id = d.session_id
-          AND s.app = d.app
-        WHERE s.id IN (SELECT id FROM sessions_to_keep)
-      )
-      UPDATE "Session" s
-      SET 
-        user_id = COALESCE(k.latest_user_id, s.user_id),
-        user_email = COALESCE(k.latest_user_email, s.user_email),
-        anonymous_id = COALESCE(k.latest_anonymous_id, s.anonymous_id),
-        country = COALESCE(k.latest_country, s.country),
-        device_browser = COALESCE(k.latest_device_browser, s.device_browser),
-        device_os = COALESCE(k.latest_device_os, s.device_os),
-        sdk_version = COALESCE(k.latest_sdk_version, s.sdk_version),
-        platform = COALESCE(k.latest_platform, s.platform),
-        environment = COALESCE(k.latest_environment, s.environment),
-        release = COALESCE(k.latest_release, s.release),
-        ended_at = COALESCE(k.latest_ended_at, s.ended_at)
-      FROM kept_rows k
-      WHERE s.id = k.id
-    `);
-
-    // Statement 4: DELETE duplicates
-    await prisma.$executeRawUnsafe(`
-      DELETE FROM "Session"
-      WHERE id NOT IN (SELECT id FROM sessions_to_keep)
-        AND (project_id, session_id, app) IN (
-          SELECT project_id, session_id, app
-          FROM "Session"
-          GROUP BY project_id, session_id, app
-          HAVING COUNT(*) > 1
-        )
-    `);
 
     // Statement 5: CREATE UNIQUE INDEX
     await prisma.$executeRawUnsafe(

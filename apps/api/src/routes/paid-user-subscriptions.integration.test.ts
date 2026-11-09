@@ -23,28 +23,30 @@ let mockSubscriptionsList: ReturnType<typeof vi.fn>;
 let mockSubscriptionsRetrieve: ReturnType<typeof vi.fn>;
 
 vi.mock("stripe", () => {
-  const mockStripe = vi.fn().mockImplementation(() => ({
-    checkout: {
-      sessions: {
-        create: (...args: unknown[]) => mockCheckoutSessionsCreate(...args),
+  const mockStripe = vi.fn().mockImplementation(function MockStripe() {
+    return {
+      checkout: {
+        sessions: {
+          create: (...args: unknown[]) => mockCheckoutSessionsCreate(...args),
+        },
       },
-    },
-    customers: {
-      create: (...args: unknown[]) => mockCustomersCreate(...args),
-      retrieve: (...args: unknown[]) => mockCustomersRetrieve(...args),
-      update: (...args: unknown[]) => mockCustomersUpdate(...args),
-    },
-    subscriptions: {
-      list: (...args: unknown[]) => mockSubscriptionsList(...args),
-      retrieve: (...args: unknown[]) => mockSubscriptionsRetrieve(...args),
-    },
-    webhooks: {
-      constructEvent: (payload: Buffer | string, _sig: string, _secret: string) => {
-        const payloadStr = typeof payload === "string" ? payload : payload.toString();
-        return JSON.parse(payloadStr);
+      customers: {
+        create: (...args: unknown[]) => mockCustomersCreate(...args),
+        retrieve: (...args: unknown[]) => mockCustomersRetrieve(...args),
+        update: (...args: unknown[]) => mockCustomersUpdate(...args),
       },
-    },
-  }));
+      subscriptions: {
+        list: (...args: unknown[]) => mockSubscriptionsList(...args),
+        retrieve: (...args: unknown[]) => mockSubscriptionsRetrieve(...args),
+      },
+      webhooks: {
+        constructEvent: (payload: Buffer | string, _sig: string, _secret: string) => {
+          const payloadStr = typeof payload === "string" ? payload : payload.toString();
+          return JSON.parse(payloadStr);
+        },
+      },
+    };
+  });
   return { default: mockStripe };
 });
 
@@ -76,7 +78,9 @@ testSuite("Existing Paid User Subscription Tests", () => {
       };
     });
 
-    mockCustomersCreate = vi.fn().mockResolvedValue({ id: `cus_${Date.now()}` });
+    mockCustomersCreate = vi.fn().mockImplementation(async () => ({
+      id: `cus_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+    }));
     mockCustomersRetrieve = vi.fn().mockResolvedValue({
       id: "cus_existing",
       deleted: false,
