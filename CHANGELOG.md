@@ -11,9 +11,13 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ## [Unreleased]
 
+---
+
+## [1.22.30] - 2026-11-09
+
 ### Fixed
 
-- **Dependabot Critical/High dependency patches** — bump `next` to 15.5.28 (Image Optimization RCE + App Router Server Actions DoS), `@sentry/nextjs` to ≥10.75.2 (tunnel middleware bypass), `vite` to 7.3.7, `fastify` to ≥5.12.6, plus pnpm overrides for `body-parser`, `multer`, `qs`, `image-size`, `fast-uri`, `postcss-selector-parser`, and `glob`. Zod 3.x left unchanged (advisory CVE rejected; no 3.x patch; Fastify body limits apply). `deepmerge-ts` 8.x deferred (Prisma pins 7.x; CLI-only path).
+- **Dependabot Critical/High dependency patches** — bump `next` to 15.5.28 (Image Optimization RCE + App Router Server Actions DoS), `@sentry/nextjs` to ≥10.75.2 (tunnel middleware bypass), `vite` to 7.3.7, `fastify` to ≥5.12.6, plus pnpm overrides for `body-parser`, `multer`, `qs`, `image-size`, `fast-uri`, `postcss-selector-parser`, and `glob`. Zod 3.x left unchanged (advisory CVE rejected; no 3.x patch; Fastify body limits apply). `deepmerge-ts` 8.x deferred (Prisma pins 7.x; CLI-only path). ([#939](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/939))
 
 ---
 
