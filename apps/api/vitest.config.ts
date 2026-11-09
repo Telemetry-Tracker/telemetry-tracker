@@ -5,5 +5,8 @@ export default defineConfig({
     environment: "node",
     include: ["src/**/*.test.ts"],
     passWithNoTests: false,
+    // Integration suites share one Postgres and some mutate schema/indexes
+    // (e.g. session dedupe). Parallel files race under Vitest 4's faster pool.
+    fileParallelism: false,
   },
 });
