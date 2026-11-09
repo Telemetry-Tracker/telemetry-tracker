@@ -226,6 +226,8 @@ model OrganizationInvite {
 /// Opaque server-side session (cookie value = id).
 model UserSession {
   id             String   @id @default(uuid())
+  /// Opaque id for list/revoke APIs — never the bearer/cookie secret (`id`).
+  public_id      String   @unique @default(uuid()) @map("public_id")
   user_id        String   @map("user_id")
   user           User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
   expires_at     DateTime @map("expires_at")
