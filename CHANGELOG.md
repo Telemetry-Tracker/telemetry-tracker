@@ -13,6 +13,17 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ---
 
+## [1.22.29] - 2026-11-09
+
+### Fixed
+
+- **API security headers** — responses now set `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Permissions-Policy` (camera/microphone/geolocation disabled), and `X-Permitted-Cross-Domain-Policies: none`. ([#934](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/934))
+- **Stripe webhook rate limiting** — `POST /webhooks/stripe` is IP rate-limited (default **3000**/min via `RATE_LIMIT_STRIPE_WEBHOOK_MAX`) so unsigned abuse is bounded without blocking legitimate Stripe bursts/retries. ([#934](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/934))
+
+No migrations. Optional env: `RATE_LIMIT_STRIPE_WEBHOOK_MAX`.
+
+---
+
 ## [1.22.28] - 2026-11-09
 
 ### Fixed
