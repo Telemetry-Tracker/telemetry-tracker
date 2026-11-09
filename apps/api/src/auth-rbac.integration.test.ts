@@ -581,14 +581,21 @@ describe.skipIf(!runDbIntegration)("Auth and RBAC (integration)", () => {
       }[];
     };
     expect(body.sessions.length).toBeGreaterThanOrEqual(2);
-    const current = body.sessions.find((s) => s.id === sessionB);
-    const other = body.sessions.find((s) => s.id === sessionA);
-    expect(current?.current).toBe(true);
+    // Listed ids are opaque public_ids — never the bearer/cookie secrets.
+    expect(body.sessions.some((s) => s.id === sessionA || s.id === sessionB)).toBe(false);
+    const current = body.sessions.find((s) => s.current);
+    const other = body.sessions.find((s) => !s.current && s.deviceBrowser === "Chrome");
     expect(current?.deviceBrowser).toBe("Safari");
     expect(current?.deviceOs).toBe("iOS");
     expect(other?.current).toBe(false);
-    expect(other?.deviceBrowser).toBe("Chrome");
     expect(other?.deviceOs).toBe("macOS");
+
+    const listedAsBearer = await app!.inject({
+      method: "GET",
+      url: "/api/auth/me",
+      headers: { authorization: `Bearer ${current!.id}` },
+    });
+    expect(listedAsBearer.statusCode).toBe(401);
   });
 
   it("DELETE /api/auth/sessions/:id revokes another session", async () => {
@@ -608,9 +615,29 @@ describe.skipIf(!runDbIntegration)("Auth and RBAC (integration)", () => {
     });
     const { sessionId: sessionB } = JSON.parse(loginB.body) as { sessionId: string };
 
-    const revoke = await app!.inject({
+    const list = await app!.inject({
+      method: "GET",
+      url: "/api/auth/sessions",
+      headers: { authorization: `Bearer ${sessionB}` },
+    });
+    expect(list.statusCode).toBe(200);
+    const listed = JSON.parse(list.body) as {
+      sessions: { id: string; current: boolean }[];
+    };
+    const publicIdA = listed.sessions.find((s) => !s.current)?.id;
+    expect(publicIdA).toBeTruthy();
+    expect(publicIdA).not.toBe(sessionA);
+
+    const revokeBySecret = await app!.inject({
       method: "DELETE",
       url: `/api/auth/sessions/${sessionA}`,
+      headers: { authorization: `Bearer ${sessionB}` },
+    });
+    expect(revokeBySecret.statusCode).toBe(404);
+
+    const revoke = await app!.inject({
+      method: "DELETE",
+      url: `/api/auth/sessions/${publicIdA}`,
       headers: { authorization: `Bearer ${sessionB}` },
     });
     expect(revoke.statusCode).toBe(204);
