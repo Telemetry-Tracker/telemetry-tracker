@@ -17,20 +17,22 @@ import { CLIENT_IP_FORWARD_HEADER, CLIENT_IP_FORWARD_SECRET_HEADER } from "../li
 const shouldRun = process.env.RUN_DB_INTEGRATION_TESTS === "true";
 const testSuite = shouldRun ? describe : describe.skip;
 
-const mockCustomersCreate = vi.fn(async () => ({ id: `cus_app_${Date.now()}`, metadata: {} }));
+const mockCustomersCreate = vi.fn(async () => ({ id: `cus_app_${Date.now()}_${Math.random().toString(36).slice(2)}`, metadata: {} }));
 
 vi.mock("stripe", () => {
-  const mockStripe = vi.fn().mockImplementation(() => ({
-    customers: {
-      create: (...args: unknown[]) => (mockCustomersCreate as (...a: unknown[]) => unknown)(...args),
-      retrieve: vi.fn(async (id: string) => ({ id, deleted: false, metadata: {} })),
-      update: vi.fn(async (id: string) => ({ id })),
-    },
-    webhooks: {
-      constructEvent: (payload: Buffer | string) =>
-        JSON.parse(typeof payload === "string" ? payload : payload.toString()),
-    },
-  }));
+  const mockStripe = vi.fn().mockImplementation(function MockStripe() {
+    return {
+      customers: {
+        create: (...args: unknown[]) => (mockCustomersCreate as (...a: unknown[]) => unknown)(...args),
+        retrieve: vi.fn(async (id: string) => ({ id, deleted: false, metadata: {} })),
+        update: vi.fn(async (id: string) => ({ id })),
+      },
+      webhooks: {
+        constructEvent: (payload: Buffer | string) =>
+          JSON.parse(typeof payload === "string" ? payload : payload.toString()),
+      },
+    };
+  });
   return { default: mockStripe };
 });
 
