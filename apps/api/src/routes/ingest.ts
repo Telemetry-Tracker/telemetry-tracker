@@ -10,6 +10,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "../lib/db.js";
 import { createIngestAuthPreHandler, requireIngestProjectId } from "../middleware/ingest-auth.js";
 import { assertIngestPlanOrReply } from "../lib/plan-enforcement.js";
+import { ensureProjectAppsSeenOnIngest } from "../lib/project-apps.js";
 import { addIngestUnits } from "../lib/usage-meter.js";
 import { notifyNewErrorGroupEmail } from "../lib/notification-email-dispatch.js";
 import { maybeNotifyErrorSpike } from "../lib/error-spike-alert.js";
@@ -178,6 +179,7 @@ export async function ingestRoutes(
       },
     });
     await recordFirstTelemetry(prisma, projectId);
+    void ensureProjectAppsSeenOnIngest(prisma, projectId, [app]).catch(() => {});
     await addIngestUnits(prisma, projectId, 1);
     void maybeNotifyQuotaAlerts(prisma, projectId).catch(() => {});
     return reply.status(204).send();
@@ -308,6 +310,7 @@ export async function ingestRoutes(
       await recordFirstTelemetry(prisma, projectId);
       await addIngestUnits(prisma, projectId, 1);
     }
+    void ensureProjectAppsSeenOnIngest(prisma, projectId, [app]).catch(() => {});
     void maybeNotifyQuotaAlerts(prisma, projectId).catch(() => {});
     return reply.status(204).send();
   });
@@ -345,6 +348,9 @@ export async function ingestRoutes(
       });
     }
     if (n > 0) await recordFirstTelemetry(prisma, projectId);
+    if (n > 0) {
+      void ensureProjectAppsSeenOnIngest(prisma, projectId, batchApps).catch(() => {});
+    }
     await addIngestUnits(prisma, projectId, n);
     void maybeNotifyQuotaAlerts(prisma, projectId).catch(() => {});
     return reply.status(204).send();
@@ -391,6 +397,7 @@ export async function ingestRoutes(
       },
     });
     await recordFirstTelemetry(prisma, projectId);
+    void ensureProjectAppsSeenOnIngest(prisma, projectId, [app]).catch(() => {});
     await addIngestUnits(prisma, projectId, 1);
     if (isNew) {
       void notifyNewErrorGroupEmail(prisma, projectId, errorGroup);
