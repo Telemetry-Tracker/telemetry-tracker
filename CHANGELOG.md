@@ -11,6 +11,10 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ## [Unreleased]
 
+### Fixed
+
+- **Connect application resume UX** — Overview “Connect application” resumes the selected app’s existing setup (name/framework preserved) instead of restarting create; empty states distinguish never-telemetry (“Finish setting up…”) from a quiet time window via `first_event_at`; Next.js SDK steps are install → env → init → verify with an expandable full example; verification auto-detects the first event with waiting/success/timeout/error and stops polling after leave.
+
 ---
 
 ## [1.22.32] - 2026-11-09

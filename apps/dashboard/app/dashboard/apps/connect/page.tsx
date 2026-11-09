@@ -64,10 +64,11 @@ async function load(): Promise<
 export default async function ConnectApplicationPage({
   searchParams,
 }: {
-  searchParams: Promise<{ app?: string }>;
+  searchParams: Promise<{ app?: string; view?: string }>;
 }) {
   const params = await searchParams;
   const resumeApp = typeof params.app === "string" ? params.app.trim() : null;
+  const viewOnly = params.view === "1" || params.view === "true";
   const loaded = await load();
 
   if (!loaded.ok) {
@@ -101,6 +102,7 @@ export default async function ConnectApplicationPage({
         initialApps={loaded.apps}
         initialKeys={loaded.keys}
         resumeApp={resumeApp}
+        viewOnly={viewOnly}
         canCreate
       />
     </>
