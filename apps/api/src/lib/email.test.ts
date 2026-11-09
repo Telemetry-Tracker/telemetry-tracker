@@ -50,6 +50,7 @@ describe("sendTransactionalEmail", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
     if (prevKey === undefined) delete process.env.RESEND_API_KEY;
     else process.env.RESEND_API_KEY = prevKey;
     if (prevFrom === undefined) delete process.env.TELEMETRY_EMAIL_FROM;
@@ -109,7 +110,6 @@ describe("sendTransactionalEmail", () => {
       "Subject",
       "<p>HelloWorld</p>"
     );
-    logSpy.mockRestore();
   });
 
   it("returns email_not_configured and warns once in production when Resend is missing", async () => {

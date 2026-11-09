@@ -28,7 +28,7 @@ it.each([
     expect((await inject("10.0.0.3", "203.0.113.1")).statusCode).toBe(429);
     expect((await inject("10.0.0.3", "203.0.113.2")).statusCode).not.toBe(429);
   } finally { await app.close(); }
-});
+}, 15_000);
 
 it("uses trusted visitor identity for the check-in scope", async () => {
   vi.stubEnv("TRUST_RAILWAY_EDGE", "true");

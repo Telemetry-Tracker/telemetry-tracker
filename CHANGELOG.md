@@ -13,6 +13,14 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ---
 
+## [1.22.31] - 2026-11-09
+
+### Fixed
+
+- **Dependabot Medium dependency patches** — upgrade Vitest / `@vitest/mocker` to 4.1.12 across the monorepo (path traversal + mock registration), and pin `minimatch@>=7` to ≥11.0.1 via pnpm overrides (globparts DoS). Node engines raised to `>=20` for Vitest 4. Remaining minimatch 3.x/5.x (eslint) are outside the vulnerable range. ([#TBD](https://github.com/Telemetry-Tracker/telemetry-tracker/pull/TBD))
+
+---
+
 ## [1.22.30] - 2026-11-09
 
 ### Fixed
