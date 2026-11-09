@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { createApp } from "./app.js";
+import { SECURITY_HEADERS } from "./lib/security-headers.js";
 
 describe("API smoke", () => {
   let app: FastifyInstance;
@@ -25,6 +26,17 @@ describe("API smoke", () => {
     expect(body.ok).toBe(true);
     expect(body.email).toMatch(/^(configured|not_configured)$/);
     expect(body.version).toBeTruthy();
+  });
+
+  it("sets security headers on /health and /api/auth/me", async () => {
+    const health = await app.inject({ method: "GET", url: "/health" });
+    const me = await app.inject({ method: "GET", url: "/api/auth/me" });
+    expect(me.statusCode).toBe(401);
+    for (const res of [health, me]) {
+      for (const [name, value] of Object.entries(SECURITY_HEADERS)) {
+        expect(res.headers[name], name).toBe(value);
+      }
+    }
   });
 
   it("POST /ingest/event without API key returns 401", async () => {
