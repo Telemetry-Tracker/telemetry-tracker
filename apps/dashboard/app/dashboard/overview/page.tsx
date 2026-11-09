@@ -20,6 +20,8 @@ import {
 import { IssueList, OverviewListItem } from "@/app/components/dashboard/IssueList";
 import { OverviewGreeting } from "@/app/components/dashboard/overview/OverviewGreeting";
 import { OverviewIngestSetupBanner } from "@/app/components/dashboard/overview/OverviewIngestSetupBanner";
+import type { ProjectAppDto } from "@/app/dashboard/actions";
+import { resolveOverviewSetupBanner } from "@/lib/connect-app-setup";
 import { OverviewApiResponseLogger } from "@/app/components/dashboard/overview/OverviewApiResponseLogger";
 import { OverviewScopeBanner } from "@/app/components/dashboard/overview/OverviewScopeBanner";
 import { OverviewScopeFilters } from "@/app/components/dashboard/overview/OverviewScopeFilters";
@@ -76,6 +78,17 @@ import {
 export const dynamic = "force-dynamic";
 
 const OVERVIEW_PATH = "/dashboard/overview";
+
+async function loadProjectAppsForSetupBanner(): Promise<ProjectAppDto[]> {
+  try {
+    const res = await dashboardApiFetch("/api/project/apps");
+    if (!res.ok) return [];
+    const data = (await res.json()) as { apps?: ProjectAppDto[] };
+    return data.apps ?? [];
+  } catch {
+    return [];
+  }
+}
 
 async function getOverview(
   parsedRange: ParsedTimeRange,
@@ -545,14 +558,29 @@ export default async function OverviewPage({
   if (platform) contextParts.push(`Platform: ${platform}`);
   if (release) contextParts.push(`Release: ${release}`);
 
+  const eventsCount = overviewData.eventsListTotal ?? 0;
+  const errorsCount = overviewData.errorsListTotal ?? 0;
+  const projectAppsForBanner: ProjectAppDto[] =
+    eventsCount === 0 && errorsCount === 0 && effectiveProjectId
+      ? await loadProjectAppsForSetupBanner()
+      : [];
+  const setupBanner = resolveOverviewSetupBanner({
+    eventsCount,
+    errorsCount,
+    selectedApp: app,
+    projectApps: projectAppsForBanner,
+  });
+
   return (
     <>
       <OverviewApiResponseLogger data={overviewData} />
       <OverviewIngestSetupBanner
         rangeKey={parsedRange.key}
         rangeLabel={displayRangeLabel}
-        eventsCount={overviewData.eventsListTotal ?? 0}
-        errorsCount={overviewData.errorsListTotal ?? 0}
+        eventsCount={eventsCount}
+        errorsCount={errorsCount}
+        mode={setupBanner.mode}
+        appName={setupBanner.appName}
       />
       <OverviewGreeting
         user={user}
