@@ -20,11 +20,18 @@ type KeysResponse = {
   }[];
 };
 
+type ConnectKeyRow = {
+  publicId: string;
+  name: string | null;
+  allowedApp: string | null;
+  revokedAt: string | null;
+};
+
 async function load(): Promise<
   | {
       ok: true;
       apps: ProjectAppDto[];
-      keys: KeysResponse["keys"];
+      keys: ConnectKeyRow[];
     }
   | { ok: false; message: string }
 > {
