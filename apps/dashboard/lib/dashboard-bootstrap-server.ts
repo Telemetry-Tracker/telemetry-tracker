@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { coalesceApiRequest } from "@/lib/api-inflight";
 import { dashboardApiFetchFromCookies } from "@/lib/dashboard-api";
+import { bootstrapDebugDetail } from "@/lib/dashboard-bootstrap-debug";
 import { dashboardDebug } from "@/lib/dashboard-debug";
 import type { DashboardUser } from "@/lib/dashboard-user";
 import { toDashboardAvatarUrl } from "@/lib/avatar-url";
@@ -100,18 +101,33 @@ async function loadDashboardBootstrapFromApi(): Promise<DashboardBootstrapData |
   return { organizations, projects, navScope, user };
 }
 
-async function bootstrapInflightKey(): Promise<string> {
+async function bootstrapInflightParts(): Promise<{
+  key: string;
+  hasSession: boolean;
+  hasProject: boolean;
+  hasOrg: boolean;
+}> {
   const [sessionId, projectId, orgId] = await Promise.all([
     getDashboardSessionId(),
     getDashboardProjectCookie(),
     getDashboardOrganizationId(),
   ]);
-  return `bootstrap:${sessionId ?? ""}:${projectId ?? ""}:${orgId ?? ""}`;
+  return {
+    // Full session id stays in the in-memory coalesce key only — never logged.
+    key: `bootstrap:${sessionId ?? ""}:${projectId ?? ""}:${orgId ?? ""}`,
+    hasSession: Boolean(sessionId),
+    hasProject: Boolean(projectId),
+    hasOrg: Boolean(orgId),
+  };
 }
 
 /** One HTTP round trip for workspace, nav scope, user, and session context. */
 export const fetchDashboardBootstrap = cache(async function fetchDashboardBootstrap(): Promise<DashboardBootstrapData | null> {
-  const key = await bootstrapInflightKey();
-  dashboardDebug("bootstrap", "cache miss / coalesce", { key });
+  const { key, hasSession, hasProject, hasOrg } = await bootstrapInflightParts();
+  dashboardDebug(
+    "bootstrap",
+    "cache miss / coalesce",
+    bootstrapDebugDetail({ hasSession, hasProject, hasOrg })
+  );
   return coalesceApiRequest(key, loadDashboardBootstrapFromApi);
 });
