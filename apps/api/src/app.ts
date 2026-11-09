@@ -9,6 +9,7 @@ import { prisma } from "./lib/db.js";
 import { buildHealthResponse } from "./lib/health.js";
 import { resolveCorsOptionsForRequest } from "./lib/cors-config.js";
 import { genReqId, registerObservabilityHooks } from "./lib/observability.js";
+import { registerSecurityHeaders } from "./lib/security-headers.js";
 import {
   rateLimitMaxApi,
   rateLimitMaxAuth,
@@ -55,6 +56,7 @@ export async function createApp(): Promise<FastifyInstance> {
 
   registerObservabilityHooks(app);
   registerIpDiagnostics(app);
+  registerSecurityHeaders(app);
   // Dedicated read credentials never fall through to legacy unauthenticated reads.
   app.addHook("onRequest", async (request, reply) => {
     if (/^Bearer\s+tt_read_/i.test(request.headers.authorization ?? "") && request.url.split("?")[0] !== "/mcp") {
@@ -68,7 +70,7 @@ export async function createApp(): Promise<FastifyInstance> {
 
   await app.register(cors, { delegator: corsDelegator });
 
-  await registerStripeWebhookIfConfigured(app);
+  await registerStripeWebhookIfConfigured(app, { isTest });
   await app.register(async function mcpScope(f) {
     await f.register(rateLimit, {
       max: rateLimitMaxMcp(isTest),
