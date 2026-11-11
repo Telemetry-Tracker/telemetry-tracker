@@ -11,6 +11,10 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ## [Unreleased]
 
+### Changed
+
+- **Sentry alternative page** (/sentry-alternative): new “Sentry alternative for React apps” section — what `@telemetry-tracker/core` captures automatically, reporting error-boundary-caught errors (React 19 `onCaughtError`, React 18 `componentDidCatch`), Vite source maps, and what is not included (replay, distributed tracing, Sentry SDK compatibility); meta description mentions React apps. ([#952](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/952))
+
 ---
 
 ## [1.22.33] - 2026-11-09
