@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CodeBlock } from "@/app/components/docs/CodeBlock";
 import { GuideCta } from "@/app/components/marketing/guides/GuideCta";
 import { GuideJsonLd } from "@/app/components/marketing/guides/GuideJsonLd";
 import { GuideRelatedLinks } from "@/app/components/marketing/guides/GuideRelatedLinks";
@@ -13,7 +14,28 @@ import { marketingSiteOrigin } from "@/lib/marketing-json-ld";
 const PATH = "/sentry-alternative";
 const TITLE = "Open Source Sentry Alternative";
 const DESCRIPTION =
-  "Open-source Sentry alternative for side projects: grouped errors, events, and sessions. Compare privacy and data collection defaults, migrate from Sentry, or self-host the MIT stack.";
+  "Open-source Sentry alternative for side projects and React apps: grouped errors, events, and sessions. Compare privacy defaults, migrate from Sentry, or self-host the MIT stack.";
+
+const REACT_ROOT_SNIPPET = `import { createRoot } from "react-dom/client";
+import { init, trackError } from "@telemetry-tracker/core";
+import App from "./App";
+
+init({
+  ingestUrl: "https://api.telemetry-tracker.com",
+  app: "my-react-app",
+  apiKey: "tt_live_<publicId>_<secret>",
+});
+
+// React 19: errors caught by an error boundary are only logged to the console by default.
+const root = createRoot(document.getElementById("root")!, {
+  onCaughtError: (error, errorInfo) => {
+    trackError(error, {
+      source: "react.onCaughtError",
+      componentStack: errorInfo.componentStack,
+    });
+  },
+});
+root.render(<App />);`;
 
 export function generateMetadata() {
   return marketingGuideMetadata({
@@ -198,6 +220,50 @@ export default function SentryAlternativePage() {
             </Link>
           </li>
         </ul>
+
+        <h2 id="react">Sentry alternative for React apps</h2>
+        <p>
+          React single-page apps (Vite, Create React App and similar) use{" "}
+          <code>@telemetry-tracker/core</code>. After <code>init()</code> it reports uncaught errors
+          through <code>window.onerror</code>, unhandled promise rejections, and Web Vitals. React 19
+          passes render errors that no error boundary catches to the browser&rsquo;s{" "}
+          <code>reportError</code>, so they reach the same global handler.
+        </p>
+        <p>
+          Errors that an error boundary catches are different: in production builds React handles
+          them and does not rethrow them to <code>window</code>, so no global handler sees them.
+          Report them yourself.
+          On React 19, pass <code>onCaughtError</code> to <code>createRoot</code>. On React 18, call{" "}
+          <code>trackError(error, &#123; componentStack: info.componentStack &#125;)</code> in your
+          boundary&rsquo;s <code>componentDidCatch</code>.
+        </p>
+        <CodeBlock code={REACT_ROOT_SNIPPET} lang="tsx" caption="React 19: report boundary-caught errors" />
+        <ul>
+          <li>
+            <strong>Readable stacks:</strong> upload the source maps from your Vite build with the
+            same <code>release</code> string you pass to the SDK. See{" "}
+            <Link href="/docs/source-maps" className="text-brand hover:underline">
+              source maps
+            </Link>
+            .
+          </li>
+          <li>
+            <strong>Component stack:</strong> there is no dedicated component-stack field yet, so send
+            it as error context as shown above. Context strings are truncated at 16 KB at ingest.
+          </li>
+          <li>
+            <strong>What you do not get:</strong> session replay, distributed tracing, or Sentry SDK
+            compatibility. You replace <code>@sentry/react</code> with the core SDK instead of changing
+            a DSN.
+          </li>
+        </ul>
+        <p>
+          Full setup, including <code>identify</code> and a test error:{" "}
+          <Link href="/error-tracking/react" className="text-brand hover:underline">
+            React error tracking
+          </Link>
+          .
+        </p>
 
         <h2>Hosted free plan vs running it yourself</h2>
         <p>
