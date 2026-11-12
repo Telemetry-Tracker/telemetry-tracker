@@ -11,6 +11,10 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ## [Unreleased]
 
+---
+
+## [1.22.35] - 2026-11-12
+
 ### Changed
 
 - **React error tracking guide** (/error-tracking/react): new sections on which React errors `@telemetry-tracker/core` reports automatically (coverage table), reporting error-boundary-caught errors (React 19 `createRoot` `onCaughtError`, React 18 `componentDidCatch`, `react-error-boundary` `onError`), Vite source maps with `@telemetry-tracker/vite-plugin`, limits, and a 5-question FAQ with FAQPage JSON-LD; new title and meta description. ([#956](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/956))
