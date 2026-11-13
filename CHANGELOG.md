@@ -11,6 +11,10 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ## [Unreleased]
 
+### Changed
+
+- **Next.js error tracking guide** (/error-tracking/nextjs): setup now initializes the SDK in `instrumentation-client.ts` (Next.js 15.3+) with `TelemetryProvider` as the fallback for older versions and its 1.3.3 limitation stated (#932); new coverage table of which Next.js errors are reported; reporting errors caught by `error.tsx` and `global-error.tsx` (digest split with `onRequestError`); 5-question FAQ with FAQPage JSON-LD; updated HowTo steps, title and meta description. ([#960](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/960))
+
 ---
 
 ## [1.22.35] - 2026-11-12
