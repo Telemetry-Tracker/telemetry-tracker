@@ -37,6 +37,11 @@ const FAQ = [
       "That is React's production wording for the same Server Components sentence. react.dev/errors/441 decodes it.",
   },
   {
+    question: "Why does the same error have a different digest?",
+    answer:
+      "The digest is a hash of the error message and stack. The same code throwing the same message gives the same digest, even after a rebuild. A message with a user id or other dynamic value, or a deploy that changed the throwing file, gives a new digest. Search the logs of the deploy the user was on.",
+  },
+  {
     question: "Does this work with the Pages Router?",
     answer:
       "onRequestError receives Pages Router errors too. This guide only covers App Router behavior.",
@@ -239,13 +244,13 @@ export default function ServerComponentsRenderErrorPage() {
       <MarketingGuideLayout
         kicker="Error tracking"
         title={H1}
-        updated="2026-10"
+        updated="2026-11"
         lede={
           <p>
             In production, Next.js shows &quot;Minified React error #441&quot; (&quot;An error
             occurred in the Server Components render&quot;) and only a digest. The real message
-            stayed on the server. Here&apos;s how to find it. This page is how to read that digest, get the message and line, and stop the
-            next one arriving as a screenshot. Setup for the browser SDK is on the{" "}
+            stayed on the server. This page is how to read that digest, get the message and line,
+            and stop the next one arriving as a screenshot. Setup for the browser SDK is on the{" "}
             <Link href="/error-tracking/nextjs" className="text-brand hover:underline">
               Next.js error tracking guide
             </Link>
@@ -385,6 +390,34 @@ export default function ServerComponentsRenderErrorPage() {
           </table>
         </div>
 
+        <h2>Why the digest does not match your logs</h2>
+        <p>
+          A numeric digest is a hash of the error message plus its stack (
+          <code>stringHash(err.message + err.stack)</code> in Next.js{" "}
+          <code>create-error-handler</code>). Tested on Next.js 16.4.6 with{" "}
+          <code>next build &amp;&amp; next start</code>:
+        </p>
+        <ul>
+          <li>
+            The same code throwing the same message gave the same digest on every request, and again
+            after a clean rebuild.
+          </li>
+          <li>
+            Editing the file that throws moved the stack position, and the digest changed. A
+            digest from before a deploy will not appear in the new deploy&apos;s logs.
+          </li>
+          <li>
+            <code>Profile query failed for user 1</code> and{" "}
+            <code>Profile query failed for user 2</code> got different digests. Values in the
+            message give one digest per value.
+          </li>
+        </ul>
+        <p>
+          If a digest from a user finds nothing, search the logs from the deploy and time they
+          reported, then search by route or message text. An error tracker that stores the digest
+          with the real message (Step 2) avoids the guesswork.
+        </p>
+
         <h2>The usual suspects</h2>
         <div className="not-prose overflow-x-auto rounded-xl border border-border">
           <table className="w-full min-w-[40rem] text-left text-sm">
@@ -454,16 +487,38 @@ export default function ServerComponentsRenderErrorPage() {
                   <code>window is not defined</code> or <code>document is not defined</code>
                 </td>
                 <td className="px-4 py-3 align-top">
-                  Move it behind <code>&quot;use client&quot;</code> or{" "}
-                  <code>dynamic(…, {"{ ssr: false }"})</code>.
+                  Move it into a Client Component (<code>&quot;use client&quot;</code>) and touch{" "}
+                  <code>window</code> only in <code>useEffect</code> or an event handler, or load it
+                  with <code>dynamic(…, {"{ ssr: false }"})</code> from a Client Component. Next.js
+                  does not allow <code>ssr: false</code> in Server Components.
                 </td>
               </tr>
               <tr>
-                <td className="px-4 py-3 align-top">Missing server env vars or secrets</td>
-                <td className="px-4 py-3 align-top">The message usually names the undefined value.</td>
                 <td className="px-4 py-3 align-top">
-                  Set the variable in the production environment. This one shows up in reports; it
-                  was not reproduced for this page.
+                  A server env var or secret missing in production, for example{" "}
+                  <code>new URL(process.env.API_URL)</code>
+                </td>
+                <td className="px-4 py-3 align-top">
+                  <code>TypeError: Invalid URL</code> with <code>code: &apos;ERR_INVALID_URL&apos;</code>{" "}
+                  and <code>input: &apos;undefined&apos;</code>. Other clients fail with their own
+                  message about the missing value.
+                </td>
+                <td className="px-4 py-3 align-top">
+                  Set the variable where the production server runs, not only in{" "}
+                  <code>.env.local</code>. Check required variables at startup so a missing one fails
+                  loudly.
+                </td>
+              </tr>
+              <tr>
+                <td className="px-4 py-3 align-top">
+                  Code assumes a record exists (empty query, deleted row, missing param)
+                </td>
+                <td className="px-4 py-3 align-top">
+                  <code>TypeError: Cannot read properties of undefined (reading &apos;name&apos;)</code>
+                </td>
+                <td className="px-4 py-3 align-top">
+                  Check the result before using it. Call <code>notFound()</code> for a missing
+                  record instead of letting the render throw.
                 </td>
               </tr>
             </tbody>
