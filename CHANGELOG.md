@@ -11,6 +11,10 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ## [Unreleased]
 
+### Changed
+
+- **Next.js Server Components render error guide** (/error-tracking/nextjs/server-components-render-error): new section on why a digest does not match your logs (digest = hash of message + stack; tested on Next.js 16.4.6), reproduced missing-env-var and missing-record causes in the usual-suspects table, corrected the `window is not defined` fix (`ssr: false` only from a Client Component), new FAQ on changing digests (FAQPage JSON-LD), tidier intro. ([#964](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/964))
+
 ---
 
 ## [1.22.36] - 2026-11-13
