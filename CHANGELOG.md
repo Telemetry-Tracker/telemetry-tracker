@@ -11,6 +11,10 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ## [Unreleased]
 
+### Changed
+
+- **Self-hosted error tracking page** (/self-hosted-error-tracking): air-gapped and data-residency checklist of what connects out (checked against the source), offline install with `docker save` / `docker load` and `docker compose up --no-build`, limits (Resend email, HTTPS-only webhooks with SSRF guard, background jobs), short comparison with Sentry self-hosted, 4-question FAQ (FAQPage JSON-LD), new title and meta description. ([#971](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/971))
+
 ---
 
 ## [1.22.37] - 2026-11-16
