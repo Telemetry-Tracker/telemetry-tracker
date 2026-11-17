@@ -125,8 +125,9 @@ export default function SelfHostedErrorTrackingPage() {
 
         <h2>Air-gapped and data-residency checklist</h2>
         <p>
-          Checked against the v1.22 source. Nothing below phones home on its own; each outbound
-          connection exists only if you configure it.
+          Checked against the v1.22 source. At runtime the stack does not phone home: each outbound
+          connection below exists only if you configure it. Plan for two exceptions: the source-map
+          plugin&apos;s default upload target and the image build.
         </p>
         <div className="not-prose overflow-x-auto rounded-xl border border-border">
           <table className="w-full min-w-[36rem] text-left text-sm">

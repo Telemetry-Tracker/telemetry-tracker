@@ -11,6 +11,10 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ## [Unreleased]
 
+### Fixed
+
+- **Self-hosted error tracking page**: the air-gapped checklist intro now names its two exceptions (source-map plugin default upload target, image build) instead of saying nothing connects out. ([#971](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/971))
+
 ---
 
 ## [1.22.38] - 2026-11-17
