@@ -13,6 +13,14 @@ Contributors: add user-facing changes under **[Unreleased]** in your PR to `deve
 
 ---
 
+## [1.22.40] - 2026-11-20
+
+### Changed
+
+- **React Native error tracking page** (/error-tracking/react-native): table of which errors SDK 1.3.x reports on its own and which you add (error boundaries, unhandled promise rejections, native crashes), error-boundary and async `trackError` examples, fatal/offline delivery behaviour, Hermes source-map pointer, 6-question FAQ (FAQPage JSON-LD), new title and meta description. Checked against the SDK source and the published npm packages. ([#978](https://github.com/Telemetry-Tracker/telemetry-tracker/issues/978))
+
+---
+
 ## [1.22.39] - 2026-11-17
 
 ### Fixed
